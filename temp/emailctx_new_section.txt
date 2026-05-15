@@ -1,0 +1,79 @@
+/* ------------------------------------------------------------------ */
+/*  AI reply generator                                                 */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Generate an AI reply draft for a given mail.
+ * Tone and knowledge-base retrieval are decided automatically by the LLM.
+ */
+async function generateReplyDraft(
+  mail: MailItem,
+  callbacks: { onDelta: (text: string) => void; onComplete: (text: string) => void; onError: (msg: string) => void },
+  signal?: AbortSignal,
+): Promise<void> {
+  const perspective = resolveReplyPerspective(mail)
+  const prompt = `你是一个专业的邮件回复专家。请站在当前邮件收件人的视角，根据以下收到的邮件内容，撰写一封得体的回复邮件。
+
+要求：
+1. 直接输出回复正文，不要输出主题行
+2. 你当前代表收件人"${perspective.responderName}（${perspective.responderAddress}）"回信给发件人"${perspective.counterpartyName}（${perspective.counterpartyAddress}）"
+3. 称呼对方的名字
+4. 回复要专业、礼貌、简洁
+5. 针对邮件中提到的具体事项做出回应
+6. 使用中文
+7. 末尾署名为"${perspective.responderName}"
+8. 不要编造没有依据的信息，如涉及需要确认的事项请说明"待进一步确认"
+9. 请根据对方身份和邮件内容自动选择合适的语气（正式、简洁或友好）
+
+收到的邮件：
+发件人：${perspective.counterpartyName}（${perspective.counterpartyAddress}）
+收件人：${perspective.responderName}（${perspective.responderAddress}）
+主题：${mail.subject}
+正文：
+${mail.body}`
+
+  let useLocalFallback = false
+  try {
+    let completedText = ''
+    await runWritingAssistant(
+      { instruction: prompt, language: 'zh' },
+      {
+        onDelta: (_delta, acc) => { callbacks.onDelta(acc) },
+        onComplete: ({ text }) => { completedText = text.trim() },
+        onError: (err) => {
+          console.warn('[EmailContext] LLM generation failed, using local fallback:', err)
+          useLocalFallback = true
+        },
+      },
+      signal,
+    )
+    if (!useLocalFallback && completedText) {
+      callbacks.onComplete(completedText)
+      return
+    }
+    useLocalFallback = true
+  } catch {
+    useLocalFallback = true
+  }
+
+  if (useLocalFallback) {
+    const fallbackReply = `${perspective.counterpartyName}您好：\n\n感谢您的来信。关于"${mail.subject}"，我已仔细阅读了您的邮件内容，会尽快处理相关事宜。\n\n如有需要进一步讨论的问题，请随时与我联系。\n\n祝好！\n${perspective.responderName}`
+    await new Promise<void>((resolve) => {
+      let i = 0
+      const step = () => {
+        if (signal?.aborted) { callbacks.onError('已取消'); resolve(); return }
+        i += Math.floor(Math.random() * 6) + 4
+        if (i >= fallbackReply.length) {
+          callbacks.onDelta(fallbackReply)
+          callbacks.onComplete(fallbackReply)
+          resolve()
+        } else {
+          callbacks.onDelta(fallbackReply.slice(0, i))
+          setTimeout(step, 25)
+        }
+      }
+      setTimeout(step, 300)
+    })
+  }
+}
+

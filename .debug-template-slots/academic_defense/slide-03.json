@@ -1,0 +1,154 @@
+{
+  "templateId": "academic_defense",
+  "slideIndex": 3,
+  "shapeCount": 8,
+  "shapes": [
+    {
+      "shapeId": "83",
+      "shapeName": "任意多边形: 形状 82",
+      "text": "",
+      "position": {
+        "x": 1618,
+        "y": 0,
+        "w": 12190382,
+        "h": 2021756,
+        "xCm": "0.0cm",
+        "yCm": "0.0cm",
+        "wCm": "33.9cm",
+        "hCm": "5.6cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "9",
+      "shapeName": "缺角矩形 8",
+      "text": "",
+      "position": {
+        "x": 264707,
+        "y": 241499,
+        "w": 11691611,
+        "h": 6400400,
+        "xCm": "0.7cm",
+        "yCm": "0.7cm",
+        "wCm": "32.5cm",
+        "hCm": "17.8cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "2",
+      "shapeName": "文本框 1",
+      "text": "01",
+      "position": {
+        "x": 5373691,
+        "y": 571981,
+        "w": 1444627,
+        "h": 1323439,
+        "xCm": "14.9cm",
+        "yCm": "1.6cm",
+        "wCm": "4.0cm",
+        "hCm": "3.7cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false,
+      "fontSize": 80
+    },
+    {
+      "shapeId": "25",
+      "shapeName": "缺角矩形 24",
+      "text": "",
+      "position": {
+        "x": 2344154,
+        "y": 2890490,
+        "w": 3149648,
+        "h": 538510,
+        "xCm": "6.5cm",
+        "yCm": "8.0cm",
+        "wCm": "8.7cm",
+        "hCm": "1.5cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "28",
+      "shapeName": "缺角矩形 27",
+      "text": "",
+      "position": {
+        "x": 2550948,
+        "y": 2890490,
+        "w": 675904,
+        "h": 538510,
+        "xCm": "7.1cm",
+        "yCm": "8.0cm",
+        "wCm": "1.9cm",
+        "hCm": "1.5cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "26",
+      "shapeName": "文本框 25",
+      "text": "01",
+      "position": {
+        "x": 2607412,
+        "y": 2928912,
+        "w": 562976,
+        "h": 461665,
+        "xCm": "7.2cm",
+        "yCm": "8.1cm",
+        "wCm": "1.6cm",
+        "hCm": "1.3cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false,
+      "fontSize": 24
+    },
+    {
+      "shapeId": "27",
+      "shapeName": "文本框 26",
+      "text": "添加标题文本",
+      "position": {
+        "x": 3350582,
+        "y": 2987398,
+        "w": 1760251,
+        "h": 369332,
+        "xCm": "9.3cm",
+        "yCm": "8.3cm",
+        "wCm": "4.9cm",
+        "hCm": "1.0cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "3",
+      "shapeName": "文本框 2",
+      "text": "此处添加详细文本描述，建议与标题相关并符合整体语言风格，语言描述尽量简洁生动。尽量将每页幻灯片的字数控制在200字以内，据统计每页幻灯片的最好控制在5分钟之内。此处添加详细文本描述，建议与标题相关并符合整体语言风格，语言描述尽量简洁生动。",
+      "position": {
+        "x": 2902567,
+        "y": 3713872,
+        "w": 6386866,
+        "h": 897425,
+        "xCm": "8.1cm",
+        "yCm": "10.3cm",
+        "wCm": "17.7cm",
+        "hCm": "2.5cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false,
+      "fontSize": 12
+    }
+  ]
+}

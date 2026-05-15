@@ -1,0 +1,898 @@
+{
+  "American Journal of Human Genetics": {
+    "id": "https://openalex.org/S134425043",
+    "categories": [
+      "Biological sciences"
+    ]
+  },
+  "Cancer Cell": {
+    "id": "https://openalex.org/S25671836",
+    "categories": [
+      "Biological sciences"
+    ]
+  },
+  "Cancer Research": {
+    "id": "https://openalex.org/S168522863",
+    "categories": [
+      "Biological sciences"
+    ]
+  },
+  "Cell": {
+    "id": "https://openalex.org/S110447773",
+    "categories": [
+      "Biological sciences"
+    ]
+  },
+  "Cell Host & Microbe": {
+    "id": "https://openalex.org/S207313999",
+    "categories": [
+      "Biological sciences"
+    ]
+  },
+  "Cell Metabolism": {
+    "id": "https://openalex.org/S177533077",
+    "categories": [
+      "Biological sciences"
+    ]
+  },
+  "Cell Stem Cell": {
+    "id": "https://openalex.org/S128124174",
+    "categories": [
+      "Biological sciences"
+    ]
+  },
+  "Current Biology": {
+    "id": "https://openalex.org/S128425624",
+    "categories": [
+      "Biological sciences"
+    ]
+  },
+  "Developmental Cell": {
+    "id": "https://openalex.org/S83804233",
+    "categories": [
+      "Biological sciences"
+    ]
+  },
+  "Ecology Letters": {
+    "id": "https://openalex.org/S80967739",
+    "categories": [
+      "Biological sciences",
+      "Earth & environmental sciences"
+    ]
+  },
+  "Genes & Development": {
+    "id": "https://openalex.org/S168778273",
+    "categories": [
+      "Biological sciences"
+    ]
+  },
+  "Genome Research": {
+    "id": "https://openalex.org/S43092948",
+    "categories": [
+      "Biological sciences"
+    ]
+  },
+  "Immunity": {
+    "id": "https://openalex.org/S199671312",
+    "categories": [
+      "Biological sciences"
+    ]
+  },
+  "Journal of Biological Chemistry": {
+    "id": "https://openalex.org/S140251998",
+    "categories": [
+      "Biological sciences"
+    ]
+  },
+  "Journal of Cell Biology": {
+    "id": "https://openalex.org/S96410829",
+    "categories": [
+      "Biological sciences"
+    ]
+  },
+  "Journal of Clinical Investigation": {
+    "id": "https://openalex.org/S114430552",
+    "categories": [
+      "Biological sciences"
+    ]
+  },
+  "Journal of Experimental Medicine": {
+    "id": "https://openalex.org/S22947807",
+    "categories": [
+      "Biological sciences"
+    ]
+  },
+  "Journal of Neuroscience": {
+    "id": "https://openalex.org/S5555990",
+    "categories": [
+      "Biological sciences"
+    ]
+  },
+  "Molecular Cell": {
+    "id": "https://openalex.org/S156208185",
+    "categories": [
+      "Biological sciences"
+    ]
+  },
+  "Molecular Psychiatry": {
+    "id": "https://openalex.org/S71149355",
+    "categories": [
+      "Biological sciences"
+    ]
+  },
+  "Nature": {
+    "id": "https://openalex.org/S137773608",
+    "categories": [
+      "Biological sciences",
+      "Chemistry",
+      "Earth & environmental sciences",
+      "Health sciences",
+      "Physical sciences"
+    ]
+  },
+  "Nature Biotechnology": {
+    "id": "https://openalex.org/S106963461",
+    "categories": [
+      "Biological sciences"
+    ]
+  },
+  "Nature Cell Biology": {
+    "id": "https://openalex.org/S151741590",
+    "categories": [
+      "Biological sciences"
+    ]
+  },
+  "Nature Chemical Biology": {
+    "id": "https://openalex.org/S51309854",
+    "categories": [
+      "Biological sciences",
+      "Chemistry"
+    ]
+  },
+  "Nature Communications": {
+    "id": "https://openalex.org/S64187185",
+    "categories": [
+      "Biological sciences",
+      "Chemistry",
+      "Earth & environmental sciences",
+      "Health sciences",
+      "Physical sciences"
+    ]
+  },
+  "Nature Genetics": {
+    "id": "https://openalex.org/S137905309",
+    "categories": [
+      "Biological sciences"
+    ]
+  },
+  "Nature Immunology": {
+    "id": "https://openalex.org/S41063453",
+    "categories": [
+      "Biological sciences"
+    ]
+  },
+  "Nature Methods": {
+    "id": "https://openalex.org/S127827428",
+    "categories": [
+      "Biological sciences"
+    ]
+  },
+  "Nature Neuroscience": {
+    "id": "https://openalex.org/S2298632",
+    "categories": [
+      "Biological sciences"
+    ]
+  },
+  "Nature Structural & Molecular Biology": {
+    "id": "https://openalex.org/S139253143",
+    "categories": [
+      "Biological sciences"
+    ]
+  },
+  "Neuron": {
+    "id": "https://openalex.org/S45757444",
+    "categories": [
+      "Biological sciences"
+    ]
+  },
+  "PLOS Biology": {
+    "id": "https://openalex.org/S154343897",
+    "categories": [
+      "Biological sciences"
+    ]
+  },
+  "PLOS Genetics": {
+    "id": "https://openalex.org/S103870658",
+    "categories": [
+      "Biological sciences"
+    ]
+  },
+  "Proceedings of the National Academy of Sciences of the United States of America": {
+    "id": "https://openalex.org/S125754415",
+    "categories": [
+      "Biological sciences",
+      "Chemistry",
+      "Earth & environmental sciences",
+      "Health sciences",
+      "Physical sciences"
+    ]
+  },
+  "Proceedings of the Royal Society B": {
+    "id": "https://openalex.org/S3006207977",
+    "categories": [
+      "Biological sciences"
+    ]
+  },
+  "Science": {
+    "id": "https://openalex.org/S3880285",
+    "categories": [
+      "Biological sciences",
+      "Chemistry",
+      "Earth & environmental sciences",
+      "Health sciences",
+      "Physical sciences"
+    ]
+  },
+  "Science Advances": {
+    "id": "https://openalex.org/S2737427234",
+    "categories": [
+      "Biological sciences",
+      "Chemistry",
+      "Earth & environmental sciences",
+      "Health sciences",
+      "Physical sciences"
+    ]
+  },
+  "Science Translational Medicine": {
+    "id": "https://openalex.org/S24207032",
+    "categories": [
+      "Biological sciences"
+    ]
+  },
+  "The EMBO Journal": {
+    "id": "https://openalex.org/S127916151",
+    "categories": [
+      "Biological sciences"
+    ]
+  },
+  "The ISME Journal: Multidisciplinary Journal of Microbial Ecology": {
+    "id": "https://openalex.org/S149218730",
+    "categories": [
+      "Biological sciences"
+    ]
+  },
+  "The Plant Cell": {
+    "id": "https://openalex.org/S48849333",
+    "categories": [
+      "Biological sciences"
+    ]
+  },
+  "Advanced Materials": {
+    "id": "https://openalex.org/S99352657",
+    "categories": [
+      "Chemistry",
+      "Physical sciences"
+    ]
+  },
+  "Analytical Chemistry": {
+    "id": "https://openalex.org/S191963794",
+    "categories": [
+      "Chemistry"
+    ]
+  },
+  "Angewandte Chemie International Edition": {
+    "id": "https://openalex.org/S67393510",
+    "categories": [
+      "Chemistry"
+    ]
+  },
+  "Chemical Communications": {
+    "id": "https://openalex.org/S152760256",
+    "categories": [
+      "Chemistry"
+    ]
+  },
+  "Chemical Science": {
+    "id": "https://openalex.org/S184645833",
+    "categories": [
+      "Chemistry"
+    ]
+  },
+  "Inorganic Chemistry": {
+    "id": "https://openalex.org/S171072222",
+    "categories": [
+      "Chemistry"
+    ]
+  },
+  "Journal of the American Chemical Society": {
+    "id": "https://openalex.org/S111155417",
+    "categories": [
+      "Chemistry"
+    ]
+  },
+  "Macromolecules": {
+    "id": "https://openalex.org/S177196338",
+    "categories": [
+      "Chemistry"
+    ]
+  },
+  "Nano Letters": {
+    "id": "https://openalex.org/S143846845",
+    "categories": [
+      "Chemistry",
+      "Physical sciences"
+    ]
+  },
+  "Nature Chemistry": {
+    "id": "https://openalex.org/S202193212",
+    "categories": [
+      "Chemistry"
+    ]
+  },
+  "Nature Materials": {
+    "id": "https://openalex.org/S103895331",
+    "categories": [
+      "Chemistry",
+      "Physical sciences"
+    ]
+  },
+  "Nature Nanotechnology": {
+    "id": "https://openalex.org/S7822423",
+    "categories": [
+      "Chemistry",
+      "Physical sciences"
+    ]
+  },
+  "Organic Letters": {
+    "id": "https://openalex.org/S201989124",
+    "categories": [
+      "Chemistry"
+    ]
+  },
+  "The Journal of Physical Chemistry Letters": {
+    "id": "https://openalex.org/S123480357",
+    "categories": [
+      "Chemistry"
+    ]
+  },
+  "Earth and Planetary Science Letters": {
+    "id": "https://openalex.org/S119230507",
+    "categories": [
+      "Earth & environmental sciences"
+    ]
+  },
+  "Environmental Science and Technology": {
+    "id": "https://openalex.org/S207935976",
+    "categories": [
+      "Earth & environmental sciences"
+    ]
+  },
+  "Geochimica et Cosmochimica Acta": {
+    "id": "https://openalex.org/S7538555",
+    "categories": [
+      "Earth & environmental sciences"
+    ]
+  },
+  "Geology": {
+    "id": "https://openalex.org/S56162041",
+    "categories": [
+      "Earth & environmental sciences"
+    ]
+  },
+  "Geophysical Research Letters": {
+    "id": "https://openalex.org/S36624081",
+    "categories": [
+      "Earth & environmental sciences"
+    ]
+  },
+  "Journal of Geophysical Research: Atmospheres": {
+    "id": "https://openalex.org/S207178839",
+    "categories": [
+      "Earth & environmental sciences"
+    ]
+  },
+  "Journal of Geophysical Research: Solid Earth": {
+    "id": "https://openalex.org/S4210228715",
+    "categories": [
+      "Earth & environmental sciences"
+    ]
+  },
+  "Nature Climate Change": {
+    "id": "https://openalex.org/S183584863",
+    "categories": [
+      "Earth & environmental sciences"
+    ]
+  },
+  "Nature Geoscience": {
+    "id": "https://openalex.org/S48977010",
+    "categories": [
+      "Earth & environmental sciences"
+    ]
+  },
+  "Water Research": {
+    "id": "https://openalex.org/S52566953",
+    "categories": [
+      "Earth & environmental sciences"
+    ]
+  },
+  "American Journal of Clinical Nutrition": {
+    "id": "https://openalex.org/S71285955",
+    "categories": [
+      "Health sciences"
+    ]
+  },
+  "American Journal of Epidemiology": {
+    "id": "https://openalex.org/S170967050",
+    "categories": [
+      "Health sciences"
+    ]
+  },
+  "American Journal of Obstetrics and Gynecology": {
+    "id": "https://openalex.org/S122347013",
+    "categories": [
+      "Health sciences"
+    ]
+  },
+  "American Journal of Pathology": {
+    "id": "https://openalex.org/S145577119",
+    "categories": [
+      "Health sciences"
+    ]
+  },
+  "American Journal of Respiratory and Critical Care Medicine": {
+    "id": "https://openalex.org/S93356601",
+    "categories": [
+      "Health sciences"
+    ]
+  },
+  "Anesthesiology": {
+    "id": "https://openalex.org/S124035732",
+    "categories": [
+      "Health sciences"
+    ]
+  },
+  "Annals of Emergency Medicine": {
+    "id": "https://openalex.org/S116012647",
+    "categories": [
+      "Health sciences"
+    ]
+  },
+  "Annals of Family Medicine": {
+    "id": "https://openalex.org/S105068684",
+    "categories": [
+      "Health sciences"
+    ]
+  },
+  "Annals of Internal Medicine": {
+    "id": "https://openalex.org/S119722071",
+    "categories": [
+      "Health sciences"
+    ]
+  },
+  "Annals of Neurology": {
+    "id": "https://openalex.org/S114530997",
+    "categories": [
+      "Health sciences"
+    ]
+  },
+  "Annals of Surgery": {
+    "id": "https://openalex.org/S157664895",
+    "categories": [
+      "Health sciences"
+    ]
+  },
+  "Annals of the Rheumatic Diseases": {
+    "id": "https://openalex.org/S25650217",
+    "categories": [
+      "Health sciences"
+    ]
+  },
+  "Archives of Physical Medicine and Rehabilitation": {
+    "id": "https://openalex.org/S110924429",
+    "categories": [
+      "Health sciences"
+    ]
+  },
+  "Arthritis & Rheumatology": {
+    "id": "https://openalex.org/S4210186158",
+    "categories": [
+      "Health sciences"
+    ]
+  },
+  "Blood": {
+    "id": "https://openalex.org/S200071133",
+    "categories": [
+      "Health sciences"
+    ]
+  },
+  "Brain": {
+    "id": "https://openalex.org/S96638545",
+    "categories": [
+      "Health sciences"
+    ]
+  },
+  "British Journal of Surgery": {
+    "id": "https://openalex.org/S61740008",
+    "categories": [
+      "Health sciences"
+    ]
+  },
+  "Chest": {
+    "id": "https://openalex.org/S76900504",
+    "categories": [
+      "Health sciences"
+    ]
+  },
+  "Circulation": {
+    "id": "https://openalex.org/S116251202",
+    "categories": [
+      "Health sciences"
+    ]
+  },
+  "Clinical Infectious Diseases": {
+    "id": "https://openalex.org/S72350973",
+    "categories": [
+      "Health sciences"
+    ]
+  },
+  "Critical Care Medicine": {
+    "id": "https://openalex.org/S108732581",
+    "categories": [
+      "Health sciences"
+    ]
+  },
+  "Diabetes Care": {
+    "id": "https://openalex.org/S49878492",
+    "categories": [
+      "Health sciences"
+    ]
+  },
+  "Environmental Health Perspectives": {
+    "id": "https://openalex.org/S10446503",
+    "categories": [
+      "Health sciences"
+    ]
+  },
+  "European Heart Journal": {
+    "id": "https://openalex.org/S181568219",
+    "categories": [
+      "Health sciences"
+    ]
+  },
+  "European Urology": {
+    "id": "https://openalex.org/S96871409",
+    "categories": [
+      "Health sciences"
+    ]
+  },
+  "Gastroenterology": {
+    "id": "https://openalex.org/S143352558",
+    "categories": [
+      "Health sciences"
+    ]
+  },
+  "Gut": {
+    "id": "https://openalex.org/S3251770",
+    "categories": [
+      "Health sciences"
+    ]
+  },
+  "Hepatology": {
+    "id": "https://openalex.org/S156174673",
+    "categories": [
+      "Health sciences"
+    ]
+  },
+  "Human Reproduction": {
+    "id": "https://openalex.org/S127900037",
+    "categories": [
+      "Health sciences"
+    ]
+  },
+  "International Journal of Epidemiology": {
+    "id": "https://openalex.org/S13389975",
+    "categories": [
+      "Health sciences"
+    ]
+  },
+  "International Journal of Obesity": {
+    "id": "https://openalex.org/S103428141",
+    "categories": [
+      "Health sciences"
+    ]
+  },
+  "JAMA Internal Medicine": {
+    "id": "https://openalex.org/S65364685",
+    "categories": [
+      "Health sciences"
+    ]
+  },
+  "JAMA Pediatrics": {
+    "id": "https://openalex.org/S14226812",
+    "categories": [
+      "Health sciences"
+    ]
+  },
+  "JAMA Psychiatry": {
+    "id": "https://openalex.org/S2495708506",
+    "categories": [
+      "Health sciences"
+    ]
+  },
+  "JAMA Surgery": {
+    "id": "https://openalex.org/S86924810",
+    "categories": [
+      "Health sciences"
+    ]
+  },
+  "JAMA: The Journal of the American Medical Association": {
+    "id": "https://openalex.org/S2756165422",
+    "categories": [
+      "Health sciences"
+    ]
+  },
+  "Journal of Bone and Joint Surgery-American Volume": {
+    "id": "https://openalex.org/S128848949",
+    "categories": [
+      "Health sciences"
+    ]
+  },
+  "Journal of Clinical Endocrinology & Metabolism": {
+    "id": "https://openalex.org/S205775358",
+    "categories": [
+      "Health sciences"
+    ]
+  },
+  "Journal of Clinical Oncology": {
+    "id": "https://openalex.org/S15137598",
+    "categories": [
+      "Health sciences"
+    ]
+  },
+  "Journal of Hepatology": {
+    "id": "https://openalex.org/S83651209",
+    "categories": [
+      "Health sciences"
+    ]
+  },
+  "Journal of Infectious Diseases": {
+    "id": "https://openalex.org/S54542293",
+    "categories": [
+      "Health sciences"
+    ]
+  },
+  "Journal of Physiology": {
+    "id": "https://openalex.org/S2090548",
+    "categories": [
+      "Health sciences"
+    ]
+  },
+  "Journal of the American Academy of Child and Adolescent Psychiatry": {
+    "id": "https://openalex.org/S60711021",
+    "categories": [
+      "Health sciences"
+    ]
+  },
+  "Journal of the American Academy of Dermatology": {
+    "id": "https://openalex.org/S58727509",
+    "categories": [
+      "Health sciences"
+    ]
+  },
+  "Journal of the American College of Cardiology": {
+    "id": "https://openalex.org/S60865174",
+    "categories": [
+      "Health sciences"
+    ]
+  },
+  "Journal of the American Geriatrics Society": {
+    "id": "https://openalex.org/S204183829",
+    "categories": [
+      "Health sciences"
+    ]
+  },
+  "Journal of the American Society of Nephrology": {
+    "id": "https://openalex.org/S115693375",
+    "categories": [
+      "Health sciences"
+    ]
+  },
+  "Journal of the National Cancer Institute": {
+    "id": "https://openalex.org/S98010888",
+    "categories": [
+      "Health sciences"
+    ]
+  },
+  "Journal of Thoracic and Cardiovascular Surgery": {
+    "id": "https://openalex.org/S127437062",
+    "categories": [
+      "Health sciences"
+    ]
+  },
+  "Kidney International": {
+    "id": "https://openalex.org/S97303050",
+    "categories": [
+      "Health sciences"
+    ]
+  },
+  "Nature Medicine": {
+    "id": "https://openalex.org/S203256638",
+    "categories": [
+      "Health sciences"
+    ]
+  },
+  "Ophthalmology": {
+    "id": "https://openalex.org/S207341048",
+    "categories": [
+      "Health sciences"
+    ]
+  },
+  "Pediatrics": {
+    "id": "https://openalex.org/S77494981",
+    "categories": [
+      "Health sciences"
+    ]
+  },
+  "PLOS Medicine": {
+    "id": "https://openalex.org/S197939330",
+    "categories": [
+      "Health sciences"
+    ]
+  },
+  "Radiology": {
+    "id": "https://openalex.org/S50280174",
+    "categories": [
+      "Health sciences"
+    ]
+  },
+  "The BMJ": {
+    "id": "https://openalex.org/S192814187",
+    "categories": [
+      "Health sciences"
+    ]
+  },
+  "The Journal of Allergy and Clinical Immunology": {
+    "id": "https://openalex.org/S2754868259",
+    "categories": [
+      "Health sciences"
+    ]
+  },
+  "The Lancet": {
+    "id": "https://openalex.org/S49861241",
+    "categories": [
+      "Health sciences"
+    ]
+  },
+  "The Lancet Diabetes & Endocrinology": {
+    "id": "https://openalex.org/S2529869117",
+    "categories": [
+      "Health sciences"
+    ]
+  },
+  "The Lancet Global Health": {
+    "id": "https://openalex.org/S4210176958",
+    "categories": [
+      "Health sciences"
+    ]
+  },
+  "The Lancet Neurology": {
+    "id": "https://openalex.org/S70053155",
+    "categories": [
+      "Health sciences"
+    ]
+  },
+  "The Lancet Oncology": {
+    "id": "https://openalex.org/S116900674",
+    "categories": [
+      "Health sciences"
+    ]
+  },
+  "The Lancet Psychiatry": {
+    "id": "https://openalex.org/S2531556786",
+    "categories": [
+      "Health sciences"
+    ]
+  },
+  "The New England Journal of Medicine": {
+    "id": "https://openalex.org/S4210202533",
+    "categories": [
+      "Health sciences"
+    ]
+  },
+  "Thorax": {
+    "id": "https://openalex.org/S106546978",
+    "categories": [
+      "Health sciences"
+    ]
+  },
+  "ACS Nano": {
+    "id": "https://openalex.org/S145476921",
+    "categories": [
+      "Physical sciences"
+    ]
+  },
+  "Advanced Functional Materials": {
+    "id": "https://openalex.org/S135204980",
+    "categories": [
+      "Physical sciences"
+    ]
+  },
+  "Applied Physics Letters": {
+    "id": "https://openalex.org/S105243760",
+    "categories": [
+      "Physical sciences"
+    ]
+  },
+  "Astronomy & Astrophysics": {
+    "id": "https://openalex.org/S205231332",
+    "categories": [
+      "Physical sciences"
+    ]
+  },
+  "European Physical Journal C": {
+    "id": "https://openalex.org/S94052278",
+    "categories": [
+      "Physical sciences"
+    ]
+  },
+  "Journal of High Energy Physics": {
+    "id": "https://openalex.org/S187585107",
+    "categories": [
+      "Physical sciences"
+    ]
+  },
+  "Monthly Notices of the Royal Astronomical Society: Letters": {
+    "id": "https://openalex.org/S2734515570",
+    "categories": [
+      "Physical sciences"
+    ]
+  },
+  "Nature Photonics": {
+    "id": "https://openalex.org/S120392215",
+    "categories": [
+      "Physical sciences"
+    ]
+  },
+  "Nature Physics": {
+    "id": "https://openalex.org/S156274416",
+    "categories": [
+      "Physical sciences"
+    ]
+  },
+  "Physical Review A": {
+    "id": "https://openalex.org/S164566984",
+    "categories": [
+      "Physical sciences"
+    ]
+  },
+  "Physical Review B": {
+    "id": "https://openalex.org/S4210174675",
+    "categories": [
+      "Physical sciences"
+    ]
+  },
+  "Physical Review D": {
+    "id": "https://openalex.org/S4210190737",
+    "categories": [
+      "Physical sciences"
+    ]
+  },
+  "Physical Review Letters": {
+    "id": "https://openalex.org/S24807848",
+    "categories": [
+      "Physical sciences"
+    ]
+  },
+  "Physical Review X": {
+    "id": "https://openalex.org/S137042341",
+    "categories": [
+      "Physical sciences"
+    ]
+  },
+  "The Astrophysical Journal Letters": {
+    "id": "https://openalex.org/S4210175824",
+    "categories": [
+      "Physical sciences"
+    ]
+  }
+}

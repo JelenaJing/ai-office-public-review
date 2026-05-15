@@ -1,0 +1,407 @@
+{
+  "deckId": "9c40f2f6",
+  "schemaVersion": "1.0",
+  "title": "工作汇报商务通用",
+  "language": "zh",
+  "slides": [
+    {
+      "index": 0,
+      "intent": "cover",
+      "id": "slide-0",
+      "title": "工作汇报商务通用",
+      "notes": "25",
+      "speakerNotes": "25",
+      "contentDensity": "medium",
+      "visualDemand": "none"
+    },
+    {
+      "index": 1,
+      "intent": "toc",
+      "id": "slide-1",
+      "title": "目录",
+      "items": [
+        "CONTENTS",
+        "01",
+        "单击此处添加标题文本",
+        "02",
+        "单击此处添加标题文本",
+        "03"
+      ],
+      "contentDensity": "low",
+      "visualDemand": "none"
+    },
+    {
+      "index": 2,
+      "intent": "text_content",
+      "id": "slide-2",
+      "title": "01",
+      "body": "单击此处添加标题文本\n此处添加详细文本描述，建议与标题相关并符合整体语言风格，语言描述尽量简洁生动。尽量将每页幻灯片的字数控制在200字以内，据统计每页幻灯片的最好控制在5分钟之内。此处添加详细文本描述，建议与标题相关并符合整体语言风格，语言描述尽量简洁生动。",
+      "contentDensity": "medium",
+      "visualDemand": "none"
+    },
+    {
+      "index": 3,
+      "intent": "text_content",
+      "id": "slide-3",
+      "title": "01",
+      "body": "单击此处添加标题文本\n根据自己的需要添加适当的文字，此处添加详细文本描述，建议与标题相关尽量简洁... ...\n添加标题文本\n根据自己的需要添加适当的文字，此处添加详细文本描述，建议与标题相关尽量简洁... ...\n添加标题文本\n此处添加详细文本描述，建议与标题相关并符合整体语言风格，语言描述尽量简洁生动。尽量将每页幻灯片的字数控制在200字以内，据统计每页幻灯片的最好控制在5分钟之内。此处添加详细文本描述，建议与标题相关并符合整体语言风格，语言描述尽量简洁生动。",
+      "contentDensity": "medium",
+      "visualDemand": "none"
+    },
+    {
+      "index": 4,
+      "intent": "text_content",
+      "id": "slide-4",
+      "title": "01",
+      "body": "单击此处添加标题文本\n根据自己的需要添加适当的文字，此处添加详细文本描述，建议与标题相关尽量简洁... ...\n添加标题文本\n01\n02\n03\n根据自己的需要添加适当的文字，此处添加详细文本描述，建议与标题相关尽量简洁... ...\n添加标题文本\n根据自己的需要添加适当的文字，此处添加详细文本描述，建议与标题相关尽量简洁... ...\n添加标题文本",
+      "contentDensity": "medium",
+      "visualDemand": "none"
+    },
+    {
+      "index": 5,
+      "intent": "text_content",
+      "id": "slide-5",
+      "title": "01",
+      "body": "单击此处添加标题文本\n此处添加详细文本描述，建议与标题相关并符合整体语言风格，语言描述尽量简洁生动。尽量将每页幻灯片的字数控制在200字以内，据统计每页幻灯片的最好控制在5分钟之内。此处添加详细文本描述，建议与标题相关并符合整体语言风格，语言描述尽量简洁生动。\n单击此处添加标题文本\n根据自己的需要添加适当的文字，此处添加详细文本描述，建议与标题相关尽量简洁... ...\n添加标题文本\n根据自己的需要添加适当的文字，此处添加详细文本描述，建议与标题相关尽量简洁... ...\n添加标题文本\n根据自己的需要添加适当的文字，此处添加详细文本描述，建议与标题相关尽量简洁... ...\n添加标题文本",
+      "contentDensity": "medium",
+      "visualDemand": "none"
+    },
+    {
+      "index": 6,
+      "intent": "text_content",
+      "id": "slide-6",
+      "title": "01",
+      "body": "单击此处添加标题文本\n关键词\n根据自己的需要添加适当的文字，此处添加详细文本描述，建议与标题相关尽量简洁... ...\n添加标题文本\n根据自己的需要添加适当的文字，此处添加详细文本描述，建议与标题相关尽量简洁... ...\n添加标题文本\n根据自己的需要添加适当的文字，此处添加详细文本描述，建议与标题相关尽量简洁... ...\n添加标题文本\n根据自己的需要添加适当的文字，此处添加详细文本描述，建议与标题相关尽量简洁... ...\n添加标题文本",
+      "contentDensity": "medium",
+      "visualDemand": "none"
+    },
+    {
+      "index": 7,
+      "intent": "text_content",
+      "id": "slide-7",
+      "title": "02",
+      "body": "单击此处添加标题文本\n此处添加详细文本描述，建议与标题相关并符合整体语言风格，语言描述尽量简洁生动。尽量将每页幻灯片的字数控制在200字以内，据统计每页幻灯片的最好控制在5分钟之内。此处添加详细文本描述，建议与标题相关并符合整体语言风格，语言描述尽量简洁生动。",
+      "contentDensity": "medium",
+      "visualDemand": "none"
+    },
+    {
+      "index": 8,
+      "intent": "text_content",
+      "id": "slide-8",
+      "title": "02",
+      "body": "单击此处添加标题文本\n此处添加详细文本描述，建议与标题相关并符合整体语言风格，语言描述尽量简洁生动。尽量将每页幻灯片的字数控制在200字以内，据统计每页幻灯片的最好控制在5分钟之内。\n添加标题文本\n此处添加详细文本描述，建议与标题相关并符合整体语言风格，语言描述尽量简洁生动。尽量将每页幻灯片的字数控制在200字以内，据统计每页幻灯片的最好控制在5分钟之内。\n添加标题文本\n根据自己的需要添加适当的文字，此处添加详细文本描述，建议与标题相关尽量简洁... ...\n添加标题文本\n根据自己的需要添加适当的文字，此处添加详细文本描述，建议与标题相关尽量简洁... ...\n添加标题文本",
+      "contentDensity": "medium",
+      "visualDemand": "none"
+    },
+    {
+      "index": 9,
+      "intent": "text_content",
+      "id": "slide-9",
+      "title": "02",
+      "body": "单击此处添加标题文本\n关键词\n关键词\n关键词\n关键词\n根据自己的需要添加适当的文字，此处添加详细文本描述，建议与标题相关尽量简洁... ...\n添加标题文本\n根据自己的需要添加适当的文字，此处添加详细文本描述，建议与标题相关尽量简洁... ...\n添加标题文本\n根据自己的需要添加适当的文字，此处添加详细文本描述，建议与标题相关尽量简洁... ...\n添加标题文本\n根据自己的需要添加适当的文字，此处添加详细文本描述，建议与标题相关尽量简洁... ...\n添加标题文本",
+      "contentDensity": "medium",
+      "visualDemand": "none"
+    },
+    {
+      "index": 10,
+      "intent": "text_content",
+      "id": "slide-10",
+      "title": "02",
+      "body": "单击此处添加标题文本\n关键词\n关键词\n关键词\n关键词\n根据自己的需要添加适当的文字，此处添加详细文本描述，建议与标题相关尽量简洁... ...\n添加标题文本\n根据自己的需要添加适当的文字，此处添加详细文本描述，建议与标题相关尽量简洁... ...\n添加标题文本\n根据自己的需要添加适当的文字，此处添加详细文本描述，建议与标题相关尽量简洁... ...\n添加标题文本\n根据自己的需要添加适当的文字，此处添加详细文本描述，建议与标题相关尽量简洁... ...\n添加标题文本",
+      "contentDensity": "medium",
+      "visualDemand": "none"
+    },
+    {
+      "index": 11,
+      "intent": "text_content",
+      "id": "slide-11",
+      "title": "02",
+      "body": "单击此处添加标题文本\n根据自己的需要添加适当的文字，此处添加详细文本描述，建议与标题相关尽量简洁... ...\n添加标题文本\n根据自己的需要添加适当的文字，此处添加详细文本描述，建议与标题相关尽量简洁... ...\n添加标题文本\n根据自己的需要添加适当的文字，此处添加详细文本描述，建议与标题相关尽量简洁... ...\n添加标题文本\n根据自己的需要添加适当的文字，此处添加详细文本描述，建议与标题相关尽量简洁... ...\n添加标题文本",
+      "contentDensity": "medium",
+      "visualDemand": "none"
+    },
+    {
+      "index": 12,
+      "intent": "text_content",
+      "id": "slide-12",
+      "title": "03",
+      "body": "单击此处添加标题文本\n此处添加详细文本描述，建议与标题相关并符合整体语言风格，语言描述尽量简洁生动。尽量将每页幻灯片的字数控制在200字以内，据统计每页幻灯片的最好控制在5分钟之内。此处添加详细文本描述，建议与标题相关并符合整体语言风格，语言描述尽量简洁生动。",
+      "contentDensity": "medium",
+      "visualDemand": "none"
+    },
+    {
+      "index": 13,
+      "intent": "text_content",
+      "id": "slide-13",
+      "title": "03",
+      "body": "单击此处添加标题文本\n根据自己的需要添加适当的文字，此处添加详细文本描述，建议与标题相关尽量简洁... ...\n添加标题文本\n根据自己的需要添加适当的文字，此处添加详细文本描述，建议与标题相关尽量简洁... ...\n添加标题文本\n根据自己的需要添加适当的文字，此处添加详细文本描述，建议与标题相关尽量简洁... ...\n添加标题文本",
+      "contentDensity": "medium",
+      "visualDemand": "none"
+    },
+    {
+      "index": 14,
+      "intent": "text_content",
+      "id": "slide-14",
+      "title": "03",
+      "body": "单击此处添加标题文本\n60%\n25%\n75%\n90%\n根据自己的需要添加适当的文字，此处添加详细文本描述，建议与标题相关尽量简洁... ...\n添加标题文本\n根据自己的需要添加适当的文字，此处添加详细文本描述，建议与标题相关尽量简洁... ...\n添加标题文本\n根据自己的需要添加适当的文字，此处添加详细文本描述，建议与标题相关尽量简洁... ...\n添加标题文本\n根据自己的需要添加适当的文字，此处添加详细文本描述，建议与标题相关尽量简洁... ...\n添加标题文本",
+      "contentDensity": "medium",
+      "visualDemand": "none"
+    },
+    {
+      "index": 15,
+      "intent": "text_content",
+      "id": "slide-15",
+      "title": "03",
+      "body": "单击此处添加标题文本\n根据自己的需要添加适当的文字，此处添加详细文本描述，建议与标题相关尽量简洁... ...\n添加标题文本\n根据自己的需要添加适当的文字，此处添加详细文本描述，建议与标题相关尽量简洁... ...\n添加标题文本\n根据自己的需要添加适当的文字，此处添加详细文本描述，建议与标题相关尽量简洁... ...\n添加标题文本",
+      "contentDensity": "medium",
+      "visualDemand": "none"
+    },
+    {
+      "index": 16,
+      "intent": "text_content",
+      "id": "slide-16",
+      "title": "03",
+      "body": "单击此处添加标题文本\n根据自己的需要添加适当的文字，此处添加详细文本描述，建议与标题相关尽量简洁... ...\n添加标题文本\n根据自己的需要添加适当的文字，此处添加详细文本描述，建议与标题相关尽量简洁... ...\n添加标题文本\n根据自己的需要添加适当的文字，此处添加详细文本描述，建议与标题相关尽量简洁... ...\n添加标题文本",
+      "contentDensity": "medium",
+      "visualDemand": "none"
+    },
+    {
+      "index": 17,
+      "intent": "text_content",
+      "id": "slide-17",
+      "title": "04",
+      "body": "单击此处添加标题文本\n此处添加详细文本描述，建议与标题相关并符合整体语言风格，语言描述尽量简洁生动。尽量将每页幻灯片的字数控制在200字以内，据统计每页幻灯片的最好控制在5分钟之内。此处添加详细文本描述，建议与标题相关并符合整体语言风格，语言描述尽量简洁生动。",
+      "contentDensity": "medium",
+      "visualDemand": "none"
+    },
+    {
+      "index": 18,
+      "intent": "text_content",
+      "id": "slide-18",
+      "title": "04",
+      "body": "单击此处添加标题文本\n01\n02\n03\n04\n根据自己的需要添加适当的文字，此处添加详细文本描述，建议与标题相关尽量简洁... ...\n添加标题文本\n根据自己的需要添加适当的文字，此处添加详细文本描述，建议与标题相关尽量简洁... ...\n添加标题文本\n根据自己的需要添加适当的文字，此处添加详细文本描述，建议与标题相关尽量简洁... ...\n添加标题文本\n根据自己的需要添加适当的文字，此处添加详细文本描述，建议与标题相关尽量简洁... ...\n添加标题文本",
+      "contentDensity": "medium",
+      "visualDemand": "none"
+    },
+    {
+      "index": 19,
+      "intent": "text_content",
+      "id": "slide-19",
+      "title": "04",
+      "body": "单击此处添加标题文本\n根据自己的需要添加适当的文字，此处添加详细文本描述，建议与标题相关尽量简洁... ...\n添加标题文本\n根据自己的需要添加适当的文字，此处添加详细文本描述，建议与标题相关尽量简洁... ...\n添加标题文本\n根据自己的需要添加适当的文字，此处添加详细文本描述，建议与标题相关尽量简洁... ...\n添加标题文本",
+      "contentDensity": "medium",
+      "visualDemand": "none"
+    },
+    {
+      "index": 20,
+      "intent": "text_content",
+      "id": "slide-20",
+      "title": "04",
+      "body": "单击此处添加标题文本\n根据自己的需要添加适当的文字，此处添加详细文本描述，建议与标题相关尽量简洁... ...\n添加标题文本\n根据自己的需要添加适当的文字，此处添加详细文本描述，建议与标题相关尽量简洁... ...\n添加标题文本\n根据自己的需要添加适当的文字，此处添加详细文本描述，建议与标题相关尽量简洁... ...\n添加标题文本\n根据自己的需要添加适当的文字，此处添加详细文本描述，建议与标题相关尽量简洁... ...\n添加标题文本\n01\n03\n02\n04",
+      "contentDensity": "medium",
+      "visualDemand": "none"
+    },
+    {
+      "index": 21,
+      "intent": "text_content",
+      "id": "slide-21",
+      "title": "04",
+      "body": "单击此处添加标题文本\n01\n02\n03\n04\n根据自己的需要添加适当的文字，此处添加详细文本描述，建议与标题相关尽量简洁... ...\n添加标题文本\n根据自己的需要添加适当的文字，此处添加详细文本描述，建议与标题相关尽量简洁... ...\n添加标题文本\n根据自己的需要添加适当的文字，此处添加详细文本描述，建议与标题相关尽量简洁... ...\n添加标题文本\n根据自己的需要添加适当的文字，此处添加详细文本描述，建议与标题相关尽量简洁... ...\n添加标题文本",
+      "contentDensity": "medium",
+      "visualDemand": "none"
+    },
+    {
+      "index": 22,
+      "intent": "content_cards",
+      "id": "slide-22",
+      "title": "谢谢观看",
+      "items": [
+        "Your content to play here, or through paste in this box, and select only the text. Your content to play here",
+        "汇报人：51PPT模板网",
+        "时间：2026.05.08",
+        "工作汇报/工作总结/述职报告/工作计划/商务通用"
+      ],
+      "contentDensity": "medium",
+      "visualDemand": "none"
+    },
+    {
+      "index": 23,
+      "intent": "text_content",
+      "id": "slide-23",
+      "title": "模板使用字体说明",
+      "body": "标题字：\n内容字体：\n其他：\n中文：阿里巴巴普惠体 2.0 55 Regular\n英文/数字：\nHarmonyOS Sans SC\nMiSansHeavy\n思源黑体CN Heavy\n工作汇报商务通用",
+      "contentDensity": "low",
+      "visualDemand": "none"
+    },
+    {
+      "index": 24,
+      "intent": "closing",
+      "id": "slide-24",
+      "title": "51PPT模板网，幻灯片演示模板及素材免费下载！",
+      "contentDensity": "medium",
+      "visualDemand": "optional"
+    }
+  ],
+  "assets": [],
+  "source": {
+    "type": "imported_pptx",
+    "sourcePath": "E:\\ai-office\\ai_writer3.0\\electron\\main\\data\\ppt-skills\\business_report\\source-template.pptx"
+  },
+  "sourceRefs": [
+    {
+      "sourceId": "pptx-slide-0",
+      "sourceType": "pptx_slide",
+      "slideIndex": 0,
+      "confidence": 0.7
+    },
+    {
+      "sourceId": "pptx-slide-1",
+      "sourceType": "pptx_slide",
+      "slideIndex": 1,
+      "confidence": 0.7
+    },
+    {
+      "sourceId": "pptx-slide-2",
+      "sourceType": "pptx_slide",
+      "slideIndex": 2,
+      "confidence": 0.7
+    },
+    {
+      "sourceId": "pptx-slide-3",
+      "sourceType": "pptx_slide",
+      "slideIndex": 3,
+      "confidence": 0.7
+    },
+    {
+      "sourceId": "pptx-slide-4",
+      "sourceType": "pptx_slide",
+      "slideIndex": 4,
+      "confidence": 0.7
+    },
+    {
+      "sourceId": "pptx-slide-5",
+      "sourceType": "pptx_slide",
+      "slideIndex": 5,
+      "confidence": 0.7
+    },
+    {
+      "sourceId": "pptx-slide-6",
+      "sourceType": "pptx_slide",
+      "slideIndex": 6,
+      "confidence": 0.7
+    },
+    {
+      "sourceId": "pptx-slide-7",
+      "sourceType": "pptx_slide",
+      "slideIndex": 7,
+      "confidence": 0.7
+    },
+    {
+      "sourceId": "pptx-slide-8",
+      "sourceType": "pptx_slide",
+      "slideIndex": 8,
+      "confidence": 0.7
+    },
+    {
+      "sourceId": "pptx-slide-9",
+      "sourceType": "pptx_slide",
+      "slideIndex": 9,
+      "confidence": 0.7
+    },
+    {
+      "sourceId": "pptx-slide-10",
+      "sourceType": "pptx_slide",
+      "slideIndex": 10,
+      "confidence": 0.7
+    },
+    {
+      "sourceId": "pptx-slide-11",
+      "sourceType": "pptx_slide",
+      "slideIndex": 11,
+      "confidence": 0.7
+    },
+    {
+      "sourceId": "pptx-slide-12",
+      "sourceType": "pptx_slide",
+      "slideIndex": 12,
+      "confidence": 0.7
+    },
+    {
+      "sourceId": "pptx-slide-13",
+      "sourceType": "pptx_slide",
+      "slideIndex": 13,
+      "confidence": 0.7
+    },
+    {
+      "sourceId": "pptx-slide-14",
+      "sourceType": "pptx_slide",
+      "slideIndex": 14,
+      "confidence": 0.7
+    },
+    {
+      "sourceId": "pptx-slide-15",
+      "sourceType": "pptx_slide",
+      "slideIndex": 15,
+      "confidence": 0.7
+    },
+    {
+      "sourceId": "pptx-slide-16",
+      "sourceType": "pptx_slide",
+      "slideIndex": 16,
+      "confidence": 0.7
+    },
+    {
+      "sourceId": "pptx-slide-17",
+      "sourceType": "pptx_slide",
+      "slideIndex": 17,
+      "confidence": 0.7
+    },
+    {
+      "sourceId": "pptx-slide-18",
+      "sourceType": "pptx_slide",
+      "slideIndex": 18,
+      "confidence": 0.7
+    },
+    {
+      "sourceId": "pptx-slide-19",
+      "sourceType": "pptx_slide",
+      "slideIndex": 19,
+      "confidence": 0.7
+    },
+    {
+      "sourceId": "pptx-slide-20",
+      "sourceType": "pptx_slide",
+      "slideIndex": 20,
+      "confidence": 0.7
+    },
+    {
+      "sourceId": "pptx-slide-21",
+      "sourceType": "pptx_slide",
+      "slideIndex": 21,
+      "confidence": 0.7
+    },
+    {
+      "sourceId": "pptx-slide-22",
+      "sourceType": "pptx_slide",
+      "slideIndex": 22,
+      "confidence": 0.7
+    },
+    {
+      "sourceId": "pptx-slide-23",
+      "sourceType": "pptx_slide",
+      "slideIndex": 23,
+      "confidence": 0.7
+    },
+    {
+      "sourceId": "pptx-slide-24",
+      "sourceType": "pptx_slide",
+      "slideIndex": 24,
+      "confidence": 0.7
+    }
+  ],
+  "status": "completed",
+  "expectedSlideCount": 25,
+  "completedSlideCount": 25,
+  "createdAt": "2026-05-09T14:25:51.401Z",
+  "updatedAt": "2026-05-09T14:25:51.444Z"
+}

@@ -1,0 +1,733 @@
+{
+  "templateId": "academic_defense",
+  "slideIndex": 23,
+  "shapeCount": 40,
+  "shapes": [
+    {
+      "shapeId": "83",
+      "shapeName": "任意多边形: 形状 82",
+      "text": "",
+      "position": {
+        "x": 1618,
+        "y": 0,
+        "w": 12190382,
+        "h": 2021756,
+        "xCm": "0.0cm",
+        "yCm": "0.0cm",
+        "wCm": "33.9cm",
+        "hCm": "5.6cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "9",
+      "shapeName": "缺角矩形 8",
+      "text": "",
+      "position": {
+        "x": 264707,
+        "y": 241499,
+        "w": 11691611,
+        "h": 6400400,
+        "xCm": "0.7cm",
+        "yCm": "0.7cm",
+        "wCm": "32.5cm",
+        "hCm": "17.8cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "59",
+      "shapeName": "任意多边形: 形状 58",
+      "text": "",
+      "position": {
+        "x": 8154814,
+        "y": 263825,
+        "w": 306598,
+        "h": 305645,
+        "xCm": "22.7cm",
+        "yCm": "0.7cm",
+        "wCm": "0.9cm",
+        "hCm": "0.8cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "58",
+      "shapeName": "椭圆 57",
+      "text": "",
+      "position": {
+        "x": 8465454,
+        "y": 276815,
+        "w": 45719,
+        "h": 45719,
+        "xCm": "23.5cm",
+        "yCm": "0.8cm",
+        "wCm": "0.1cm",
+        "hCm": "0.1cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "62",
+      "shapeName": "文本框 61",
+      "text": "",
+      "position": {
+        "x": 8644844,
+        "y": 300619,
+        "w": 108746,
+        "h": 123872,
+        "xCm": "24.0cm",
+        "yCm": "0.8cm",
+        "wCm": "0.3cm",
+        "hCm": "0.3cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "61",
+      "shapeName": "文本框 60",
+      "text": "",
+      "position": {
+        "x": 8501988,
+        "y": 300763,
+        "w": 129730,
+        "h": 123301,
+        "xCm": "23.6cm",
+        "yCm": "0.8cm",
+        "wCm": "0.4cm",
+        "hCm": "0.3cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "63",
+      "shapeName": "文本框 62",
+      "text": "",
+      "position": {
+        "x": 8768688,
+        "y": 300763,
+        "w": 129730,
+        "h": 123301,
+        "xCm": "24.4cm",
+        "yCm": "0.8cm",
+        "wCm": "0.4cm",
+        "hCm": "0.3cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "65",
+      "shapeName": "文本框 64",
+      "text": "",
+      "position": {
+        "x": 6277627,
+        "y": 1028312,
+        "w": 108814,
+        "h": 121082,
+        "xCm": "17.4cm",
+        "yCm": "2.9cm",
+        "wCm": "0.3cm",
+        "hCm": "0.3cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "67",
+      "shapeName": "文本框 66",
+      "text": "",
+      "position": {
+        "x": 6630004,
+        "y": 1028713,
+        "w": 115081,
+        "h": 122949,
+        "xCm": "18.4cm",
+        "yCm": "2.9cm",
+        "wCm": "0.3cm",
+        "hCm": "0.3cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "66",
+      "shapeName": "文本框 65",
+      "text": "",
+      "position": {
+        "x": 6448348,
+        "y": 1030180,
+        "w": 119748,
+        "h": 120281,
+        "xCm": "17.9cm",
+        "yCm": "2.9cm",
+        "wCm": "0.3cm",
+        "hCm": "0.3cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "64",
+      "shapeName": "文本框 63",
+      "text": "",
+      "position": {
+        "x": 6094201,
+        "y": 1030979,
+        "w": 116414,
+        "h": 120682,
+        "xCm": "16.9cm",
+        "yCm": "2.9cm",
+        "wCm": "0.3cm",
+        "hCm": "0.3cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "40",
+      "shapeName": "文本框 39",
+      "text": "感谢老师聆听指导",
+      "position": {
+        "x": 1494372,
+        "y": 2441585,
+        "w": 9212778,
+        "h": 1446550,
+        "xCm": "4.2cm",
+        "yCm": "6.8cm",
+        "wCm": "25.6cm",
+        "hCm": "4.0cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false,
+      "fontSize": 88
+    },
+    {
+      "shapeId": "19",
+      "shapeName": "缺角矩形 18",
+      "text": "",
+      "position": {
+        "x": 2790647,
+        "y": 4013247,
+        "w": 199322,
+        "h": 511807,
+        "xCm": "7.8cm",
+        "yCm": "11.1cm",
+        "wCm": "0.6cm",
+        "hCm": "1.4cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "21",
+      "shapeName": "缺角矩形 20",
+      "text": "",
+      "position": {
+        "x": 9356548,
+        "y": 4013247,
+        "w": 199322,
+        "h": 511807,
+        "xCm": "26.0cm",
+        "yCm": "11.1cm",
+        "wCm": "0.6cm",
+        "hCm": "1.4cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "68",
+      "shapeName": "文本框 67",
+      "text": "论文答辩  /  开题报告 /  学术汇报  /  毕业总结",
+      "position": {
+        "x": 3865560,
+        "y": 4269278,
+        "w": 4470402,
+        "h": 338554,
+        "xCm": "10.7cm",
+        "yCm": "11.9cm",
+        "wCm": "12.4cm",
+        "hCm": "0.9cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false,
+      "fontSize": 16
+    },
+    {
+      "shapeId": "75",
+      "shapeName": "Freeform 21",
+      "text": "",
+      "position": {
+        "x": 10584298,
+        "y": 4505947,
+        "w": 621334,
+        "h": 301887,
+        "xCm": "29.4cm",
+        "yCm": "12.5cm",
+        "wCm": "1.7cm",
+        "hCm": "0.8cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "69",
+      "shapeName": "Freeform 22",
+      "text": "",
+      "position": {
+        "x": 13179043,
+        "y": 4505947,
+        "w": 620659,
+        "h": 301887,
+        "xCm": "36.6cm",
+        "yCm": "12.5cm",
+        "wCm": "1.7cm",
+        "hCm": "0.8cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "74",
+      "shapeName": "Freeform 15",
+      "text": "",
+      "position": {
+        "x": 10985464,
+        "y": 4616031,
+        "w": 75641,
+        "h": 110760,
+        "xCm": "30.5cm",
+        "yCm": "12.8cm",
+        "wCm": "0.2cm",
+        "hCm": "0.3cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "41",
+      "shapeName": "Freeform 20",
+      "text": "",
+      "position": {
+        "x": 13322895,
+        "y": 4616031,
+        "w": 75641,
+        "h": 110760,
+        "xCm": "37.0cm",
+        "yCm": "12.8cm",
+        "wCm": "0.2cm",
+        "hCm": "0.3cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "72",
+      "shapeName": "Freeform 13",
+      "text": "",
+      "position": {
+        "x": 10755165,
+        "y": 4700452,
+        "w": 131020,
+        "h": 75641,
+        "xCm": "29.9cm",
+        "yCm": "13.1cm",
+        "wCm": "0.4cm",
+        "hCm": "0.2cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "38",
+      "shapeName": "Freeform 18",
+      "text": "",
+      "position": {
+        "x": 13497814,
+        "y": 4700452,
+        "w": 131696,
+        "h": 75641,
+        "xCm": "37.5cm",
+        "yCm": "13.1cm",
+        "wCm": "0.4cm",
+        "hCm": "0.2cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "71",
+      "shapeName": "Freeform 12",
+      "text": "",
+      "position": {
+        "x": 10624145,
+        "y": 4715985,
+        "w": 135748,
+        "h": 92525,
+        "xCm": "29.5cm",
+        "yCm": "13.1cm",
+        "wCm": "0.4cm",
+        "hCm": "0.3cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "37",
+      "shapeName": "Freeform 17",
+      "text": "",
+      "position": {
+        "x": 13624107,
+        "y": 4715985,
+        "w": 135748,
+        "h": 92525,
+        "xCm": "37.8cm",
+        "yCm": "13.1cm",
+        "wCm": "0.4cm",
+        "hCm": "0.3cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "70",
+      "shapeName": "Freeform 11",
+      "text": "",
+      "position": {
+        "x": 10354675,
+        "y": 4742324,
+        "w": 709807,
+        "h": 84421,
+        "xCm": "28.8cm",
+        "yCm": "13.2cm",
+        "wCm": "2.0cm",
+        "hCm": "0.2cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "36",
+      "shapeName": "Freeform 16",
+      "text": "",
+      "position": {
+        "x": 13319518,
+        "y": 4742324,
+        "w": 709807,
+        "h": 84421,
+        "xCm": "37.0cm",
+        "yCm": "13.2cm",
+        "wCm": "2.0cm",
+        "hCm": "0.2cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "33",
+      "shapeName": "Freeform 10",
+      "text": "",
+      "position": {
+        "x": 3368208,
+        "y": 4809876,
+        "w": 6341541,
+        "h": 127644,
+        "xCm": "9.4cm",
+        "yCm": "13.4cm",
+        "wCm": "17.6cm",
+        "hCm": "0.4cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "73",
+      "shapeName": "Freeform 14",
+      "text": "",
+      "position": {
+        "x": 10510684,
+        "y": 4815263,
+        "w": 121565,
+        "h": 88473,
+        "xCm": "29.2cm",
+        "yCm": "13.4cm",
+        "wCm": "0.3cm",
+        "hCm": "0.2cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "39",
+      "shapeName": "Freeform 19",
+      "text": "",
+      "position": {
+        "x": 13751751,
+        "y": 4815263,
+        "w": 121565,
+        "h": 88473,
+        "xCm": "38.2cm",
+        "yCm": "13.4cm",
+        "wCm": "0.3cm",
+        "hCm": "0.2cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "54",
+      "shapeName": "文本框 53",
+      "text": "Your content to play here, or through paste in this box, and select only the text. Your content to play here",
+      "position": {
+        "x": 4124740,
+        "y": 4837119,
+        "w": 3971546,
+        "h": 571951,
+        "xCm": "11.5cm",
+        "yCm": "13.4cm",
+        "wCm": "11.0cm",
+        "hCm": "1.6cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false,
+      "fontSize": 11
+    },
+    {
+      "shapeId": "44",
+      "shapeName": "university-teacher_65684",
+      "text": "",
+      "position": {
+        "x": 5172715,
+        "y": 5746019,
+        "w": 138508,
+        "h": 307777,
+        "xCm": "14.4cm",
+        "yCm": "16.0cm",
+        "wCm": "0.4cm",
+        "hCm": "0.9cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "43",
+      "shapeName": "graduate_57239",
+      "text": "",
+      "position": {
+        "x": 3086965,
+        "y": 5748954,
+        "w": 211529,
+        "h": 307777,
+        "xCm": "8.6cm",
+        "yCm": "16.0cm",
+        "wCm": "0.6cm",
+        "hCm": "0.9cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "46",
+      "shapeName": "文本框 45",
+      "text": "时间：2026.04.07",
+      "position": {
+        "x": 7436830,
+        "y": 5748954,
+        "w": 1668205,
+        "h": 307777,
+        "xCm": "20.7cm",
+        "yCm": "16.0cm",
+        "wCm": "4.6cm",
+        "hCm": "0.9cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false,
+      "fontSize": 14
+    },
+    {
+      "shapeId": "42",
+      "shapeName": "文本框 41",
+      "text": "答辩学生：51PPT",
+      "position": {
+        "x": 3289732,
+        "y": 5755484,
+        "w": 1600752,
+        "h": 307777,
+        "xCm": "9.1cm",
+        "yCm": "16.0cm",
+        "wCm": "4.4cm",
+        "hCm": "0.9cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false,
+      "fontSize": 14
+    },
+    {
+      "shapeId": "45",
+      "shapeName": "文本框 44",
+      "text": "指导老师：51PPT",
+      "position": {
+        "x": 5350829,
+        "y": 5755484,
+        "w": 1777436,
+        "h": 307777,
+        "xCm": "14.9cm",
+        "yCm": "16.0cm",
+        "wCm": "4.9cm",
+        "hCm": "0.9cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false,
+      "fontSize": 14
+    },
+    {
+      "shapeId": "48",
+      "shapeName": "任意多边形: 形状 47",
+      "text": "",
+      "position": {
+        "x": 8223250,
+        "y": 6921890,
+        "w": 723900,
+        "h": 723900,
+        "xCm": "22.8cm",
+        "yCm": "19.2cm",
+        "wCm": "2.0cm",
+        "hCm": "2.0cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "50",
+      "shapeName": "任意多边形: 形状 49",
+      "text": "",
+      "position": {
+        "x": 8566150,
+        "y": 7017140,
+        "w": 38100,
+        "h": 38100,
+        "xCm": "23.8cm",
+        "yCm": "19.5cm",
+        "wCm": "0.1cm",
+        "hCm": "0.1cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "49",
+      "shapeName": "任意多边形: 形状 48",
+      "text": "",
+      "position": {
+        "x": 8566150,
+        "y": 7093340,
+        "w": 166687,
+        "h": 338137,
+        "xCm": "23.8cm",
+        "yCm": "19.7cm",
+        "wCm": "0.5cm",
+        "hCm": "0.9cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "52",
+      "shapeName": "任意多边形: 形状 51",
+      "text": "",
+      "position": {
+        "x": 8318500,
+        "y": 7264790,
+        "w": 38100,
+        "h": 38100,
+        "xCm": "23.1cm",
+        "yCm": "20.2cm",
+        "wCm": "0.1cm",
+        "hCm": "0.1cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "53",
+      "shapeName": "任意多边形: 形状 52",
+      "text": "",
+      "position": {
+        "x": 8813800,
+        "y": 7264790,
+        "w": 38100,
+        "h": 38100,
+        "xCm": "24.5cm",
+        "yCm": "20.2cm",
+        "wCm": "0.1cm",
+        "hCm": "0.1cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "51",
+      "shapeName": "任意多边形: 形状 50",
+      "text": "",
+      "position": {
+        "x": 8566150,
+        "y": 7512440,
+        "w": 38100,
+        "h": 38100,
+        "xCm": "23.8cm",
+        "yCm": "20.9cm",
+        "wCm": "0.1cm",
+        "hCm": "0.1cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    }
+  ]
+}

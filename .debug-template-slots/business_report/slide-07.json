@@ -1,0 +1,337 @@
+{
+  "templateId": "business_report",
+  "slideIndex": 7,
+  "shapeCount": 18,
+  "shapes": [
+    {
+      "shapeId": "6",
+      "shapeName": "Freeform 7",
+      "text": "",
+      "position": {
+        "x": 4602286,
+        "y": 1155820,
+        "w": 795773,
+        "h": 2275413,
+        "xCm": "12.8cm",
+        "yCm": "3.2cm",
+        "wCm": "2.2cm",
+        "hCm": "6.3cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "3",
+      "shapeName": "Freeform 4",
+      "text": "",
+      "position": {
+        "x": 5996647,
+        "y": 1848939,
+        "w": 2300280,
+        "h": 816496,
+        "xCm": "16.7cm",
+        "yCm": "5.1cm",
+        "wCm": "6.4cm",
+        "hCm": "2.3cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "15",
+      "shapeName": "文本框 14",
+      "text": "添加标题文本",
+      "position": {
+        "x": 283599,
+        "y": 1906534,
+        "w": 2235567,
+        "h": 338554,
+        "xCm": "0.8cm",
+        "yCm": "5.3cm",
+        "wCm": "6.2cm",
+        "hCm": "0.9cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "22",
+      "shapeName": "文本框 21",
+      "text": "添加标题文本",
+      "position": {
+        "x": 283599,
+        "y": 1906534,
+        "w": 2235567,
+        "h": 338554,
+        "xCm": "0.8cm",
+        "yCm": "5.3cm",
+        "wCm": "6.2cm",
+        "hCm": "0.9cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "12",
+      "shapeName": "文本框 11",
+      "text": "添加标题文本",
+      "position": {
+        "x": 1032570,
+        "y": 1906534,
+        "w": 2235567,
+        "h": 338554,
+        "xCm": "2.9cm",
+        "yCm": "5.3cm",
+        "wCm": "6.2cm",
+        "hCm": "0.9cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false,
+      "fontSize": 16
+    },
+    {
+      "shapeId": "19",
+      "shapeName": "文本框 18",
+      "text": "添加标题文本",
+      "position": {
+        "x": 1032570,
+        "y": 1906534,
+        "w": 2235567,
+        "h": 338554,
+        "xCm": "2.9cm",
+        "yCm": "5.3cm",
+        "wCm": "6.2cm",
+        "hCm": "0.9cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false,
+      "fontSize": 16
+    },
+    {
+      "shapeId": "36",
+      "shapeName": "矩形: 圆角 35",
+      "text": "",
+      "position": {
+        "x": 1930400,
+        "y": 1957312,
+        "w": 3924300,
+        "h": 542924,
+        "xCm": "5.4cm",
+        "yCm": "5.4cm",
+        "wCm": "10.9cm",
+        "hCm": "1.5cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "43",
+      "shapeName": "任意多边形: 形状 42",
+      "text": "",
+      "position": {
+        "x": 1930400,
+        "y": 2000469,
+        "w": 3924300,
+        "h": 581023,
+        "xCm": "5.4cm",
+        "yCm": "5.6cm",
+        "wCm": "10.9cm",
+        "hCm": "1.6cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "44",
+      "shapeName": "文本框 43",
+      "text": "01",
+      "position": {
+        "x": 2038381,
+        "y": 2008923,
+        "w": 562976,
+        "h": 461665,
+        "xCm": "5.7cm",
+        "yCm": "5.6cm",
+        "wCm": "1.6cm",
+        "hCm": "1.3cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "45",
+      "shapeName": "文本框 44",
+      "text": "单击此处添加标题文本",
+      "position": {
+        "x": 2898947,
+        "y": 2081919,
+        "w": 2825125,
+        "h": 369332,
+        "xCm": "8.1cm",
+        "yCm": "5.8cm",
+        "wCm": "7.8cm",
+        "hCm": "1.0cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "11",
+      "shapeName": "文本框 10",
+      "text": "根据自己的需要添加适当的文字，此处添加详细文本描述，建议与标题相关尽量简洁... ...",
+      "position": {
+        "x": 283598,
+        "y": 2190603,
+        "w": 2966425,
+        "h": 532453,
+        "xCm": "0.8cm",
+        "yCm": "6.1cm",
+        "wCm": "8.2cm",
+        "hCm": "1.5cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false,
+      "fontSize": 10
+    },
+    {
+      "shapeId": "14",
+      "shapeName": "文本框 13",
+      "text": "根据自己的需要添加适当的文字，此处添加详细文本描述，建议与标题相关尽量简洁... ...",
+      "position": {
+        "x": 283598,
+        "y": 2190603,
+        "w": 2966425,
+        "h": 532453,
+        "xCm": "0.8cm",
+        "yCm": "6.1cm",
+        "wCm": "8.2cm",
+        "hCm": "1.5cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false,
+      "fontSize": 10
+    },
+    {
+      "shapeId": "18",
+      "shapeName": "文本框 17",
+      "text": "根据自己的需要添加适当的文字，此处添加详细文本描述，建议与标题相关尽量简洁... ...",
+      "position": {
+        "x": 283598,
+        "y": 2190603,
+        "w": 2966425,
+        "h": 532453,
+        "xCm": "0.8cm",
+        "yCm": "6.1cm",
+        "wCm": "8.2cm",
+        "hCm": "1.5cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false,
+      "fontSize": 10
+    },
+    {
+      "shapeId": "21",
+      "shapeName": "文本框 20",
+      "text": "根据自己的需要添加适当的文字，此处添加详细文本描述，建议与标题相关尽量简洁... ...",
+      "position": {
+        "x": 283598,
+        "y": 2190603,
+        "w": 2966425,
+        "h": 532453,
+        "xCm": "0.8cm",
+        "yCm": "6.1cm",
+        "wCm": "8.2cm",
+        "hCm": "1.5cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false,
+      "fontSize": 10
+    },
+    {
+      "shapeId": "7",
+      "shapeName": "Freeform 33",
+      "text": "",
+      "position": {
+        "x": 5553385,
+        "y": 2587686,
+        "w": 1061068,
+        "h": 1200019,
+        "xCm": "15.4cm",
+        "yCm": "7.2cm",
+        "wCm": "2.9cm",
+        "hCm": "3.3cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "4",
+      "shapeName": "Freeform 5",
+      "text": "",
+      "position": {
+        "x": 6785597,
+        "y": 3280627,
+        "w": 783339,
+        "h": 2246399,
+        "xCm": "18.8cm",
+        "yCm": "9.1cm",
+        "wCm": "2.2cm",
+        "hCm": "6.2cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "9",
+      "shapeName": "TextBox 34",
+      "text": "关键词",
+      "position": {
+        "x": 5675550,
+        "y": 3858759,
+        "w": 867545,
+        "h": 408894,
+        "xCm": "15.8cm",
+        "yCm": "10.7cm",
+        "wCm": "2.4cm",
+        "hCm": "1.1cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "5",
+      "shapeName": "Freeform 6",
+      "text": "",
+      "position": {
+        "x": 3910209,
+        "y": 4007460,
+        "w": 2246400,
+        "h": 787483,
+        "xCm": "10.9cm",
+        "yCm": "11.1cm",
+        "wCm": "6.2cm",
+        "hCm": "2.2cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    }
+  ]
+}

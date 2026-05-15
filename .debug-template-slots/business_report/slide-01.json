@@ -1,0 +1,462 @@
+{
+  "templateId": "business_report",
+  "slideIndex": 1,
+  "shapeCount": 25,
+  "shapes": [
+    {
+      "shapeId": "2",
+      "shapeName": "椭圆 1",
+      "text": "",
+      "position": {
+        "x": -13908,
+        "y": -499837,
+        "w": 286632,
+        "h": 286632,
+        "xCm": "-0.0cm",
+        "yCm": "-1.4cm",
+        "wCm": "0.8cm",
+        "hCm": "0.8cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "3",
+      "shapeName": "椭圆 2",
+      "text": "",
+      "position": {
+        "x": 417892,
+        "y": -499837,
+        "w": 286632,
+        "h": 286632,
+        "xCm": "1.2cm",
+        "yCm": "-1.4cm",
+        "wCm": "0.8cm",
+        "hCm": "0.8cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "5",
+      "shapeName": "椭圆 4",
+      "text": "",
+      "position": {
+        "x": 849692,
+        "y": -499837,
+        "w": 286632,
+        "h": 286632,
+        "xCm": "2.4cm",
+        "yCm": "-1.4cm",
+        "wCm": "0.8cm",
+        "hCm": "0.8cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "6",
+      "shapeName": "椭圆 5",
+      "text": "",
+      "position": {
+        "x": 1281492,
+        "y": -499837,
+        "w": 286632,
+        "h": 286632,
+        "xCm": "3.6cm",
+        "yCm": "-1.4cm",
+        "wCm": "0.8cm",
+        "hCm": "0.8cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "7",
+      "shapeName": "椭圆 6",
+      "text": "",
+      "position": {
+        "x": 1713292,
+        "y": -499837,
+        "w": 286632,
+        "h": 286632,
+        "xCm": "4.8cm",
+        "yCm": "-1.4cm",
+        "wCm": "0.8cm",
+        "hCm": "0.8cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "137",
+      "shapeName": "任意多边形: 形状 136",
+      "text": "",
+      "position": {
+        "x": 8154814,
+        "y": 263825,
+        "w": 306598,
+        "h": 305645,
+        "xCm": "22.7cm",
+        "yCm": "0.7cm",
+        "wCm": "0.9cm",
+        "hCm": "0.8cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "136",
+      "shapeName": "椭圆 135",
+      "text": "",
+      "position": {
+        "x": 8465454,
+        "y": 276815,
+        "w": 45719,
+        "h": 45719,
+        "xCm": "23.5cm",
+        "yCm": "0.8cm",
+        "wCm": "0.1cm",
+        "hCm": "0.1cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "140",
+      "shapeName": "文本框 139",
+      "text": "",
+      "position": {
+        "x": 8644844,
+        "y": 300619,
+        "w": 108746,
+        "h": 123872,
+        "xCm": "24.0cm",
+        "yCm": "0.8cm",
+        "wCm": "0.3cm",
+        "hCm": "0.3cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "139",
+      "shapeName": "文本框 138",
+      "text": "",
+      "position": {
+        "x": 8501988,
+        "y": 300763,
+        "w": 129730,
+        "h": 123301,
+        "xCm": "23.6cm",
+        "yCm": "0.8cm",
+        "wCm": "0.4cm",
+        "hCm": "0.3cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "141",
+      "shapeName": "文本框 140",
+      "text": "",
+      "position": {
+        "x": 8768688,
+        "y": 300763,
+        "w": 129730,
+        "h": 123301,
+        "xCm": "24.4cm",
+        "yCm": "0.8cm",
+        "wCm": "0.4cm",
+        "hCm": "0.3cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "134",
+      "shapeName": "文本框 133",
+      "text": "",
+      "position": {
+        "x": 1282133,
+        "y": 660958,
+        "w": 112630,
+        "h": 122551,
+        "xCm": "3.6cm",
+        "yCm": "1.8cm",
+        "wCm": "0.3cm",
+        "hCm": "0.3cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "132",
+      "shapeName": "文本框 131",
+      "text": "",
+      "position": {
+        "x": 892413,
+        "y": 663237,
+        "w": 124027,
+        "h": 123222,
+        "xCm": "2.5cm",
+        "yCm": "1.8cm",
+        "wCm": "0.3cm",
+        "hCm": "0.3cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "135",
+      "shapeName": "文本框 134",
+      "text": "",
+      "position": {
+        "x": 1477664,
+        "y": 663504,
+        "w": 122255,
+        "h": 121345,
+        "xCm": "4.1cm",
+        "yCm": "1.8cm",
+        "wCm": "0.3cm",
+        "hCm": "0.3cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "133",
+      "shapeName": "文本框 132",
+      "text": "",
+      "position": {
+        "x": 1094481,
+        "y": 668063,
+        "w": 107132,
+        "h": 116116,
+        "xCm": "3.0cm",
+        "yCm": "1.9cm",
+        "wCm": "0.3cm",
+        "hCm": "0.3cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "52",
+      "shapeName": "文本框 51",
+      "text": "工作汇报商务通用",
+      "position": {
+        "x": 2310352,
+        "y": 1515002,
+        "w": 7571304,
+        "h": 1200329,
+        "xCm": "6.4cm",
+        "yCm": "4.2cm",
+        "wCm": "21.0cm",
+        "hCm": "3.3cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false,
+      "fontSize": 72
+    },
+    {
+      "shapeId": "148",
+      "shapeName": "矩形: 圆角 147",
+      "text": "",
+      "position": {
+        "x": 3091543,
+        "y": 2828925,
+        "w": 6008914,
+        "h": 410702,
+        "xCm": "8.6cm",
+        "yCm": "7.9cm",
+        "wCm": "16.7cm",
+        "hCm": "1.1cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "150",
+      "shapeName": "文本框 149",
+      "text": "工作汇报  /  工作总结  /  述职报告  /  工作计划  /  商务通用",
+      "position": {
+        "x": 3734245,
+        "y": 2883788,
+        "w": 4743606,
+        "h": 307777,
+        "xCm": "10.4cm",
+        "yCm": "8.0cm",
+        "wCm": "13.2cm",
+        "hCm": "0.9cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false,
+      "fontSize": 14
+    },
+    {
+      "shapeId": "142",
+      "shapeName": "文本框 141",
+      "text": "Your content to play here, or through paste in this box, and select only the text. Your content to play here",
+      "position": {
+        "x": 4103688,
+        "y": 3680654,
+        "w": 3971546,
+        "h": 571951,
+        "xCm": "11.4cm",
+        "yCm": "10.2cm",
+        "wCm": "11.0cm",
+        "hCm": "1.6cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false,
+      "fontSize": 11
+    },
+    {
+      "shapeId": "146",
+      "shapeName": "文本框 145",
+      "text": "时间：2026.05.08",
+      "position": {
+        "x": 3898985,
+        "y": 4118390,
+        "w": 1668205,
+        "h": 307777,
+        "xCm": "10.8cm",
+        "yCm": "11.4cm",
+        "wCm": "4.6cm",
+        "hCm": "0.9cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false,
+      "fontSize": 14
+    },
+    {
+      "shapeId": "145",
+      "shapeName": "iconfont-10019-4889788",
+      "text": "",
+      "position": {
+        "x": 1253246,
+        "y": 4118392,
+        "w": 307776,
+        "h": 307776,
+        "xCm": "3.5cm",
+        "yCm": "11.4cm",
+        "wCm": "0.9cm",
+        "hCm": "0.9cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "147",
+      "shapeName": "iconfont-11899-5651509",
+      "text": "",
+      "position": {
+        "x": 3588150,
+        "y": 4118394,
+        "w": 307836,
+        "h": 307774,
+        "xCm": "10.0cm",
+        "yCm": "11.4cm",
+        "wCm": "0.9cm",
+        "hCm": "0.9cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "144",
+      "shapeName": "文本框 143",
+      "text": "汇报人：51PPT模板网",
+      "position": {
+        "x": 1561022,
+        "y": 4125669,
+        "w": 2027128,
+        "h": 307777,
+        "xCm": "4.3cm",
+        "yCm": "11.5cm",
+        "wCm": "5.6cm",
+        "hCm": "0.9cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false,
+      "fontSize": 14
+    },
+    {
+      "shapeId": "23",
+      "shapeName": "任意多边形: 形状 22",
+      "text": "",
+      "position": {
+        "x": 0,
+        "y": 4485419,
+        "w": 12192000,
+        "h": 2372581,
+        "xCm": "0.0cm",
+        "yCm": "12.5cm",
+        "wCm": "33.9cm",
+        "hCm": "6.6cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "149",
+      "shapeName": "图形 948",
+      "text": "",
+      "position": {
+        "x": 10490406,
+        "y": 4485419,
+        "w": 787868,
+        "h": 1017310,
+        "xCm": "29.1cm",
+        "yCm": "12.5cm",
+        "wCm": "2.2cm",
+        "hCm": "2.8cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "20",
+      "shapeName": "任意多边形: 形状 19",
+      "text": "",
+      "position": {
+        "x": 0,
+        "y": 5079957,
+        "w": 12192000,
+        "h": 1778043,
+        "xCm": "0.0cm",
+        "yCm": "14.1cm",
+        "wCm": "33.9cm",
+        "hCm": "4.9cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    }
+  ]
+}

@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai-office.local/contracts/sync-plan.schema.json",
+  "title": "SkillSyncPlan",
+  "type": "object",
+  "required": ["to_install", "to_update", "to_disable", "already_latest"],
+  "properties": {
+    "to_install": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/skillItem"
+      }
+    },
+    "to_update": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["skill_id", "from_version", "to_version", "package_id"],
+        "properties": {
+          "skill_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "from_version": {
+            "type": "string",
+            "minLength": 1
+          },
+          "to_version": {
+            "type": "string",
+            "minLength": 1
+          },
+          "package_id": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "to_disable": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/skillItem"
+      }
+    },
+    "already_latest": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/skillVersionItem"
+      }
+    }
+  },
+  "$defs": {
+    "skillItem": {
+      "type": "object",
+      "required": ["skill_id", "version", "package_id"],
+      "properties": {
+        "skill_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "package_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": true
+    },
+    "skillVersionItem": {
+      "type": "object",
+      "required": ["skill_id", "version"],
+      "properties": {
+        "skill_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}
+

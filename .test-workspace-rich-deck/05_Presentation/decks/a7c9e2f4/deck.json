@@ -1,0 +1,315 @@
+{
+  "deckId": "a7c9e2f4",
+  "schemaVersion": "1.0",
+  "title": "AI Office 智能办公平台产品介绍",
+  "subtitle": "重塑企业生产力，驱动数字化办公新范式",
+  "scenario": "business_report",
+  "language": "zh",
+  "sections": [
+    "产品概述",
+    "商业价值"
+  ],
+  "imageMode": "none",
+  "slides": [
+    {
+      "index": 0,
+      "intent": "cover",
+      "id": "slide-0",
+      "title": "AI Office 智能办公平台产品介绍",
+      "subtitle": "重塑企业生产力，驱动数字化办公新范式",
+      "body": "",
+      "items": [],
+      "oneLiner": "以AI为核心，打造下一代智能办公生态",
+      "summary": "面向现代企业的智能化办公解决方案，全面集成文档处理、会议协同与流程自动化，助力组织实现效率跃升与成本优化。",
+      "keywords": [
+        "AI办公",
+        "数字化转型",
+        "智能协同",
+        "效率跃升"
+      ],
+      "keyTakeaways": [],
+      "visualBrief": "极简科技感背景，融合抽象的神经网络线条与办公桌面元素",
+      "notes": "开场点明产品定位，强调AI Office并非单一工具，而是面向企业级场景的智能操作系统。",
+      "speakerNotes": "开场点明产品定位，强调AI Office并非单一工具，而是面向企业级场景的智能操作系统。",
+      "contentDensity": "low",
+      "visualDemand": "optional"
+    },
+    {
+      "index": 1,
+      "intent": "toc",
+      "id": "slide-1",
+      "title": "汇报目录",
+      "subtitle": "",
+      "body": "",
+      "items": [
+        "产品全景与定位",
+        "核心功能模块解析",
+        "商业价值与ROI测算",
+        "行业落地路径规划"
+      ],
+      "oneLiner": "",
+      "summary": "本次汇报将围绕产品全景、核心能力、商业回报及实施规划展开，为您呈现AI Office的完整价值图谱。",
+      "keywords": [
+        "汇报结构",
+        "价值图谱",
+        "核心能力"
+      ],
+      "keyTakeaways": [],
+      "visualBrief": "",
+      "notes": "简述汇报逻辑，引导听众关注后续的商业数据与落地案例，建立预期。",
+      "speakerNotes": "简述汇报逻辑，引导听众关注后续的商业数据与落地案例，建立预期。",
+      "contentDensity": "low",
+      "visualDemand": "none"
+    },
+    {
+      "index": 2,
+      "intent": "section_divider",
+      "id": "slide-2",
+      "sectionId": "产品概述",
+      "title": "第一部分：产品全景与定位",
+      "subtitle": "",
+      "body": "",
+      "items": [],
+      "oneLiner": "重新定义人机协作的办公边界",
+      "summary": "AI Office 不是单一工具的叠加，而是基于大模型能力构建的企业级智能操作系统，无缝衔接日常办公全场景。",
+      "keywords": [
+        "大模型底座",
+        "全场景覆盖",
+        "企业级OS",
+        "无缝集成"
+      ],
+      "keyTakeaways": [],
+      "visualBrief": "",
+      "notes": "强调产品底层架构的先进性与扩展性，说明其如何兼容企业现有IT资产。",
+      "speakerNotes": "强调产品底层架构的先进性与扩展性，说明其如何兼容企业现有IT资产。",
+      "contentDensity": "low",
+      "visualDemand": "none"
+    },
+    {
+      "index": 3,
+      "intent": "content_cards",
+      "id": "slide-3",
+      "sectionId": "产品概述",
+      "title": "核心模块一：智能文档处理",
+      "subtitle": "",
+      "body": "",
+      "items": [
+        "一键生成高质量报告",
+        "智能排版与格式清洗",
+        "多语言实时互译",
+        "知识图谱自动关联"
+      ],
+      "oneLiner": "",
+      "summary": "突破传统文档编辑瓶颈，实现从生成、排版到多语种翻译的全流程AI辅助，释放知识工作者创造力。",
+      "keywords": [
+        "AIGC生成",
+        "智能排版",
+        "跨语言协作",
+        "知识管理"
+      ],
+      "keyTakeaways": [
+        "文档处理效率提升60%以上",
+        "大幅降低基础内容创作门槛"
+      ],
+      "visualBrief": "",
+      "notes": "重点演示长文本生成与结构化数据提取能力，结合财务/法务场景说明实际应用。",
+      "speakerNotes": "重点演示长文本生成与结构化数据提取能力，结合财务/法务场景说明实际应用。",
+      "contentDensity": "medium",
+      "visualDemand": "optional"
+    },
+    {
+      "index": 4,
+      "intent": "content_cards",
+      "id": "slide-4",
+      "sectionId": "产品概述",
+      "title": "核心模块二：AI 会议与协同",
+      "subtitle": "",
+      "body": "",
+      "items": [
+        "实时语音转写与摘要",
+        "智能提取待办事项",
+        "跨平台日程自动同步",
+        "情绪与参与度分析"
+      ],
+      "oneLiner": "",
+      "summary": "打通会前、会中、会后全链路，将无效沟通转化为结构化行动项，确保信息零遗漏与决策快落地。",
+      "keywords": [
+        "实时转写",
+        "行动项追踪",
+        "日程同步",
+        "会议效能"
+      ],
+      "keyTakeaways": [
+        "会议时间成本降低40%",
+        "决策执行透明度显著提升"
+      ],
+      "visualBrief": "",
+      "notes": "突出会后自动生成Action Item并分发至对应负责人的业务闭环，强调执行力提升。",
+      "speakerNotes": "突出会后自动生成Action Item并分发至对应负责人的业务闭环，强调执行力提升。",
+      "contentDensity": "medium",
+      "visualDemand": "optional"
+    },
+    {
+      "index": 5,
+      "intent": "content_cards",
+      "id": "slide-5",
+      "sectionId": "产品概述",
+      "title": "核心模块三：自动化工作流",
+      "subtitle": "",
+      "body": "",
+      "items": [
+        "对话式流程搭建",
+        "跨系统API无缝对接",
+        "智能审批路由分发",
+        "异常节点自动预警"
+      ],
+      "oneLiner": "",
+      "summary": "通过自然语言指令驱动复杂业务流程，实现跨系统数据流转与审批自动化，告别繁琐的手工流转。",
+      "keywords": [
+        "低代码编排",
+        "系统打通",
+        "智能路由",
+        "流程自动化"
+      ],
+      "keyTakeaways": [
+        "流程搭建周期缩短至分钟级",
+        "人工干预节点减少70%"
+      ],
+      "visualBrief": "",
+      "notes": "阐述“业务人员自助配置”的理念，降低对IT部门的依赖，加速业务响应速度。",
+      "speakerNotes": "阐述“业务人员自助配置”的理念，降低对IT部门的依赖，加速业务响应速度。",
+      "contentDensity": "medium",
+      "visualDemand": "optional"
+    },
+    {
+      "index": 6,
+      "intent": "section_divider",
+      "id": "slide-6",
+      "sectionId": "商业价值",
+      "title": "第二部分：商业价值与回报",
+      "subtitle": "",
+      "body": "",
+      "items": [],
+      "oneLiner": "从成本中心转向效率引擎",
+      "summary": "AI Office 不仅优化单点体验，更通过规模化部署带来可量化的财务回报与组织效能跃升。",
+      "keywords": [
+        "ROI量化",
+        "组织效能",
+        "成本优化",
+        "规模效应"
+      ],
+      "keyTakeaways": [],
+      "visualBrief": "",
+      "notes": "过渡到商业视角，说明技术投入如何转化为可衡量的业务增长与成本节约。",
+      "speakerNotes": "过渡到商业视角，说明技术投入如何转化为可衡量的业务增长与成本节约。",
+      "contentDensity": "low",
+      "visualDemand": "none"
+    },
+    {
+      "index": 7,
+      "intent": "content_cards",
+      "id": "slide-7",
+      "sectionId": "商业价值",
+      "title": "核心商业价值与ROI测算",
+      "subtitle": "",
+      "body": "",
+      "items": [
+        "人均效能提升35%+",
+        "年度IT运维成本降低20%",
+        "员工满意度提升至92%",
+        "项目交付周期缩短25%"
+      ],
+      "metrics": [
+        {
+          "value": "35%",
+          "label": "效能提升",
+          "detail": "人均产出增长"
+        },
+        {
+          "value": "1.8x",
+          "label": "ROI回报",
+          "detail": "首年投资回收"
+        }
+      ],
+      "oneLiner": "",
+      "summary": "基于已部署客户数据验证，AI Office 在部署首年即可实现显著的投资回报，全面优化人力与时间成本。",
+      "keywords": [
+        "人效提升",
+        "成本压降",
+        "投资回报",
+        "满意度"
+      ],
+      "keyTakeaways": [
+        "首年即可收回部署成本",
+        "长期复利效应显著"
+      ],
+      "notes": "结合行业基准数据说明ROI计算逻辑，重点突出隐性沟通成本与显性财务支出的双重降低。",
+      "speakerNotes": "结合行业基准数据说明ROI计算逻辑，重点突出隐性沟通成本与显性财务支出的双重降低。",
+      "contentDensity": "high",
+      "visualDemand": "optional"
+    },
+    {
+      "index": 8,
+      "intent": "text_content",
+      "id": "slide-8",
+      "sectionId": "商业价值",
+      "title": "企业落地路径与实施保障",
+      "subtitle": "",
+      "body": "第一阶段聚焦轻量级场景试点，如会议纪要与文档辅助生成，快速验证效果并建立内部信心。第二阶段推进核心业务流程重构，打通ERP、CRM等存量系统，实现数据孤岛融合。第三阶段开展全员AI素养培训，建立企业专属知识库，完成从工具使用到智能决策的跨越。全程配备专属客户成功团队，提供技术支持与安全合规保障。",
+      "items": [
+        "分阶段平滑迁移",
+        "存量系统无缝对接",
+        "专属客户成功服务",
+        "企业级数据安全保障"
+      ],
+      "oneLiner": "",
+      "summary": "提供标准化、分阶段的实施方法论，确保AI能力平稳嵌入现有业务体系，实现无缝过渡与价值快速释放。",
+      "keywords": [
+        "分步实施",
+        "系统融合",
+        "客户成功",
+        "安全合规"
+      ],
+      "keyTakeaways": [
+        "标准化实施路径降低试错风险",
+        "全周期服务保障业务连续性"
+      ],
+      "notes": "强调“卖转型而非卖软件”，安全合规与私有化部署是企业决策核心，需明确回应。",
+      "speakerNotes": "强调“卖转型而非卖软件”，安全合规与私有化部署是企业决策核心，需明确回应。",
+      "contentDensity": "high",
+      "visualDemand": "none"
+    },
+    {
+      "index": 9,
+      "intent": "closing",
+      "id": "slide-9",
+      "title": "携手 AI Office 共创未来",
+      "subtitle": "",
+      "body": "",
+      "items": [],
+      "oneLiner": "让智能成为组织的默认配置",
+      "summary": "感谢您聆听本次汇报。期待与贵司深入探讨定制化方案，共同开启高效智能办公新纪元。",
+      "keywords": [],
+      "keyTakeaways": [
+        "立即启动试点项目",
+        "预约专属场景演示",
+        "获取详细ROI测算报告"
+      ],
+      "visualBrief": "",
+      "notes": "明确下一步Call to Action，引导商务对接，可配合二维码或联系方式展示。",
+      "speakerNotes": "明确下一步Call to Action，引导商务对接，可配合二维码或联系方式展示。",
+      "contentDensity": "low",
+      "visualDemand": "none"
+    }
+  ],
+  "assets": [],
+  "sourcePrompt": "生成一份关于 AI Office 产品介绍的商务汇报 PPT，10 页左右，有封面、目录、功能模块、商业价值、总结。",
+  "source": {
+    "type": "prompt"
+  },
+  "status": "completed",
+  "expectedSlideCount": 10,
+  "completedSlideCount": 10,
+  "createdAt": "2024-05-20T10:00:00Z",
+  "updatedAt": "2026-05-10T08:25:07.628Z"
+}

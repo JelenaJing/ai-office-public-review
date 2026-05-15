@@ -1,0 +1,299 @@
+{
+  "templateId": "chinese_season",
+  "slideIndex": 8,
+  "shapeCount": 16,
+  "shapes": [
+    {
+      "shapeId": "6",
+      "shapeName": "图片 5",
+      "text": "",
+      "position": {
+        "x": 5116930,
+        "y": 541249,
+        "w": 3149544,
+        "h": 2515486,
+        "xCm": "14.2cm",
+        "yCm": "1.5cm",
+        "wCm": "8.7cm",
+        "hCm": "7.0cm"
+      },
+      "isVertical": false,
+      "isImage": true,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "30",
+      "shapeName": "任意多边形: 形状 29",
+      "text": "",
+      "position": {
+        "x": 3176997,
+        "y": 1285146,
+        "w": 6676212,
+        "h": 3360090,
+        "xCm": "8.8cm",
+        "yCm": "3.6cm",
+        "wCm": "18.5cm",
+        "hCm": "9.3cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "7",
+      "shapeName": "图片 6",
+      "text": "",
+      "position": {
+        "x": 5116930,
+        "y": 1285146,
+        "w": 3149544,
+        "h": 3360090,
+        "xCm": "14.2cm",
+        "yCm": "3.6cm",
+        "wCm": "8.7cm",
+        "hCm": "9.3cm"
+      },
+      "isVertical": false,
+      "isImage": true,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "39",
+      "shapeName": "文本框-39",
+      "text": "传统节气",
+      "position": {
+        "x": 4547149,
+        "y": 1563804,
+        "w": 369332,
+        "h": 707886,
+        "xCm": "12.6cm",
+        "yCm": "4.3cm",
+        "wCm": "1.0cm",
+        "hCm": "2.0cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false,
+      "fontSize": 12
+    },
+    {
+      "shapeId": "97",
+      "shapeName": "六边形 96",
+      "text": "",
+      "position": {
+        "x": 1967060,
+        "y": 2126054,
+        "w": 820590,
+        "h": 707406,
+        "xCm": "5.5cm",
+        "yCm": "5.9cm",
+        "wCm": "2.3cm",
+        "hCm": "2.0cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "96",
+      "shapeName": "文本框 95",
+      "text": "贰",
+      "position": {
+        "x": 2086178,
+        "y": 2170094,
+        "w": 595035,
+        "h": 584775,
+        "xCm": "5.8cm",
+        "yCm": "6.0cm",
+        "wCm": "1.7cm",
+        "hCm": "1.6cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false,
+      "fontSize": 32
+    },
+    {
+      "shapeId": "34",
+      "shapeName": "任意多边形: 形状 33",
+      "text": "",
+      "position": {
+        "x": 1558925,
+        "y": 2407900,
+        "w": 648834,
+        "h": 648833,
+        "xCm": "4.3cm",
+        "yCm": "6.7cm",
+        "wCm": "1.8cm",
+        "hCm": "1.8cm"
+      },
+      "isVertical": true,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "2",
+      "shapeName": "任意多边形: 形状 1",
+      "text": "",
+      "position": {
+        "x": 10595429,
+        "y": 2407903,
+        "w": 648834,
+        "h": 648833,
+        "xCm": "29.4cm",
+        "yCm": "6.7cm",
+        "wCm": "1.8cm",
+        "hCm": "1.8cm"
+      },
+      "isVertical": true,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "95",
+      "shapeName": "矩形: 圆角 94",
+      "text": "",
+      "position": {
+        "x": 2004173,
+        "y": 2463800,
+        "w": 746367,
+        "h": 2585410,
+        "xCm": "5.6cm",
+        "yCm": "6.8cm",
+        "wCm": "2.1cm",
+        "hCm": "7.2cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "98",
+      "shapeName": "文本框 97",
+      "text": "添加标题文本",
+      "position": {
+        "x": 2086601,
+        "y": 2921494,
+        "w": 553998,
+        "h": 2700050,
+        "xCm": "5.8cm",
+        "yCm": "8.1cm",
+        "wCm": "1.5cm",
+        "hCm": "7.5cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false,
+      "fontSize": 24
+    },
+    {
+      "shapeId": "94",
+      "shapeName": "任意多边形: 形状 93",
+      "text": "",
+      "position": {
+        "x": 728048,
+        "y": 3053224,
+        "w": 3298618,
+        "h": 1110534,
+        "xCm": "2.0cm",
+        "yCm": "8.5cm",
+        "wCm": "9.2cm",
+        "hCm": "3.1cm"
+      },
+      "isVertical": true,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "38",
+      "shapeName": "文本框 37",
+      "text": "添加标题文本",
+      "position": {
+        "x": 947737,
+        "y": 3901208,
+        "w": 2235567,
+        "h": 369332,
+        "xCm": "2.6cm",
+        "yCm": "10.8cm",
+        "wCm": "6.2cm",
+        "hCm": "1.0cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "43",
+      "shapeName": "文本框 42",
+      "text": "添加标题文本",
+      "position": {
+        "x": 1621582,
+        "y": 3901208,
+        "w": 2235567,
+        "h": 369332,
+        "xCm": "4.5cm",
+        "yCm": "10.8cm",
+        "wCm": "6.2cm",
+        "hCm": "1.0cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "37",
+      "shapeName": "文本框 36",
+      "text": "根据自己的需要添加适当的文字，此处添加详细文本描述，建议与标题相关尽量简洁... ...",
+      "position": {
+        "x": 947737,
+        "y": 4214305,
+        "w": 2909412,
+        "h": 576440,
+        "xCm": "2.6cm",
+        "yCm": "11.7cm",
+        "wCm": "8.1cm",
+        "hCm": "1.6cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "42",
+      "shapeName": "文本框 41",
+      "text": "根据自己的需要添加适当的文字，此处添加详细文本描述，建议与标题相关尽量简洁... ...",
+      "position": {
+        "x": 947737,
+        "y": 4214305,
+        "w": 2909412,
+        "h": 576440,
+        "xCm": "2.6cm",
+        "yCm": "11.7cm",
+        "wCm": "8.1cm",
+        "hCm": "1.6cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "44",
+      "shapeName": "文本框 43",
+      "text": "此处添加详细文本描述，建议与标题相关并符合整体语言风格，语言描述尽量简洁生动。尽量将每页幻灯片的字数控制在200字以内，据统计每页幻灯片的最好控制在5分钟之内。此处添加详细文本描述，建议与标题相关并符合整体语言风格，语言描述尽量简洁生动。",
+      "position": {
+        "x": 1626395,
+        "y": 4957686,
+        "w": 9777413,
+        "h": 615168,
+        "xCm": "4.5cm",
+        "yCm": "13.8cm",
+        "wCm": "27.2cm",
+        "hCm": "1.7cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false,
+      "fontSize": 12
+    }
+  ]
+}

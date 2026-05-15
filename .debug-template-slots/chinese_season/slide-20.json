@@ -1,0 +1,299 @@
+{
+  "templateId": "chinese_season",
+  "slideIndex": 20,
+  "shapeCount": 16,
+  "shapes": [
+    {
+      "shapeId": "2",
+      "shapeName": "文本框 1",
+      "text": "模板使用字体说明",
+      "position": {
+        "x": 1184619,
+        "y": 114301,
+        "w": 1760858,
+        "h": 369332,
+        "xCm": "3.3cm",
+        "yCm": "0.3cm",
+        "wCm": "4.9cm",
+        "hCm": "1.0cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "26",
+      "shapeName": "文本框 25",
+      "text": "立夏是二十四节气中的第七个节气，标志着盛夏时节的正式开始，此时气温升高、雷雨增多，万物从此进入生长旺盛期。",
+      "position": {
+        "x": 6901658,
+        "y": 711950,
+        "w": 1261884,
+        "h": 2294369,
+        "xCm": "19.2cm",
+        "yCm": "2.0cm",
+        "wCm": "3.5cm",
+        "hCm": "6.4cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false,
+      "fontSize": 14
+    },
+    {
+      "shapeId": "23",
+      "shapeName": "缺角矩形 22",
+      "text": "",
+      "position": {
+        "x": 920309,
+        "y": 759455,
+        "w": 298891,
+        "h": 298891,
+        "xCm": "2.6cm",
+        "yCm": "2.1cm",
+        "wCm": "0.8cm",
+        "hCm": "0.8cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "48",
+      "shapeName": "缺角矩形 47",
+      "text": "",
+      "position": {
+        "x": 3401795,
+        "y": 759455,
+        "w": 298891,
+        "h": 298891,
+        "xCm": "9.4cm",
+        "yCm": "2.1cm",
+        "wCm": "0.8cm",
+        "hCm": "0.8cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "3",
+      "shapeName": "文本框 2",
+      "text": "标题字：",
+      "position": {
+        "x": 1045701,
+        "y": 1567881,
+        "w": 961492,
+        "h": 369332,
+        "xCm": "2.9cm",
+        "yCm": "4.4cm",
+        "wCm": "2.7cm",
+        "hCm": "1.0cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "11",
+      "shapeName": "任意多边形: 形状 10",
+      "text": "",
+      "position": {
+        "x": 4744981,
+        "y": 2035700,
+        "w": 352961,
+        "h": 277210,
+        "xCm": "13.2cm",
+        "yCm": "5.7cm",
+        "wCm": "1.0cm",
+        "hCm": "0.8cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "12",
+      "shapeName": "任意多边形: 形状 11",
+      "text": "",
+      "position": {
+        "x": 4369335,
+        "y": 2279878,
+        "w": 987405,
+        "h": 646269,
+        "xCm": "12.1cm",
+        "yCm": "6.3cm",
+        "wCm": "2.7cm",
+        "hCm": "1.8cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "14",
+      "shapeName": "任意多边形: 形状 13",
+      "text": "",
+      "position": {
+        "x": 4406090,
+        "y": 2859340,
+        "w": 973276,
+        "h": 310985,
+        "xCm": "12.2cm",
+        "yCm": "7.9cm",
+        "wCm": "2.7cm",
+        "hCm": "0.9cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "47",
+      "shapeName": "文本框 46",
+      "text": "51PPT模板网 原创字体",
+      "position": {
+        "x": 3559174,
+        "y": 3116273,
+        "w": 2065346,
+        "h": 307777,
+        "xCm": "9.9cm",
+        "yCm": "8.7cm",
+        "wCm": "5.7cm",
+        "hCm": "0.9cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false,
+      "fontSize": 14
+    },
+    {
+      "shapeId": "4",
+      "shapeName": "文本框 3",
+      "text": "汇文明朝体 (正文)",
+      "position": {
+        "x": 6827790,
+        "y": 3130152,
+        "w": 3891690,
+        "h": 307777,
+        "xCm": "19.0cm",
+        "yCm": "8.7cm",
+        "wCm": "10.8cm",
+        "hCm": "0.9cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "21",
+      "shapeName": "任意多边形: 形状 20",
+      "text": "",
+      "position": {
+        "x": 4281656,
+        "y": 3351837,
+        "w": 1257307,
+        "h": 1530799,
+        "xCm": "11.9cm",
+        "yCm": "9.3cm",
+        "wCm": "3.5cm",
+        "hCm": "4.3cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "20",
+      "shapeName": "文本框 19",
+      "text": "内容字体：",
+      "position": {
+        "x": 1045701,
+        "y": 3506344,
+        "w": 1161333,
+        "h": 369332,
+        "xCm": "2.9cm",
+        "yCm": "9.7cm",
+        "wCm": "3.2cm",
+        "hCm": "1.0cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "25",
+      "shapeName": "任意多边形: 形状 24",
+      "text": "",
+      "position": {
+        "x": 4779019,
+        "y": 3824423,
+        "w": 190664,
+        "h": 298438,
+        "xCm": "13.3cm",
+        "yCm": "10.6cm",
+        "wCm": "0.5cm",
+        "hCm": "0.8cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "24",
+      "shapeName": "文本框 23",
+      "text": "英文 / 数字：HarmonyOS Sans SCMiSans Heavy",
+      "position": {
+        "x": 6827790,
+        "y": 3858719,
+        "w": 3455874,
+        "h": 738664,
+        "xCm": "19.0cm",
+        "yCm": "10.7cm",
+        "wCm": "9.6cm",
+        "hCm": "2.1cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false,
+      "fontSize": 14
+    },
+    {
+      "shapeId": "22",
+      "shapeName": "文本框 21",
+      "text": "中文：汇文明朝体 (正文)",
+      "position": {
+        "x": 3545673,
+        "y": 4175285,
+        "w": 3455874,
+        "h": 307777,
+        "xCm": "9.8cm",
+        "yCm": "11.6cm",
+        "wCm": "9.6cm",
+        "hCm": "0.9cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false,
+      "fontSize": 14
+    },
+    {
+      "shapeId": "28",
+      "shapeName": "文本框 27",
+      "text": "其他：",
+      "position": {
+        "x": 1045701,
+        "y": 4520381,
+        "w": 761650,
+        "h": 369332,
+        "xCm": "2.9cm",
+        "yCm": "12.6cm",
+        "wCm": "2.1cm",
+        "hCm": "1.0cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    }
+  ]
+}

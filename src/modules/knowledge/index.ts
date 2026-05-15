@@ -1,0 +1,5 @@
+export { default as KnowledgeConversationDock } from './components/KnowledgeConversationDock'
+export { default as KnowledgeSelectionDock } from './components/KnowledgeSelectionDock'
+export { default as PersonalLibrarySidebar } from './components/PersonalLibrarySidebar'
+export { default as KnowledgeTaskSelector } from './components/KnowledgeTaskSelector'
+export { openKnowledgeWorkspaceDraft, stripDocxExtension } from './services/knowledgeWorkspace'

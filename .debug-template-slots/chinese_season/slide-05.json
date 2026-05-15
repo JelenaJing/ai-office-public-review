@@ -1,0 +1,354 @@
+{
+  "templateId": "chinese_season",
+  "slideIndex": 5,
+  "shapeCount": 19,
+  "shapes": [
+    {
+      "shapeId": "18",
+      "shapeName": "椭圆 17",
+      "text": "",
+      "position": {
+        "x": 4288852,
+        "y": 1246670,
+        "w": 4364660,
+        "h": 4364660,
+        "xCm": "11.9cm",
+        "yCm": "3.5cm",
+        "wCm": "12.1cm",
+        "hCm": "12.1cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "39",
+      "shapeName": "文本框-39",
+      "text": "传统节气",
+      "position": {
+        "x": 4547149,
+        "y": 1563804,
+        "w": 369332,
+        "h": 707886,
+        "xCm": "12.6cm",
+        "yCm": "4.3cm",
+        "wCm": "1.0cm",
+        "hCm": "2.0cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false,
+      "fontSize": 12
+    },
+    {
+      "shapeId": "25",
+      "shapeName": "任意多边形: 形状 24",
+      "text": "",
+      "position": {
+        "x": 7832686,
+        "y": 1698055,
+        "w": 914400,
+        "h": 635000,
+        "xCm": "21.8cm",
+        "yCm": "4.7cm",
+        "wCm": "2.5cm",
+        "hCm": "1.8cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "37",
+      "shapeName": "文本框 36",
+      "text": "此处添加详细文本描述，建议与标题相关并符合整体语言风格，语言描述尽量简洁生动。尽量将每页幻灯片的字数控制在200字以内，据统计每页幻灯片的最好控制在5分钟之内。此处添加详细文本描述，",
+      "position": {
+        "x": 1549868,
+        "y": 1800672,
+        "w": 1569660,
+        "h": 3333868,
+        "xCm": "4.3cm",
+        "yCm": "5.0cm",
+        "wCm": "4.4cm",
+        "hCm": "9.3cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false,
+      "fontSize": 12
+    },
+    {
+      "shapeId": "49",
+      "shapeName": "文本框 48",
+      "text": "此处添加详细文本描述，建议与标题相关并符合整体语言风格，语言描述尽量简洁生动。尽量将每页幻灯片的字数控制在200字以内，据统计每页幻灯片的最好控制在5分钟之内。此处添加详细文本描述，",
+      "position": {
+        "x": 9305673,
+        "y": 1800672,
+        "w": 1569660,
+        "h": 3333868,
+        "xCm": "25.8cm",
+        "yCm": "5.0cm",
+        "wCm": "4.4cm",
+        "hCm": "9.3cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false,
+      "fontSize": 12
+    },
+    {
+      "shapeId": "29",
+      "shapeName": "图片 28",
+      "text": "",
+      "position": {
+        "x": 4814639,
+        "y": 1820912,
+        "w": 3691249,
+        "h": 3313628,
+        "xCm": "13.4cm",
+        "yCm": "5.1cm",
+        "wCm": "10.3cm",
+        "hCm": "9.2cm"
+      },
+      "isVertical": false,
+      "isImage": true,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "45",
+      "shapeName": "任意多边形 137",
+      "text": "",
+      "position": {
+        "x": 3119528,
+        "y": 1853169,
+        "w": 368462,
+        "h": 162386,
+        "xCm": "8.7cm",
+        "yCm": "5.1cm",
+        "wCm": "1.0cm",
+        "hCm": "0.5cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "51",
+      "shapeName": "任意多边形 137",
+      "text": "",
+      "position": {
+        "x": 10252553,
+        "y": 1853169,
+        "w": 368462,
+        "h": 162386,
+        "xCm": "28.5cm",
+        "yCm": "5.1cm",
+        "wCm": "1.0cm",
+        "hCm": "0.5cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "38",
+      "shapeName": "文本框 37",
+      "text": "添加标题文本",
+      "position": {
+        "x": 3077725,
+        "y": 2041763,
+        "w": 461665,
+        "h": 1448473,
+        "xCm": "8.5cm",
+        "yCm": "5.7cm",
+        "wCm": "1.3cm",
+        "hCm": "4.0cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "50",
+      "shapeName": "文本框 49",
+      "text": "添加标题文本",
+      "position": {
+        "x": 10210750,
+        "y": 2041763,
+        "w": 461665,
+        "h": 1448473,
+        "xCm": "28.4cm",
+        "yCm": "5.7cm",
+        "wCm": "1.3cm",
+        "hCm": "4.0cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "97",
+      "shapeName": "六边形 96",
+      "text": "",
+      "position": {
+        "x": 1967060,
+        "y": 2126054,
+        "w": 820590,
+        "h": 707406,
+        "xCm": "5.5cm",
+        "yCm": "5.9cm",
+        "wCm": "2.3cm",
+        "hCm": "2.0cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "96",
+      "shapeName": "文本框 95",
+      "text": "壹",
+      "position": {
+        "x": 2086178,
+        "y": 2170094,
+        "w": 595035,
+        "h": 584775,
+        "xCm": "5.8cm",
+        "yCm": "6.0cm",
+        "wCm": "1.7cm",
+        "hCm": "1.6cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false,
+      "fontSize": 32
+    },
+    {
+      "shapeId": "95",
+      "shapeName": "矩形: 圆角 94",
+      "text": "",
+      "position": {
+        "x": 2004173,
+        "y": 2463800,
+        "w": 746367,
+        "h": 2585410,
+        "xCm": "5.6cm",
+        "yCm": "6.8cm",
+        "wCm": "2.1cm",
+        "hCm": "7.2cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "98",
+      "shapeName": "文本框 97",
+      "text": "添加标题文本",
+      "position": {
+        "x": 2086601,
+        "y": 2921494,
+        "w": 553998,
+        "h": 2700050,
+        "xCm": "5.8cm",
+        "yCm": "8.1cm",
+        "wCm": "1.5cm",
+        "hCm": "7.5cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false,
+      "fontSize": 24
+    },
+    {
+      "shapeId": "94",
+      "shapeName": "任意多边形: 形状 93",
+      "text": "",
+      "position": {
+        "x": 728048,
+        "y": 3053224,
+        "w": 3298618,
+        "h": 1110534,
+        "xCm": "2.0cm",
+        "yCm": "8.5cm",
+        "wCm": "9.2cm",
+        "hCm": "3.1cm"
+      },
+      "isVertical": true,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "46",
+      "shapeName": "任意多边形 137",
+      "text": "",
+      "position": {
+        "x": 3119528,
+        "y": 3532218,
+        "w": 368462,
+        "h": 162386,
+        "xCm": "8.7cm",
+        "yCm": "9.8cm",
+        "wCm": "1.0cm",
+        "hCm": "0.5cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "52",
+      "shapeName": "任意多边形 137",
+      "text": "",
+      "position": {
+        "x": 10252553,
+        "y": 3532218,
+        "w": 368462,
+        "h": 162386,
+        "xCm": "28.5cm",
+        "yCm": "9.8cm",
+        "wCm": "1.0cm",
+        "hCm": "0.5cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "20",
+      "shapeName": "任意多边形: 形状 19",
+      "text": "",
+      "position": {
+        "x": 3499357,
+        "y": 4841114,
+        "w": 1490472,
+        "h": 699516,
+        "xCm": "9.7cm",
+        "yCm": "13.4cm",
+        "wCm": "4.1cm",
+        "hCm": "1.9cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "21",
+      "shapeName": "任意多边形: 形状 20",
+      "text": "",
+      "position": {
+        "x": 3526789,
+        "y": 5075810,
+        "w": 1735836,
+        "h": 600456,
+        "xCm": "9.8cm",
+        "yCm": "14.1cm",
+        "wCm": "4.8cm",
+        "hCm": "1.7cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    }
+  ]
+}

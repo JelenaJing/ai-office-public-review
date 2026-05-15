@@ -1,0 +1,191 @@
+{
+  "templateId": "academic_defense",
+  "slideIndex": 24,
+  "shapeCount": 10,
+  "shapes": [
+    {
+      "shapeId": "2",
+      "shapeName": "文本框 1",
+      "text": "模板使用字体说明",
+      "position": {
+        "x": 1184619,
+        "y": 114301,
+        "w": 1760858,
+        "h": 369332,
+        "xCm": "3.3cm",
+        "yCm": "0.3cm",
+        "wCm": "4.9cm",
+        "hCm": "1.0cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "23",
+      "shapeName": "缺角矩形 22",
+      "text": "",
+      "position": {
+        "x": 920309,
+        "y": 759455,
+        "w": 298891,
+        "h": 298891,
+        "xCm": "2.6cm",
+        "yCm": "2.1cm",
+        "wCm": "0.8cm",
+        "hCm": "0.8cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "48",
+      "shapeName": "缺角矩形 47",
+      "text": "",
+      "position": {
+        "x": 3401795,
+        "y": 759455,
+        "w": 298891,
+        "h": 298891,
+        "xCm": "9.4cm",
+        "yCm": "2.1cm",
+        "wCm": "0.8cm",
+        "hCm": "0.8cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "3",
+      "shapeName": "文本框 2",
+      "text": "标题字：",
+      "position": {
+        "x": 1045701,
+        "y": 1567881,
+        "w": 961492,
+        "h": 369332,
+        "xCm": "2.9cm",
+        "yCm": "4.4cm",
+        "wCm": "2.7cm",
+        "hCm": "1.0cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "8",
+      "shapeName": "文本框 7",
+      "text": "毕业论文答辩",
+      "position": {
+        "x": 3494672,
+        "y": 1719911,
+        "w": 5262979,
+        "h": 1107996,
+        "xCm": "9.7cm",
+        "yCm": "4.8cm",
+        "wCm": "14.6cm",
+        "hCm": "3.1cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false,
+      "fontSize": 66
+    },
+    {
+      "shapeId": "47",
+      "shapeName": "文本框 46",
+      "text": "思源黑体 CN Heavy",
+      "position": {
+        "x": 3559174,
+        "y": 3116273,
+        "w": 2065346,
+        "h": 307777,
+        "xCm": "9.9cm",
+        "yCm": "8.7cm",
+        "wCm": "5.7cm",
+        "hCm": "0.9cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false,
+      "fontSize": 14
+    },
+    {
+      "shapeId": "20",
+      "shapeName": "文本框 19",
+      "text": "内容字体：",
+      "position": {
+        "x": 1045701,
+        "y": 3506344,
+        "w": 1161333,
+        "h": 369332,
+        "xCm": "2.9cm",
+        "yCm": "9.7cm",
+        "wCm": "3.2cm",
+        "hCm": "1.0cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "24",
+      "shapeName": "文本框 23",
+      "text": "英文 / 数字：HarmonyOS Sans SCMiSans Heavy",
+      "position": {
+        "x": 6827790,
+        "y": 3858719,
+        "w": 3455874,
+        "h": 738664,
+        "xCm": "19.0cm",
+        "yCm": "10.7cm",
+        "wCm": "9.6cm",
+        "hCm": "2.1cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false,
+      "fontSize": 14
+    },
+    {
+      "shapeId": "22",
+      "shapeName": "文本框 21",
+      "text": "中文：阿里巴巴普惠体 2.0 55 Regular",
+      "position": {
+        "x": 3545673,
+        "y": 4175285,
+        "w": 3455874,
+        "h": 307777,
+        "xCm": "9.8cm",
+        "yCm": "11.6cm",
+        "wCm": "9.6cm",
+        "hCm": "0.9cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false,
+      "fontSize": 14
+    },
+    {
+      "shapeId": "28",
+      "shapeName": "文本框 27",
+      "text": "其他：",
+      "position": {
+        "x": 1045701,
+        "y": 4520381,
+        "w": 761650,
+        "h": 369332,
+        "xCm": "2.9cm",
+        "yCm": "12.6cm",
+        "wCm": "2.1cm",
+        "hCm": "1.0cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    }
+  ]
+}

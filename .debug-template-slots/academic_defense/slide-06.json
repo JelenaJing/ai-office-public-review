@@ -1,0 +1,263 @@
+{
+  "templateId": "academic_defense",
+  "slideIndex": 6,
+  "shapeCount": 14,
+  "shapes": [
+    {
+      "shapeId": "10",
+      "shapeName": "文本框 9",
+      "text": "01",
+      "position": {
+        "x": 4962920,
+        "y": 82101,
+        "w": 562976,
+        "h": 461665,
+        "xCm": "13.8cm",
+        "yCm": "0.2cm",
+        "wCm": "1.6cm",
+        "hCm": "1.3cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false,
+      "fontSize": 24
+    },
+    {
+      "shapeId": "11",
+      "shapeName": "文本框 10",
+      "text": "添加标题文本",
+      "position": {
+        "x": 5706090,
+        "y": 140587,
+        "w": 1760251,
+        "h": 369332,
+        "xCm": "15.9cm",
+        "yCm": "0.4cm",
+        "wCm": "4.9cm",
+        "hCm": "1.0cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "3",
+      "shapeName": "任意多边形: 形状 2",
+      "text": "",
+      "position": {
+        "x": 1418232,
+        "y": 1496255,
+        "w": 1923708,
+        "h": 942462,
+        "xCm": "3.9cm",
+        "yCm": "4.2cm",
+        "wCm": "5.3cm",
+        "hCm": "2.6cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "23",
+      "shapeName": "任意多边形: 形状 22",
+      "text": "",
+      "position": {
+        "x": 5112926,
+        "y": 1496255,
+        "w": 1923708,
+        "h": 942462,
+        "xCm": "14.2cm",
+        "yCm": "4.2cm",
+        "wCm": "5.3cm",
+        "hCm": "2.6cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "28",
+      "shapeName": "任意多边形: 形状 27",
+      "text": "",
+      "position": {
+        "x": 8855034,
+        "y": 1496255,
+        "w": 1923708,
+        "h": 942462,
+        "xCm": "24.6cm",
+        "yCm": "4.2cm",
+        "wCm": "5.3cm",
+        "hCm": "2.6cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "7",
+      "shapeName": "文本框 6",
+      "text": "添加标题文本",
+      "position": {
+        "x": 1588343,
+        "y": 1792922,
+        "w": 1583484,
+        "h": 338554,
+        "xCm": "4.4cm",
+        "yCm": "5.0cm",
+        "wCm": "4.4cm",
+        "hCm": "0.9cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "26",
+      "shapeName": "文本框 25",
+      "text": "添加标题文本",
+      "position": {
+        "x": 5283037,
+        "y": 1792922,
+        "w": 1583484,
+        "h": 338554,
+        "xCm": "14.7cm",
+        "yCm": "5.0cm",
+        "wCm": "4.4cm",
+        "hCm": "0.9cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "31",
+      "shapeName": "文本框 30",
+      "text": "添加标题文本",
+      "position": {
+        "x": 9025145,
+        "y": 1792922,
+        "w": 1583484,
+        "h": 338554,
+        "xCm": "25.1cm",
+        "yCm": "5.0cm",
+        "wCm": "4.4cm",
+        "hCm": "0.9cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "2",
+      "shapeName": "矩形 1",
+      "text": "",
+      "position": {
+        "x": 947738,
+        "y": 1856422,
+        "w": 2867660,
+        "h": 3576955,
+        "xCm": "2.6cm",
+        "yCm": "5.2cm",
+        "wCm": "8.0cm",
+        "hCm": "9.9cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "22",
+      "shapeName": "矩形 21",
+      "text": "",
+      "position": {
+        "x": 4642432,
+        "y": 1856422,
+        "w": 2867660,
+        "h": 3576955,
+        "xCm": "12.9cm",
+        "yCm": "5.2cm",
+        "wCm": "8.0cm",
+        "hCm": "9.9cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "27",
+      "shapeName": "矩形 26",
+      "text": "",
+      "position": {
+        "x": 8384540,
+        "y": 1856422,
+        "w": 2867660,
+        "h": 3576955,
+        "xCm": "23.3cm",
+        "yCm": "5.2cm",
+        "wCm": "8.0cm",
+        "hCm": "9.9cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "6",
+      "shapeName": "文本框 5",
+      "text": "此处添加详细文本描述，建议与标题相关并符合整体语言风格，语言描述尽量简洁生动。尽量将每页幻灯片的字数控制在200字以内，据统计每页幻灯片的最好控制在5分钟之内。此处添加详细文本描述，建议与标题相关并符合整体语言风格，语言描述尽量简洁生动。",
+      "position": {
+        "x": 1262304,
+        "y": 2702804,
+        "w": 2235564,
+        "h": 1917448,
+        "xCm": "3.5cm",
+        "yCm": "7.5cm",
+        "wCm": "6.2cm",
+        "hCm": "5.3cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false,
+      "fontSize": 10
+    },
+    {
+      "shapeId": "25",
+      "shapeName": "文本框 24",
+      "text": "此处添加详细文本描述，建议与标题相关并符合整体语言风格，语言描述尽量简洁生动。尽量将每页幻灯片的字数控制在200字以内，据统计每页幻灯片的最好控制在5分钟之内。此处添加详细文本描述，建议与标题相关并符合整体语言风格，语言描述尽量简洁生动。",
+      "position": {
+        "x": 4956998,
+        "y": 2702804,
+        "w": 2235564,
+        "h": 1917448,
+        "xCm": "13.8cm",
+        "yCm": "7.5cm",
+        "wCm": "6.2cm",
+        "hCm": "5.3cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false,
+      "fontSize": 10
+    },
+    {
+      "shapeId": "30",
+      "shapeName": "文本框 29",
+      "text": "此处添加详细文本描述，建议与标题相关并符合整体语言风格，语言描述尽量简洁生动。尽量将每页幻灯片的字数控制在200字以内，据统计每页幻灯片的最好控制在5分钟之内。此处添加详细文本描述，建议与标题相关并符合整体语言风格，语言描述尽量简洁生动。",
+      "position": {
+        "x": 8699106,
+        "y": 2702804,
+        "w": 2235564,
+        "h": 1917448,
+        "xCm": "24.2cm",
+        "yCm": "7.5cm",
+        "wCm": "6.2cm",
+        "hCm": "5.3cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false,
+      "fontSize": 10
+    }
+  ]
+}

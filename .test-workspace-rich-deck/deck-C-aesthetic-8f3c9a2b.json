@@ -1,0 +1,290 @@
+{
+  "deckId": "8f3c9a2b",
+  "schemaVersion": "1.0",
+  "title": "春之息，生之悟",
+  "subtitle": "于万物复苏处，照见生命本真",
+  "scenario": "general",
+  "language": "zh",
+  "sections": [
+    "春之苏醒",
+    "生之流转",
+    "心之归处"
+  ],
+  "imageMode": "none",
+  "slides": [
+    {
+      "index": 0,
+      "intent": "cover",
+      "id": "slide-0",
+      "title": "春之息，生之悟",
+      "subtitle": "于万物复苏处，照见生命本真",
+      "body": "",
+      "items": [],
+      "oneLiner": "东风拂柳绿，万物自生息",
+      "summary": "春风化雨，润物无声。在季节的更迭中，聆听生命拔节的声音，感悟岁月沉淀的从容。",
+      "keywords": [
+        "春风",
+        "新绿",
+        "生机",
+        "流年",
+        "静悟"
+      ],
+      "keyTakeaways": [],
+      "visualBrief": "水墨晕染的江南春色，一枝初绽的桃花斜倚于留白处，远山如黛。",
+      "notes": "开场语，引导观众进入春日意境，点明主题。",
+      "speakerNotes": "开场语，引导观众进入春日意境，点明主题。",
+      "contentDensity": "low",
+      "visualDemand": "required"
+    },
+    {
+      "index": 1,
+      "intent": "toc",
+      "id": "slide-1",
+      "sectionId": "",
+      "title": "寻春拾光",
+      "subtitle": "",
+      "body": "",
+      "items": [
+        "春之苏醒·破土",
+        "生之流转·枯荣",
+        "心之归处·静观"
+      ],
+      "oneLiner": "",
+      "summary": "循着春风的足迹，分三章探寻自然与生命的交响，于细微处见真章。",
+      "keywords": [
+        "脉络",
+        "寻踪",
+        "次第",
+        "观照"
+      ],
+      "keyTakeaways": [],
+      "visualBrief": "宣纸纹理背景，竖排目录文字如竹简般错落有致。",
+      "notes": "简要介绍本次分享的三个篇章脉络，帮助观众建立整体认知。",
+      "speakerNotes": "简要介绍本次分享的三个篇章脉络，帮助观众建立整体认知。",
+      "contentDensity": "medium",
+      "visualDemand": "optional"
+    },
+    {
+      "index": 2,
+      "intent": "section_divider",
+      "id": "slide-2",
+      "sectionId": "春之苏醒",
+      "title": "第一章 春之苏醒",
+      "subtitle": "",
+      "body": "",
+      "items": [],
+      "oneLiner": "寒冰初解，草木知春",
+      "summary": "冬雪褪去，泥土松动。生命在蛰伏后积蓄力量，以最柔软的姿态冲破束缚。",
+      "keywords": [
+        "蛰伏",
+        "破茧",
+        "微光",
+        "初醒"
+      ],
+      "keyTakeaways": [],
+      "visualBrief": "微距视角下的湿润泥土，一株嫩绿幼苗正奋力向上探出。",
+      "notes": "过渡至第一章，引导观众关注自然界中生命初始的张力与美感。",
+      "speakerNotes": "过渡至第一章，引导观众关注自然界中生命初始的张力与美感。",
+      "contentDensity": "low",
+      "visualDemand": "required"
+    },
+    {
+      "index": 3,
+      "intent": "image_text",
+      "id": "slide-3",
+      "sectionId": "春之苏醒",
+      "title": "破土而出的力量",
+      "subtitle": "",
+      "body": "春寒料峭之际，万物并未急于争艳。它们在暗处扎根，在静默中蓄力。当第一缕暖阳穿透云层，那些看似柔弱的嫩芽，便以不可阻挡之势顶开碎石与冻土。这并非莽撞的冲动，而是历经漫长等待后的必然。生命的韧性，往往在最不起眼的角落里悄然绽放，教会我们于低谷时保持耐心，于微光中看见希望。",
+      "items": [],
+      "oneLiner": "",
+      "summary": "每一片新叶的舒展，都是生命对光明的无声应答。不疾不徐，自有其时。",
+      "keywords": [
+        "扎根",
+        "破局",
+        "向阳",
+        "韧性"
+      ],
+      "keyTakeaways": [
+        "生命的突破源于长久的蛰伏与沉淀",
+        "柔韧胜过刚强，静待时机方能破土"
+      ],
+      "visualBrief": "逆光下的森林新芽，露珠折射出晨光，背景虚化呈现柔和的绿意。",
+      "notes": "结合自然现象引申人生哲理，强调耐心与内在积累的重要性。",
+      "speakerNotes": "结合自然现象引申人生哲理，强调耐心与内在积累的重要性。",
+      "contentDensity": "high",
+      "visualDemand": "required"
+    },
+    {
+      "index": 4,
+      "intent": "content_cards",
+      "id": "slide-4",
+      "sectionId": "春之苏醒",
+      "title": "润物无声的滋养",
+      "subtitle": "",
+      "body": "",
+      "items": [
+        "细雨微茫，润泽干涸心田",
+        "草木逢时，悄然拔节生长",
+        "不争朝夕，静候岁月回甘",
+        "万物有灵，皆受天地恩泽"
+      ],
+      "oneLiner": "",
+      "summary": "春雨如丝，不喧哗却滋养万物。生命的成长，离不开那些看似微不足道的温柔与善意。",
+      "keywords": [
+        "甘霖",
+        "无声",
+        "滋养",
+        "从容"
+      ],
+      "keyTakeaways": [
+        "真正的力量往往以柔和的方式呈现",
+        "接受与给予，皆是生命流转的常态"
+      ],
+      "visualBrief": "青瓦白墙上的雨丝，水洼倒映着摇曳的柳枝，画面湿润朦胧。",
+      "notes": "以春雨比喻生活中的支持与善意，引导观众关注细微的美好与互助。",
+      "speakerNotes": "以春雨比喻生活中的支持与善意，引导观众关注细微的美好与互助。",
+      "contentDensity": "medium",
+      "visualDemand": "optional"
+    },
+    {
+      "index": 5,
+      "intent": "section_divider",
+      "id": "slide-5",
+      "sectionId": "生之流转",
+      "title": "第二章 生之流转",
+      "subtitle": "",
+      "body": "",
+      "items": [],
+      "oneLiner": "花开有时，落英亦美",
+      "summary": "盛放与凋零，本是同一场轮回。接纳生命的起伏，方能读懂岁月的慈悲。",
+      "keywords": [
+        "荣枯",
+        "更迭",
+        "无常",
+        "释然"
+      ],
+      "keyTakeaways": [],
+      "visualBrief": "飘落的花瓣铺满青石板小径，光影斑驳，透着淡淡的禅意。",
+      "notes": "开启第二章，探讨生命周期的必然规律，引导观众思考得失与无常。",
+      "speakerNotes": "开启第二章，探讨生命周期的必然规律，引导观众思考得失与无常。",
+      "contentDensity": "low",
+      "visualDemand": "required"
+    },
+    {
+      "index": 6,
+      "intent": "image_text",
+      "id": "slide-6",
+      "sectionId": "生之流转",
+      "title": "荣枯皆成风景",
+      "subtitle": "",
+      "body": "世人多爱花开的绚烂，却常叹花落的匆匆。殊不知，绽放是生命的礼赞，凋零亦是另一种成全。花瓣辞枝，并非终结，而是化作春泥，孕育下一场相逢。人生亦如这草木春秋，有高潮便有低谷，有相聚便有别离。当我们不再执着于永恒的拥有，便能以平和之心，欣赏每一段旅程的独特风景。",
+      "items": [],
+      "oneLiner": "",
+      "summary": "繁花似锦是春，落红满地亦是春。生命的美，从不只存在于巅峰时刻。",
+      "keywords": [
+        "绚烂",
+        "沉淀",
+        "轮回",
+        "释怀"
+      ],
+      "keyTakeaways": [
+        "接纳生命的完整周期，不悲不惧",
+        "放下执念，方能遇见更广阔的天地"
+      ],
+      "visualBrief": "一枝盛放的樱花与几片飘落的花瓣同框，背景是淡雅的远山与薄雾。",
+      "notes": "探讨得失观与无常，鼓励观众以豁达心态面对人生起伏，珍惜当下。",
+      "speakerNotes": "探讨得失观与无常，鼓励观众以豁达心态面对人生起伏，珍惜当下。",
+      "contentDensity": "high",
+      "visualDemand": "required"
+    },
+    {
+      "index": 7,
+      "intent": "text_content",
+      "id": "slide-7",
+      "sectionId": "生之流转",
+      "title": "岁月沉淀的从容",
+      "subtitle": "",
+      "body": "春日的生机固然动人，但真正支撑生命前行的，是历经繁华后的清醒与自持。我们曾在春风中追逐，在夏雨里奔跑，最终都会在秋叶与冬雪中回归本心。生命不是一场与时间的赛跑，而是一次向内行走的修行。当外界的喧嚣逐渐褪去，留下的才是属于自己的节奏。不急不躁，不迎不拒，在岁月的打磨下，活出如水般的澄澈与坚韧。",
+      "items": [],
+      "oneLiner": "",
+      "summary": "走过春的喧闹，方知内心的宁静最为珍贵。在时光的长河里，修得一颗如如不动的心。",
+      "keywords": [
+        "修行",
+        "本心",
+        "澄澈",
+        "自持"
+      ],
+      "keyTakeaways": [
+        "向内探索比向外追逐更重要",
+        "在时光中沉淀，方能抵达从容之境"
+      ],
+      "visualBrief": "古朴茶室一隅，香炉青烟袅袅，窗外竹影婆娑，意境清幽。",
+      "notes": "引导观众从自然观察转向自我内省，强调心境修养与内在力量的构建。",
+      "speakerNotes": "引导观众从自然观察转向自我内省，强调心境修养与内在力量的构建。",
+      "contentDensity": "high",
+      "visualDemand": "optional"
+    },
+    {
+      "index": 8,
+      "intent": "section_divider",
+      "id": "slide-8",
+      "sectionId": "心之归处",
+      "title": "第三章 心之归处",
+      "subtitle": "",
+      "body": "",
+      "items": [],
+      "oneLiner": "万物有期，心归自然",
+      "summary": "阅尽千帆，终识本真。将春日的生机化作内心的长明灯火，照亮前行的路。",
+      "keywords": [
+        "归真",
+        "长明",
+        "自在",
+        "合一"
+      ],
+      "keyTakeaways": [],
+      "visualBrief": "一叶扁舟停泊于烟雨朦胧的湖面，远处有隐约的飞鸟与山影。",
+      "notes": "过渡至终章，升华主题，强调将自然感悟内化为生活哲学。",
+      "speakerNotes": "过渡至终章，升华主题，强调将自然感悟内化为生活哲学。",
+      "contentDensity": "low",
+      "visualDemand": "required"
+    },
+    {
+      "index": 9,
+      "intent": "closing",
+      "id": "slide-9",
+      "sectionId": "",
+      "title": "致谢与寄语",
+      "subtitle": "",
+      "body": "",
+      "items": [],
+      "oneLiner": "愿君如春草，岁岁自生光",
+      "summary": "感谢聆听。愿我们在每一个春天，都能重新出发，拥抱生命的无限可能。",
+      "keywords": [
+        "感恩",
+        "启程",
+        "希望",
+        "长明"
+      ],
+      "keyTakeaways": [
+        "顺应自然节律，活出本真自我",
+        "心怀感恩，静待每一场春暖花开"
+      ],
+      "visualBrief": "留白为主的画面，右下角一枚朱红印章，上方有淡淡的远山轮廓。",
+      "notes": "总结全文，送上祝福，留下余韵。可配合轻柔的收尾音乐，自然结束分享。",
+      "speakerNotes": "总结全文，送上祝福，留下余韵。可配合轻柔的收尾音乐，自然结束分享。",
+      "contentDensity": "low",
+      "visualDemand": "optional"
+    }
+  ],
+  "assets": [],
+  "sourcePrompt": "生成一份关于春天与生命感悟的中国风散文 PPT，10 页左右，有封面、目录、章节、图文页、结尾。",
+  "source": {
+    "type": "prompt"
+  },
+  "status": "completed",
+  "expectedSlideCount": 10,
+  "completedSlideCount": 10,
+  "createdAt": "2024-05-20T09:30:00Z",
+  "updatedAt": "2024-05-20T09:30:00Z"
+}

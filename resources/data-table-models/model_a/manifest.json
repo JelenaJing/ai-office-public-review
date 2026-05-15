@@ -1,0 +1,10 @@
+{
+  "id": "model_a",
+  "version": "1",
+  "label": "循环寿命模型 A",
+  "description": "表头规则识别 + SoH_% 列；未填写自定义分析需求时由 plot_builtin.py 直接出图，不调大模型。",
+  "sampleFile": "sample_cycle_life.csv",
+  "builtinPlot": "plot_builtin.py",
+  "outputFiles": ["excel_chart_01.png"],
+  "outputCount": 1
+}

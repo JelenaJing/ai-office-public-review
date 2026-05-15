@@ -1,0 +1,65 @@
+/* ─── Typography scale tokens ─────────────────────────────────────── */
+:root {
+  color-scheme: light;
+  font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  background: #f3efe5;
+  color: #161616;
+
+  /* Font-size design tokens */
+  --font-size-xs:    14px;   /* badges, status bar labels, auxiliary text */
+  --font-size-sm:    15px;   /* nav labels, secondary text */
+  --font-size-base:  16px;   /* body text, form inputs, buttons */
+  --font-size-md:    16px;   /* emphasis, descriptions */
+  --font-size-lg:    18px;   /* card titles, section headings */
+  --font-size-xl:    20px;   /* page sub-titles */
+  --font-size-title: 24px;   /* page titles */
+
+  /* AI font aliases */
+  --ai-font-xs:   14px;
+  --ai-font-sm:   15px;
+  --ai-font-md:   16px;
+  --ai-font-lg:   18px;
+  --ai-font-xl:   20px;
+  --ai-font-2xl:  24px;
+
+  /* Line-height tokens */
+  --ai-line-tight:   1.4;
+  --ai-line-normal:  1.55;
+  --ai-line-relaxed: 1.7;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 16px; /* base: 16px aligns with the UI design baseline */
+  line-height: 1.55;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-size: var(--font-size-base);
+  line-height: var(--ai-line-normal);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  background:
+    radial-gradient(circle at top right, rgba(197, 169, 118, 0.18), transparent 28%),
+    linear-gradient(135deg, #f6f1e7 0%, #efe6d6 52%, #f3f0e8 100%);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  font-size: var(--font-size-base);
+  min-height: 30px;
+}

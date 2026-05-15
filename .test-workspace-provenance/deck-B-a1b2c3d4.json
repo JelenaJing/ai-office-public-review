@@ -1,0 +1,162 @@
+{
+  "deckId": "a1b2c3d4",
+  "schemaVersion": "1.0",
+  "title": "深度学习图像识别算法优化",
+  "subtitle": "学术答辩报告",
+  "scenario": "academic_defense",
+  "language": "zh",
+  "sections": [
+    "研究背景",
+    "方法",
+    "实验",
+    "结论"
+  ],
+  "imageMode": "none",
+  "slides": [
+    {
+      "index": 0,
+      "intent": "cover",
+      "id": "slide-0",
+      "title": "深度学习图像识别算法优化",
+      "subtitle": "学术答辩报告",
+      "notes": "简要介绍研究主题与答辩目的",
+      "speakerNotes": "简要介绍研究主题与答辩目的",
+      "summary": "展示研究主题与答辩场景",
+      "contentDensity": "low",
+      "visualDemand": "none"
+    },
+    {
+      "index": 1,
+      "intent": "toc",
+      "id": "slide-1",
+      "title": "目录",
+      "items": [
+        "研究背景",
+        "方法",
+        "实验",
+        "结论"
+      ],
+      "notes": "引导听众了解汇报结构",
+      "speakerNotes": "引导听众了解汇报结构",
+      "summary": "列出报告核心章节框架",
+      "contentDensity": "low",
+      "visualDemand": "none"
+    },
+    {
+      "index": 2,
+      "intent": "section_divider",
+      "id": "slide-2",
+      "sectionId": "研究背景",
+      "title": "研究背景",
+      "subtitle": "问题定义与研究动机",
+      "notes": "说明当前图像识别算法的瓶颈",
+      "speakerNotes": "说明当前图像识别算法的瓶颈",
+      "summary": "引出算法优化的必要性",
+      "contentDensity": "low",
+      "visualDemand": "none"
+    },
+    {
+      "index": 3,
+      "intent": "text_content",
+      "id": "slide-3",
+      "sectionId": "研究背景",
+      "title": "现有挑战与优化需求",
+      "body": "传统深度学习模型在复杂场景下存在计算冗余、泛化能力不足等问题，需通过结构优化与训练策略提升效率。",
+      "notes": "结合具体场景说明优化方向",
+      "speakerNotes": "结合具体场景说明优化方向",
+      "summary": "分析当前算法局限性",
+      "contentDensity": "medium",
+      "visualDemand": "none"
+    },
+    {
+      "index": 4,
+      "intent": "section_divider",
+      "id": "slide-4",
+      "sectionId": "方法",
+      "title": "方法",
+      "subtitle": "优化策略与技术路径",
+      "notes": "概述核心优化手段",
+      "speakerNotes": "概述核心优化手段",
+      "summary": "提出系统性优化方案",
+      "contentDensity": "low",
+      "visualDemand": "none"
+    },
+    {
+      "index": 5,
+      "intent": "content_cards",
+      "id": "slide-5",
+      "sectionId": "方法",
+      "title": "关键优化技术",
+      "items": [
+        "模型轻量化设计",
+        "动态特征融合机制",
+        "自适应学习率调度"
+      ],
+      "notes": "分点解释技术实现逻辑",
+      "speakerNotes": "分点解释技术实现逻辑",
+      "summary": "展示三大核心优化方法",
+      "contentDensity": "high",
+      "visualDemand": "none"
+    },
+    {
+      "index": 6,
+      "intent": "section_divider",
+      "id": "slide-6",
+      "sectionId": "实验",
+      "title": "实验",
+      "subtitle": "验证设计与结果分析",
+      "notes": "说明实验设置与评估标准",
+      "speakerNotes": "说明实验设置与评估标准",
+      "summary": "构建科学验证体系",
+      "contentDensity": "low",
+      "visualDemand": "none"
+    },
+    {
+      "index": 7,
+      "intent": "text_content",
+      "id": "slide-7",
+      "sectionId": "实验",
+      "title": "实验结果对比",
+      "body": "在ImageNet与COCO数据集上，优化后模型参数量降低40%，推理速度提升2.1倍，mAP指标提高5.3%。",
+      "notes": "强调数据对比的显著性",
+      "speakerNotes": "强调数据对比的显著性",
+      "summary": "量化展示优化效果",
+      "contentDensity": "medium",
+      "visualDemand": "none"
+    },
+    {
+      "index": 8,
+      "intent": "section_divider",
+      "id": "slide-8",
+      "sectionId": "结论",
+      "title": "结论",
+      "subtitle": "研究成果与未来展望",
+      "notes": "总结贡献并指出改进空间",
+      "speakerNotes": "总结贡献并指出改进空间",
+      "summary": "凝练研究价值",
+      "contentDensity": "low",
+      "visualDemand": "none"
+    },
+    {
+      "index": 9,
+      "intent": "closing",
+      "id": "slide-9",
+      "title": "致谢",
+      "notes": "感谢评审与听众",
+      "speakerNotes": "感谢评审与听众",
+      "summary": "结束汇报并开放提问",
+      "contentDensity": "low",
+      "visualDemand": "none"
+    }
+  ],
+  "assets": [],
+  "sourcePrompt": "生成一份关于深度学习图像识别算法优化的学术答辩 PPT，10 页左右，有封面、目录、研究背景、方法、实验、结论。",
+  "source": {
+    "type": "prompt"
+  },
+  "status": "completed",
+  "expectedSlideCount": 10,
+  "completedSlideCount": 10,
+  "createdAt": "2024-05-20T10:00:00Z",
+  "updatedAt": "2024-05-20T10:00:00Z"
+}

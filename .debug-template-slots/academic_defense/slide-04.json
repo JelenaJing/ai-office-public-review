@@ -1,0 +1,118 @@
+{
+  "templateId": "academic_defense",
+  "slideIndex": 4,
+  "shapeCount": 6,
+  "shapes": [
+    {
+      "shapeId": "10",
+      "shapeName": "文本框 9",
+      "text": "01",
+      "position": {
+        "x": 4962920,
+        "y": 82101,
+        "w": 562976,
+        "h": 461665,
+        "xCm": "13.8cm",
+        "yCm": "0.2cm",
+        "wCm": "1.6cm",
+        "hCm": "1.3cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false,
+      "fontSize": 24
+    },
+    {
+      "shapeId": "11",
+      "shapeName": "文本框 10",
+      "text": "添加标题文本",
+      "position": {
+        "x": 5706090,
+        "y": 140587,
+        "w": 1760251,
+        "h": 369332,
+        "xCm": "15.9cm",
+        "yCm": "0.4cm",
+        "wCm": "4.9cm",
+        "hCm": "1.0cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "2",
+      "shapeName": "矩形 1",
+      "text": "",
+      "position": {
+        "x": 2005471,
+        "y": 1413914,
+        "w": 8014819,
+        "h": 3644537,
+        "xCm": "5.6cm",
+        "yCm": "3.9cm",
+        "wCm": "22.3cm",
+        "hCm": "10.1cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "3",
+      "shapeName": "任意形状 101",
+      "text": "",
+      "position": {
+        "x": 2171711,
+        "y": 1546926,
+        "w": 8014819,
+        "h": 3970319,
+        "xCm": "6.0cm",
+        "yCm": "4.3cm",
+        "wCm": "22.3cm",
+        "hCm": "11.0cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "4",
+      "shapeName": "文本框 3",
+      "text": "此处添加详细文本描述，建议与标题相关并符合整体语言风格，语言描述尽量简洁生动。尽量将每页幻灯片的字数控制在200字以内，据统计每页幻灯片的最好控制在5分钟之内。此处添加详细文本描述，建议与标题相关并符合整体语言风格，语言描述尽量简洁生动。",
+      "position": {
+        "x": 2639956,
+        "y": 2017199,
+        "w": 7078328,
+        "h": 992451,
+        "xCm": "7.3cm",
+        "yCm": "5.6cm",
+        "wCm": "19.7cm",
+        "hCm": "2.8cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false,
+      "fontSize": 13.51
+    },
+    {
+      "shapeId": "5",
+      "shapeName": "文本框 4",
+      "text": "此处添加详细文本描述，建议与标题相关并符合整体语言风格，语言描述尽量简洁生动。尽量将每页幻灯片的字数控制在200字以内，据统计每页幻灯片的最好控制在5分钟之内。此处添加详细文本描述，建议与标题相关并符合整体语言风格，语言描述尽量简洁生动。",
+      "position": {
+        "x": 2639956,
+        "y": 3479924,
+        "w": 7078328,
+        "h": 992451,
+        "xCm": "7.3cm",
+        "yCm": "9.7cm",
+        "wCm": "19.7cm",
+        "hCm": "2.8cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false,
+      "fontSize": 13.51
+    }
+  ]
+}

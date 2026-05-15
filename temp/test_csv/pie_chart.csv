@@ -1,0 +1,7 @@
+﻿component,percentage,category
+Protein,35.2,Macromolecule
+Polysaccharide,28.7,Macromolecule
+Lipid,18.4,SmallMolecule
+Nucleic_acid,9.1,Macromolecule
+Inorganic_salt,5.3,SmallMolecule
+Other,3.3,Other

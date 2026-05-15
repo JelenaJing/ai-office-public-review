@@ -1,0 +1,327 @@
+{
+  "generated_at": "2026-05-07T13:41:23.902Z",
+  "rules": [
+    {
+      "rule": "continue_rewrite_assistant",
+      "host_action": "writing.assistant",
+      "selected_count": 6,
+      "selected": [
+        {
+          "name": "WriteStory",
+          "skill_path": "Releases/v5.0.0/.claude/skills/WriteStory",
+          "quality_score": 81
+        },
+        {
+          "name": "doc-coauthoring",
+          "skill_path": "skills/doc-coauthoring",
+          "quality_score": 75
+        },
+        {
+          "name": "beautiful-prose",
+          "skill_path": "plugins/antigravity-awesome-skills-claude/skills/beautiful-prose",
+          "quality_score": 75
+        },
+        {
+          "name": "avoid-ai-writing",
+          "skill_path": "plugins/antigravity-awesome-skills-claude/skills/avoid-ai-writing",
+          "quality_score": 67
+        },
+        {
+          "name": "copywriting",
+          "skill_path": "cli-tool/components/skills/business-marketing/copywriting",
+          "quality_score": 65
+        },
+        {
+          "name": "planning-with-files",
+          "skill_path": ".continue/skills/planning-with-files",
+          "quality_score": 57
+        }
+      ]
+    },
+    {
+      "rule": "outline_topic",
+      "host_action": "writing.outline",
+      "selected_count": 10,
+      "selected": [
+        {
+          "name": "paper-plan",
+          "skill_path": "skills/paper-plan",
+          "quality_score": 75
+        },
+        {
+          "name": "content-trend-researcher",
+          "skill_path": "generated-skills/content-trend-researcher",
+          "quality_score": 75
+        },
+        {
+          "name": "outline",
+          "skill_path": "skills/outline",
+          "quality_score": 75
+        },
+        {
+          "name": "web-research",
+          "skill_path": "libs/cli/examples/skills/web-research",
+          "quality_score": 75
+        },
+        {
+          "name": "paper-write",
+          "skill_path": "skills/paper-write",
+          "quality_score": 75
+        },
+        {
+          "name": "deep-researcher",
+          "skill_path": "src/LlmTornado.Demo/Static/Files/Skills/deep-researcher",
+          "quality_score": 75
+        },
+        {
+          "name": "deep-research",
+          "skill_path": ".agents/skills/deep-research",
+          "quality_score": 68
+        },
+        {
+          "name": "perplexity-research",
+          "skill_path": "skills/perplexity-research",
+          "quality_score": 57
+        },
+        {
+          "name": "outlines",
+          "skill_path": "skills/mlops/inference/outlines",
+          "quality_score": 51
+        },
+        {
+          "name": "blog-outline",
+          "skill_path": "skills/blog-outline",
+          "quality_score": 47
+        }
+      ]
+    },
+    {
+      "rule": "paper_generation",
+      "host_action": "paper.generate",
+      "selected_count": 10,
+      "selected": [
+        {
+          "name": "scientific-writing",
+          "skill_path": "scientific-skills/scientific-writing",
+          "quality_score": 75
+        },
+        {
+          "name": "officecli-academic-paper",
+          "skill_path": "src/process/resources/skills/officecli-academic-paper",
+          "quality_score": 75
+        },
+        {
+          "name": "citation-management",
+          "skill_path": "scientific-skills/citation-management",
+          "quality_score": 75
+        },
+        {
+          "name": "scientific-brainstorming",
+          "skill_path": "bundled/skills/scientific-brainstorming",
+          "quality_score": 75
+        },
+        {
+          "name": "ml-paper-writing",
+          "skill_path": "cli-tool/components/skills/ai-research/ml-paper-writing",
+          "quality_score": 75
+        },
+        {
+          "name": "clinical-decision-support",
+          "skill_path": "scientific-skills/clinical-decision-support",
+          "quality_score": 75
+        },
+        {
+          "name": "hypogenic",
+          "skill_path": "scientific-skills/hypogenic",
+          "quality_score": 75
+        },
+        {
+          "name": "peer-review",
+          "skill_path": "scientific-skills/peer-review",
+          "quality_score": 75
+        },
+        {
+          "name": "statistical-analysis",
+          "skill_path": "cli-tool/components/skills/scientific/statistical-analysis",
+          "quality_score": 75
+        },
+        {
+          "name": "denario",
+          "skill_path": "cli-tool/components/skills/scientific/denario",
+          "quality_score": 75
+        }
+      ]
+    },
+    {
+      "rule": "experiment_plan",
+      "host_action": "writing.experiment_plan",
+      "selected_count": 10,
+      "selected": [
+        {
+          "name": "experiment-design",
+          "skill_path": "skills/experiment-design",
+          "quality_score": 75
+        },
+        {
+          "name": "scholar-evaluation",
+          "skill_path": "scientific-skills/scholar-evaluation",
+          "quality_score": 75
+        },
+        {
+          "name": "experiment-designer",
+          "skill_path": "product-team/skills/experiment-designer",
+          "quality_score": 75
+        },
+        {
+          "name": "configuring-experiment-analytics",
+          "skill_path": "products/experiments/skills/configuring-experiment-analytics",
+          "quality_score": 75
+        },
+        {
+          "name": "experiment-audit",
+          "skill_path": "skills/experiment-audit",
+          "quality_score": 75
+        },
+        {
+          "name": "experiment-plan",
+          "skill_path": "skills/experiment-plan",
+          "quality_score": 75
+        },
+        {
+          "name": "task-decomposition",
+          "skill_path": "packages/core/src/methodology/packs/planning/task-decomposition",
+          "quality_score": 75
+        },
+        {
+          "name": "test-patterns",
+          "skill_path": "packages/core/src/methodology/packs/testing/test-patterns",
+          "quality_score": 75
+        },
+        {
+          "name": "worker-benchmarks",
+          "skill_path": ".claude/skills/worker-benchmarks",
+          "quality_score": 65
+        },
+        {
+          "name": "evaluating-llms-harness",
+          "skill_path": "cli-tool/components/skills/ai-research/evaluation-lm-evaluation-harness",
+          "quality_score": 65
+        }
+      ]
+    },
+    {
+      "rule": "ppt_generation",
+      "host_action": "ppt.generate",
+      "selected_count": 10,
+      "selected": [
+        {
+          "name": "Pptx",
+          "skill_path": "Releases/v4.0.0/.claude/skills/Utilities/Documents/Pptx",
+          "quality_score": 81
+        },
+        {
+          "name": "automating-powerpoint",
+          "skill_path": "skills/automating-powerpoint",
+          "quality_score": 75
+        },
+        {
+          "name": "officecli-pptx",
+          "skill_path": "src/process/resources/skills/officecli-pptx",
+          "quality_score": 75
+        },
+        {
+          "name": "pptx-processing-anthropic",
+          "skill_path": "skills/pptx-processing-anthropic",
+          "quality_score": 75
+        },
+        {
+          "name": "paper-slides",
+          "skill_path": "skills/paper-slides",
+          "quality_score": 75
+        },
+        {
+          "name": "canva-branded-presentation",
+          "skill_path": "plugins/canva/skills/canva-branded-presentation",
+          "quality_score": 75
+        },
+        {
+          "name": "office-productivity",
+          "skill_path": "plugins/antigravity-bundle-documents-presentations/skills/office-productivity",
+          "quality_score": 75
+        },
+        {
+          "name": "sharepoint-powerpoint",
+          "skill_path": "plugins/sharepoint/skills/sharepoint-powerpoint",
+          "quality_score": 65
+        },
+        {
+          "name": "morph-ppt-3d",
+          "skill_path": "src/process/resources/skills/morph-ppt-3d",
+          "quality_score": 75
+        },
+        {
+          "name": "powerpoint-automation",
+          "skill_path": "powerpoint-automation",
+          "quality_score": 65
+        }
+      ]
+    },
+    {
+      "rule": "analysis_report",
+      "host_action": "analysis.generate",
+      "selected_count": 10,
+      "selected": [
+        {
+          "name": "Xlsx",
+          "skill_path": "Releases/v4.0.0/.claude/skills/Utilities/Documents/Xlsx",
+          "quality_score": 81
+        },
+        {
+          "name": "market-research-reports",
+          "skill_path": "bundled/skills/market-research-reports",
+          "quality_score": 75
+        },
+        {
+          "name": "playtest-report",
+          "skill_path": ".claude/skills/playtest-report",
+          "quality_score": 81
+        },
+        {
+          "name": "data-scientist",
+          "skill_path": "cli-tool/components/skills/ai-research/data-scientist",
+          "quality_score": 75
+        },
+        {
+          "name": "csv-data-analysis",
+          "skill_path": "skills/csv-data-analysis",
+          "quality_score": 75
+        },
+        {
+          "name": "xlsx-processing-manus",
+          "skill_path": "skills/xlsx-processing-manus",
+          "quality_score": 75
+        },
+        {
+          "name": "gepetto",
+          "skill_path": "cli-tool/components/skills/ai-research/gepetto",
+          "quality_score": 75
+        },
+        {
+          "name": "exploratory-data-analysis",
+          "skill_path": "scientific-skills/exploratory-data-analysis",
+          "quality_score": 75
+        },
+        {
+          "name": "customer-research",
+          "skill_path": "skills/customer-research",
+          "quality_score": 75
+        },
+        {
+          "name": "research-router-skill",
+          "skill_path": "plugins/life-science-research/skills/research-router-skill",
+          "quality_score": 75
+        }
+      ]
+    }
+  ]
+}

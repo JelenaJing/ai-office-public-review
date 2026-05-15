@@ -1,0 +1,607 @@
+{
+  "templateId": "academic_defense",
+  "slideIndex": 2,
+  "shapeCount": 33,
+  "shapes": [
+    {
+      "shapeId": "83",
+      "shapeName": "任意多边形: 形状 82",
+      "text": "",
+      "position": {
+        "x": 1618,
+        "y": 0,
+        "w": 12190382,
+        "h": 2021756,
+        "xCm": "0.0cm",
+        "yCm": "0.0cm",
+        "wCm": "33.9cm",
+        "hCm": "5.6cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "9",
+      "shapeName": "缺角矩形 8",
+      "text": "",
+      "position": {
+        "x": 264707,
+        "y": 241499,
+        "w": 11691611,
+        "h": 6400400,
+        "xCm": "0.7cm",
+        "yCm": "0.7cm",
+        "wCm": "32.5cm",
+        "hCm": "17.8cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "40",
+      "shapeName": "文本框 39",
+      "text": "目录",
+      "position": {
+        "x": 5325682,
+        "y": 525600,
+        "w": 1569660,
+        "h": 923330,
+        "xCm": "14.8cm",
+        "yCm": "1.5cm",
+        "wCm": "4.4cm",
+        "hCm": "2.6cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false,
+      "fontSize": 54
+    },
+    {
+      "shapeId": "7",
+      "shapeName": "文本框 6",
+      "text": "CONTENTS",
+      "position": {
+        "x": 5244013,
+        "y": 1596222,
+        "w": 1703974,
+        "h": 261610,
+        "xCm": "14.6cm",
+        "yCm": "4.4cm",
+        "wCm": "4.7cm",
+        "hCm": "0.7cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false,
+      "fontSize": 11
+    },
+    {
+      "shapeId": "25",
+      "shapeName": "缺角矩形 24",
+      "text": "",
+      "position": {
+        "x": 2344154,
+        "y": 2890490,
+        "w": 3149648,
+        "h": 538510,
+        "xCm": "6.5cm",
+        "yCm": "8.0cm",
+        "wCm": "8.7cm",
+        "hCm": "1.5cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "31",
+      "shapeName": "缺角矩形 30",
+      "text": "",
+      "position": {
+        "x": 2344154,
+        "y": 2890490,
+        "w": 3149648,
+        "h": 538510,
+        "xCm": "6.5cm",
+        "yCm": "8.0cm",
+        "wCm": "8.7cm",
+        "hCm": "1.5cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "88",
+      "shapeName": "缺角矩形 87",
+      "text": "",
+      "position": {
+        "x": 2344154,
+        "y": 2890490,
+        "w": 3149648,
+        "h": 538510,
+        "xCm": "6.5cm",
+        "yCm": "8.0cm",
+        "wCm": "8.7cm",
+        "hCm": "1.5cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "84",
+      "shapeName": "缺角矩形 83",
+      "text": "",
+      "position": {
+        "x": 2344154,
+        "y": 2890490,
+        "w": 3149648,
+        "h": 538510,
+        "xCm": "6.5cm",
+        "yCm": "8.0cm",
+        "wCm": "8.7cm",
+        "hCm": "1.5cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "28",
+      "shapeName": "缺角矩形 27",
+      "text": "",
+      "position": {
+        "x": 2550948,
+        "y": 2890490,
+        "w": 675904,
+        "h": 538510,
+        "xCm": "7.1cm",
+        "yCm": "8.0cm",
+        "wCm": "1.9cm",
+        "hCm": "1.5cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "76",
+      "shapeName": "缺角矩形 75",
+      "text": "",
+      "position": {
+        "x": 2550948,
+        "y": 2890490,
+        "w": 675904,
+        "h": 538510,
+        "xCm": "7.1cm",
+        "yCm": "8.0cm",
+        "wCm": "1.9cm",
+        "hCm": "1.5cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "89",
+      "shapeName": "缺角矩形 88",
+      "text": "",
+      "position": {
+        "x": 2550948,
+        "y": 2890490,
+        "w": 675904,
+        "h": 538510,
+        "xCm": "7.1cm",
+        "yCm": "8.0cm",
+        "wCm": "1.9cm",
+        "hCm": "1.5cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "85",
+      "shapeName": "缺角矩形 84",
+      "text": "",
+      "position": {
+        "x": 2550948,
+        "y": 2890490,
+        "w": 675904,
+        "h": 538510,
+        "xCm": "7.1cm",
+        "yCm": "8.0cm",
+        "wCm": "1.9cm",
+        "hCm": "1.5cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "26",
+      "shapeName": "文本框 25",
+      "text": "01",
+      "position": {
+        "x": 2607412,
+        "y": 2928912,
+        "w": 562976,
+        "h": 461665,
+        "xCm": "7.2cm",
+        "yCm": "8.1cm",
+        "wCm": "1.6cm",
+        "hCm": "1.3cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false,
+      "fontSize": 24
+    },
+    {
+      "shapeId": "77",
+      "shapeName": "文本框 76",
+      "text": "02",
+      "position": {
+        "x": 2607413,
+        "y": 2928912,
+        "w": 562975,
+        "h": 461665,
+        "xCm": "7.2cm",
+        "yCm": "8.1cm",
+        "wCm": "1.6cm",
+        "hCm": "1.3cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false,
+      "fontSize": 24
+    },
+    {
+      "shapeId": "90",
+      "shapeName": "文本框 89",
+      "text": "03",
+      "position": {
+        "x": 2607413,
+        "y": 2928912,
+        "w": 562975,
+        "h": 461665,
+        "xCm": "7.2cm",
+        "yCm": "8.1cm",
+        "wCm": "1.6cm",
+        "hCm": "1.3cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false,
+      "fontSize": 24
+    },
+    {
+      "shapeId": "86",
+      "shapeName": "文本框 85",
+      "text": "04",
+      "position": {
+        "x": 2607413,
+        "y": 2928912,
+        "w": 562975,
+        "h": 461665,
+        "xCm": "7.2cm",
+        "yCm": "8.1cm",
+        "wCm": "1.6cm",
+        "hCm": "1.3cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false,
+      "fontSize": 24
+    },
+    {
+      "shapeId": "27",
+      "shapeName": "文本框 26",
+      "text": "添加标题文本",
+      "position": {
+        "x": 3350582,
+        "y": 2987398,
+        "w": 1760251,
+        "h": 369332,
+        "xCm": "9.3cm",
+        "yCm": "8.3cm",
+        "wCm": "4.9cm",
+        "hCm": "1.0cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "78",
+      "shapeName": "文本框 77",
+      "text": "添加标题文本",
+      "position": {
+        "x": 3350582,
+        "y": 2987398,
+        "w": 1760251,
+        "h": 369332,
+        "xCm": "9.3cm",
+        "yCm": "8.3cm",
+        "wCm": "4.9cm",
+        "hCm": "1.0cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "91",
+      "shapeName": "文本框 90",
+      "text": "添加标题文本",
+      "position": {
+        "x": 3350582,
+        "y": 2987398,
+        "w": 1760251,
+        "h": 369332,
+        "xCm": "9.3cm",
+        "yCm": "8.3cm",
+        "wCm": "4.9cm",
+        "hCm": "1.0cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "87",
+      "shapeName": "文本框 86",
+      "text": "添加标题文本",
+      "position": {
+        "x": 3350582,
+        "y": 2987398,
+        "w": 1760251,
+        "h": 369332,
+        "xCm": "9.3cm",
+        "yCm": "8.3cm",
+        "wCm": "4.9cm",
+        "hCm": "1.0cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "75",
+      "shapeName": "Freeform 21",
+      "text": "",
+      "position": {
+        "x": 10584298,
+        "y": 4505947,
+        "w": 621334,
+        "h": 301887,
+        "xCm": "29.4cm",
+        "yCm": "12.5cm",
+        "wCm": "1.7cm",
+        "hCm": "0.8cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "69",
+      "shapeName": "Freeform 22",
+      "text": "",
+      "position": {
+        "x": 13179043,
+        "y": 4505947,
+        "w": 620659,
+        "h": 301887,
+        "xCm": "36.6cm",
+        "yCm": "12.5cm",
+        "wCm": "1.7cm",
+        "hCm": "0.8cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "74",
+      "shapeName": "Freeform 15",
+      "text": "",
+      "position": {
+        "x": 10985464,
+        "y": 4616031,
+        "w": 75641,
+        "h": 110760,
+        "xCm": "30.5cm",
+        "yCm": "12.8cm",
+        "wCm": "0.2cm",
+        "hCm": "0.3cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "41",
+      "shapeName": "Freeform 20",
+      "text": "",
+      "position": {
+        "x": 13322895,
+        "y": 4616031,
+        "w": 75641,
+        "h": 110760,
+        "xCm": "37.0cm",
+        "yCm": "12.8cm",
+        "wCm": "0.2cm",
+        "hCm": "0.3cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "72",
+      "shapeName": "Freeform 13",
+      "text": "",
+      "position": {
+        "x": 10755165,
+        "y": 4700452,
+        "w": 131020,
+        "h": 75641,
+        "xCm": "29.9cm",
+        "yCm": "13.1cm",
+        "wCm": "0.4cm",
+        "hCm": "0.2cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "38",
+      "shapeName": "Freeform 18",
+      "text": "",
+      "position": {
+        "x": 13497814,
+        "y": 4700452,
+        "w": 131696,
+        "h": 75641,
+        "xCm": "37.5cm",
+        "yCm": "13.1cm",
+        "wCm": "0.4cm",
+        "hCm": "0.2cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "71",
+      "shapeName": "Freeform 12",
+      "text": "",
+      "position": {
+        "x": 10624145,
+        "y": 4715985,
+        "w": 135748,
+        "h": 92525,
+        "xCm": "29.5cm",
+        "yCm": "13.1cm",
+        "wCm": "0.4cm",
+        "hCm": "0.3cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "37",
+      "shapeName": "Freeform 17",
+      "text": "",
+      "position": {
+        "x": 13624107,
+        "y": 4715985,
+        "w": 135748,
+        "h": 92525,
+        "xCm": "37.8cm",
+        "yCm": "13.1cm",
+        "wCm": "0.4cm",
+        "hCm": "0.3cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "70",
+      "shapeName": "Freeform 11",
+      "text": "",
+      "position": {
+        "x": 10354675,
+        "y": 4742324,
+        "w": 709807,
+        "h": 84421,
+        "xCm": "28.8cm",
+        "yCm": "13.2cm",
+        "wCm": "2.0cm",
+        "hCm": "0.2cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "36",
+      "shapeName": "Freeform 16",
+      "text": "",
+      "position": {
+        "x": 13319518,
+        "y": 4742324,
+        "w": 709807,
+        "h": 84421,
+        "xCm": "37.0cm",
+        "yCm": "13.2cm",
+        "wCm": "2.0cm",
+        "hCm": "0.2cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "73",
+      "shapeName": "Freeform 14",
+      "text": "",
+      "position": {
+        "x": 10510684,
+        "y": 4815263,
+        "w": 121565,
+        "h": 88473,
+        "xCm": "29.2cm",
+        "yCm": "13.4cm",
+        "wCm": "0.3cm",
+        "hCm": "0.2cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "39",
+      "shapeName": "Freeform 19",
+      "text": "",
+      "position": {
+        "x": 13751751,
+        "y": 4815263,
+        "w": 121565,
+        "h": 88473,
+        "xCm": "38.2cm",
+        "yCm": "13.4cm",
+        "wCm": "0.3cm",
+        "hCm": "0.2cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "33",
+      "shapeName": "Freeform 10",
+      "text": "",
+      "position": {
+        "x": 2931677,
+        "y": 4865961,
+        "w": 3528000,
+        "h": 127644,
+        "xCm": "8.1cm",
+        "yCm": "13.5cm",
+        "wCm": "9.8cm",
+        "hCm": "0.4cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    }
+  ]
+}

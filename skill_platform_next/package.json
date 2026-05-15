@@ -1,0 +1,15 @@
+{
+  "name": "skill-platform-next",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev:library": "node services/skill-library-backend/src/server.js",
+    "dev:engine": "node services/skill-engine/src/server.js",
+    "dev:store": "node apps/skill-store-web/server.js",
+    "dev:adapter": "node apps/ai-office-adapter/syncFlow.js",
+    "smoke": "node scripts/smoke.js",
+    "import:skills": "node scripts/import-skills-to-aoskin.mjs"
+  }
+}
+

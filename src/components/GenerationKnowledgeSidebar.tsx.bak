@@ -1,0 +1,1350 @@
+import { useMemo, useState } from 'react'
+import styled from 'styled-components'
+import {
+  BookOpen,
+  FileImage,
+  FileStack,
+  ImageOff,
+  PanelLeftClose,
+  RefreshCw,
+  Search,
+  Upload,
+  X,
+} from 'lucide-react'
+import { useDocument } from '../contexts/DocumentContext'
+import { useFormalTemplateSession } from '../contexts/FormalTemplateSessionContext'
+import { useGenerationWorkbench } from '../contexts/GenerationWorkbenchContext'
+import { useKnowledge } from '../contexts/KnowledgeContext'
+import { useWorkspaceMode } from '../contexts/WorkspaceModeContext'
+import { useDocumentEngineHostCommands } from '../engines/documentEngine/hostCommands'
+import type { GenerationMode } from '../contexts/WorkspaceModeContext'
+import type { ImageReferenceRole } from '../types/imageGeneration'
+import type { KnowledgeDocumentMeta } from '../types/knowledge'
+import {
+  getGenerationModeOption,
+  isDocumentMaterialCandidate,
+  isDocumentTemplateCandidate,
+  isImageMaterialCandidate,
+  isPptMaterialCandidate,
+  matchesGenerationCandidate,
+} from './generationWorkbenchConfig'
+import { toDisplayUrl } from './generationWorkbenchUtils'
+
+const Panel = styled.div<{ $width: number; $locked?: boolean; $embedded?: boolean }>`
+  width: ${p => (p.$embedded ? '100%' : `${p.$locked ? 336 : p.$width}px`)};
+  min-width: ${p => (p.$embedded ? '0' : `${p.$locked ? 336 : 300}px`)};
+  max-width: ${p => (p.$embedded ? 'none' : `${p.$locked ? 336 : 340}px`)};
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(180deg, #fafdff 0%, #f3f7fb 100%);
+  border-right: ${p => (p.$embedded ? 'none' : '1px solid #dbe4ee')};
+  position: relative;
+  color: #304255;
+`
+
+const ResizeHandle = styled.div`
+  position: absolute;
+  top: 0;
+  right: -2px;
+  width: 4px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 10;
+
+  &:hover {
+    background: #007acc;
+  }
+`
+
+const Header = styled.div`
+  padding: 12px 12px 10px;
+  border-bottom: 1px solid #e4ebf2;
+  display: grid;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.96);
+`
+
+const HeaderRow = styled.div`
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+`
+
+const HeaderCopy = styled.div`
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+`
+
+const HeaderTitle = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 800;
+  color: #1f3447;
+`
+
+const HeaderDesc = styled.div`
+  font-size: 11px;
+  line-height: 1.6;
+  color: #667a8f;
+`
+
+const HeaderActions = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+`
+
+const IconButton = styled.button`
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid #d7e1ec;
+  background: #ffffff;
+  color: #607487;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    background: #eef4fb;
+    color: #243447;
+  }
+
+  &:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+`
+
+const SearchWrap = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  border: 1px solid #d8e2ed;
+  border-radius: 12px;
+  background: #fbfdff;
+  padding: 0 10px;
+`
+
+const SearchInput = styled.input`
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: #243447;
+  font-size: 12px;
+  outline: none;
+
+  &::placeholder {
+    color: #93a2b1;
+  }
+`
+
+const ToolbarRow = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+`
+
+const ToolbarCluster = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+`
+
+const ToolbarLabel = styled.div`
+  font-size: 11px;
+  color: #8295a8;
+  font-weight: 700;
+`
+
+const ToolbarSelect = styled.select`
+  min-height: 28px;
+  border-radius: 9px;
+  border: 1px solid #dbe5ef;
+  background: #ffffff;
+  color: #35516d;
+  padding: 0 10px;
+  font-size: 11px;
+  font-weight: 700;
+  outline: none;
+  cursor: pointer;
+`
+
+const Content = styled.div<{ $imageMode?: boolean }>`
+  flex: 1;
+  min-height: 0;
+  padding: 12px;
+
+  ${({ $imageMode }) => ($imageMode ? `
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    overflow: hidden;
+  ` : `
+    overflow-y: auto;
+    display: grid;
+    align-content: start;
+    gap: 10px;
+  `)}
+`
+
+const Token = styled.span`
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid #d7e3ef;
+  background: #f6f9fc;
+  color: #5f7488;
+  font-size: 10px;
+  font-weight: 800;
+`
+
+const Section = styled.section<{ $stretch?: boolean }>`
+  border: 1px solid #dbe5ef;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.98);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: ${({ $stretch }) => ($stretch ? 0 : 'auto')};
+  flex: ${({ $stretch }) => ($stretch ? '1 1 0' : '0 0 auto')};
+`
+
+const SectionHead = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+`
+
+const SectionTitle = styled.div`
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: #688096;
+`
+
+const SectionMeta = styled.div`
+  font-size: 11px;
+  color: #8295a8;
+  font-weight: 700;
+`
+
+const CardList = styled.div<{ $scrollable?: boolean; $maxHeight?: string; $twoColumn?: boolean }>`
+  display: grid;
+  gap: 10px;
+  grid-template-columns: ${({ $twoColumn }) => ($twoColumn ? 'repeat(2, minmax(0, 1fr))' : 'repeat(auto-fill, minmax(182px, 1fr))')};
+  align-items: stretch;
+  min-height: ${({ $scrollable }) => ($scrollable ? 0 : 'auto')};
+
+  ${({ $scrollable, $maxHeight }) => ($scrollable ? `
+    overflow-y: auto;
+    padding-right: 4px;
+    max-height: ${$maxHeight || '100%'};
+    scrollbar-width: thin;
+    scrollbar-color: rgba(126, 150, 175, 0.5) rgba(222, 231, 240, 0.4);
+
+    &::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    &::-webkit-scrollbar-track {
+      background: rgba(222, 231, 240, 0.45);
+      border-radius: 999px;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      background: rgba(126, 150, 175, 0.5);
+      border-radius: 999px;
+    }
+  ` : '')}
+`
+
+const DocumentCard = styled.div<{ $active?: boolean }>`
+  border: 1px solid ${({ $active }) => ($active ? '#b9d4f0' : '#e0e8f1')};
+  border-radius: 12px;
+  background: ${({ $active }) => ($active ? 'linear-gradient(180deg, #f4f9ff 0%, #eaf3ff 100%)' : '#ffffff')};
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+`
+
+const DocumentMain = styled.button`
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+  display: grid;
+  gap: 6px;
+`
+
+const DocumentTitle = styled.div`
+  font-size: 12px;
+  font-weight: 800;
+  color: #233648;
+  line-height: 1.45;
+`
+
+const DocumentExcerpt = styled.div`
+  font-size: 11px;
+  line-height: 1.6;
+  color: #617487;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+`
+
+const MetaRow = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+`
+
+const MetaChip = styled.span<{ $accent?: boolean }>`
+  min-height: 20px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 7px;
+  border-radius: 999px;
+  border: 1px solid ${({ $accent }) => ($accent ? '#bcd7f3' : '#dde7f0')};
+  background: ${({ $accent }) => ($accent ? '#eaf4ff' : '#f6f9fc')};
+  color: ${({ $accent }) => ($accent ? '#17456d' : '#607487')};
+  font-size: 10px;
+  font-weight: 700;
+`
+
+const ActionRow = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+`
+
+const ActionButton = styled.button<{ $primary?: boolean; $danger?: boolean }>`
+  min-height: 28px;
+  border-radius: 9px;
+  border: 1px solid ${({ $primary, $danger }) => ($danger ? '#efc6c6' : $primary ? '#a7caeb' : '#d7e2ed')};
+  background: ${({ $primary, $danger }) => ($danger ? '#fff4f4' : $primary ? '#edf6ff' : '#ffffff')};
+  color: ${({ $primary, $danger }) => ($danger ? '#b23b3b' : $primary ? '#16476f' : '#607487')};
+  padding: 0 10px;
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    background: ${({ $primary, $danger }) => ($danger ? '#ffe8e8' : $primary ? '#e5f1fe' : '#f5f9fd')};
+  }
+
+  &:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+`
+
+const SoftDangerButton = styled(ActionButton)`
+  border-color: #e5e9ef;
+  background: #fbfcfd;
+  color: #7d8fa1;
+
+  &:hover:not(:disabled) {
+    background: #f3f6f9;
+    color: #5c6e80;
+  }
+`
+
+const WorkflowActionStack = styled.div`
+  display: grid;
+  gap: 8px;
+`
+
+const WorkflowSecondaryActions = styled.div`
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+`
+
+const WorkflowPrimaryActions = styled.div<{ $columns?: number }>`
+  display: grid;
+  grid-template-columns: repeat(${({ $columns = 2 }) => $columns}, minmax(0, 1fr));
+  gap: 8px;
+`
+
+const WorkflowMainButton = styled.button<{ $tone?: 'primary' | 'secondary'; $active?: boolean }>`
+  min-height: 38px;
+  border-radius: 11px;
+  border: 1px solid ${({ $tone, $active }) => {
+    if ($tone === 'primary') return $active ? '#0b67bf' : '#89b9e7'
+    return $active ? '#8ebfe9' : '#d7e2ed'
+  }};
+  background: ${({ $tone, $active }) => {
+    if ($tone === 'primary') return $active ? 'linear-gradient(180deg, #0d74d1 0%, #0b67bf 100%)' : 'linear-gradient(180deg, #eef6ff 0%, #e2efff 100%)'
+    return $active ? 'linear-gradient(180deg, #eef7ff 0%, #e5f2ff 100%)' : '#ffffff'
+  }};
+  color: ${({ $tone, $active }) => ($tone === 'primary' ? ($active ? '#ffffff' : '#16476f') : $active ? '#18486f' : '#607487')};
+  padding: 0 12px;
+  font-size: 11px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: transform 0.14s ease, box-shadow 0.14s ease, background 0.14s ease;
+
+  &:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: ${({ $tone }) => ($tone === 'primary' ? '0 10px 16px rgba(14, 104, 185, 0.16)' : '0 8px 14px rgba(63, 95, 128, 0.1)')};
+  }
+
+  &:disabled {
+    opacity: 0.58;
+    cursor: not-allowed;
+    box-shadow: none;
+    transform: none;
+  }
+`
+
+const WorkflowUtilityActions = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+`
+
+const UtilityActionGroup = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+`
+
+const WorkflowHint = styled.div`
+  font-size: 11px;
+  line-height: 1.6;
+  color: #70859a;
+`
+
+const ImageCard = styled.div<{ $primary?: boolean; $selected?: boolean }>`
+  border: 1px solid ${({ $primary, $selected }) => ($primary ? '#7eb4e8' : $selected ? '#bdd7f1' : '#e0e8f1')};
+  border-radius: 14px;
+  background: ${({ $primary, $selected }) => ($primary
+    ? 'linear-gradient(180deg, #eef7ff 0%, #e3f0ff 100%)'
+    : $selected
+      ? 'linear-gradient(180deg, #f8fbff 0%, #eff6ff 100%)'
+      : '#ffffff')};
+  box-shadow: ${({ $primary }) => ($primary ? '0 8px 18px rgba(49, 109, 181, 0.12)' : 'none')};
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+`
+
+const ImageThumbButton = styled.button`
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+`
+
+const ImageThumbFrame = styled.div`
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border-radius: 12px;
+  border: 1px solid #dbe4ee;
+  background: linear-gradient(180deg, #f6f9fc 0%, #edf3f8 100%);
+  transition: transform 0.16s ease, box-shadow 0.16s ease, filter 0.16s ease;
+
+  ${ImageThumbButton}:hover & {
+    transform: translateY(-1px);
+    box-shadow: 0 10px 18px rgba(33, 72, 111, 0.12);
+    filter: brightness(1.02);
+  }
+`
+
+const ImageThumb = styled.img`
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+`
+
+const ImageFallback = styled.div`
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  gap: 6px;
+  color: #7c8fa2;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+  padding: 12px;
+`
+
+const ImageBadgeRail = styled.div`
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  right: 8px;
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  pointer-events: none;
+`
+
+const ImageBadgeGroup = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+`
+
+const ImageOverlayBadge = styled.span<{ $tone?: 'primary' | 'secondary' | 'neutral' }>`
+  min-height: 22px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 8px;
+  border-radius: 999px;
+  backdrop-filter: blur(6px);
+  background: ${({ $tone }) => ($tone === 'primary' ? 'rgba(14, 100, 183, 0.92)' : $tone === 'secondary' ? 'rgba(237, 245, 255, 0.95)' : 'rgba(255,255,255,0.92)')};
+  color: ${({ $tone }) => ($tone === 'primary' ? '#ffffff' : $tone === 'secondary' ? '#234867' : '#5e7185')};
+  border: 1px solid ${({ $tone }) => ($tone === 'primary' ? 'rgba(14, 100, 183, 0.92)' : $tone === 'secondary' ? '#bad4ef' : '#d9e4ee')};
+  font-size: 10px;
+  font-weight: 800;
+`
+
+const SectionLead = styled.div`
+  font-size: 11px;
+  line-height: 1.6;
+  color: #6f8295;
+`
+
+const PreviewBackdrop = styled.div`
+  position: fixed;
+  inset: 0;
+  background: rgba(14, 22, 34, 0.58);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 1200;
+`
+
+const PreviewDialog = styled.div`
+  width: min(920px, calc(100vw - 40px));
+  max-height: calc(100vh - 48px);
+  border-radius: 18px;
+  border: 1px solid rgba(221, 230, 239, 0.9);
+  background: rgba(253, 254, 255, 0.98);
+  box-shadow: 0 28px 60px rgba(7, 17, 27, 0.24);
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+`
+
+const PreviewHeader = styled.div`
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid #e4ebf3;
+`
+
+const PreviewTitleWrap = styled.div`
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+`
+
+const PreviewTitle = styled.div`
+  font-size: 14px;
+  font-weight: 800;
+  color: #1f3447;
+`
+
+const PreviewSubtitle = styled.div`
+  font-size: 11px;
+  color: #708396;
+  line-height: 1.5;
+`
+
+const PreviewBody = styled.div`
+  min-height: 0;
+  overflow: auto;
+  padding: 18px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(180deg, #f5f8fb 0%, #eef3f8 100%);
+`
+
+const PreviewImage = styled.img`
+  display: block;
+  max-width: 100%;
+  max-height: calc(100vh - 180px);
+  border-radius: 14px;
+  border: 1px solid #d9e2ec;
+  background: #ffffff;
+  object-fit: contain;
+`
+
+type PreviewableKnowledgeDocument = KnowledgeDocumentMeta & {
+  thumbnailPath?: string
+  thumbnailRelativePath?: string
+  originalPath?: string
+  originalRelativePath?: string
+}
+
+function formatImageReferenceRoleLabel(role: ImageReferenceRole | null): string {
+  if (role === 'primary-style') return '主参考图'
+  if (role === 'style') return '风格参考图'
+  if (role === 'content') return '内容参考图'
+  return '可用图片素材'
+}
+
+function formatImageCardRoleLabel(mode: 'image' | 'ppt', role: ImageReferenceRole | null): string {
+  if (mode === 'image') return formatImageReferenceRoleLabel(role)
+  if (role === 'primary-style') return '主素材'
+  if (role) return '本轮素材'
+  return '可用素材'
+}
+
+interface ImageMaterialCardProps {
+  document: PreviewableKnowledgeDocument
+  mode: 'image' | 'ppt'
+  rootPath?: string
+  referenceRole: ImageReferenceRole | null
+  referenceWeight?: number
+  onOpenDocument: (document: KnowledgeDocumentMeta) => void
+  onOpenPreview: (document: KnowledgeDocumentMeta) => void
+  onSetPrimary: (document: KnowledgeDocumentMeta) => void
+  onSetStyleReference: (document: KnowledgeDocumentMeta) => void
+  onSetContentReference: (document: KnowledgeDocumentMeta) => void
+  onClearReference: (document: KnowledgeDocumentMeta) => void
+  onDelete: (document: KnowledgeDocumentMeta) => void
+}
+
+function resolveKnowledgeAssetPath(rootPath: string | undefined, candidate?: string): string {
+  const value = String(candidate || '').trim()
+  if (!value) return ''
+  if (/^(https?:)?\/\//i.test(value) || value.startsWith('data:') || value.startsWith('file:///')) return value
+  if (value.startsWith('/')) return value
+  const base = String(rootPath || '').replace(/[\\/]+$/g, '')
+  return base ? `${base}/${value.replace(/^[\\/]+/g, '')}` : value
+}
+
+function resolveKnowledgeThumbnailPath(rootPath: string | undefined, document: PreviewableKnowledgeDocument): string {
+  return resolveKnowledgeAssetPath(rootPath, document.thumbnailPath)
+    || resolveKnowledgeAssetPath(rootPath, document.thumbnailRelativePath)
+    || resolveKnowledgeAssetPath(rootPath, document.storedRelativePath)
+}
+
+function resolveKnowledgeOriginalPath(rootPath: string | undefined, document: PreviewableKnowledgeDocument): string {
+  return resolveKnowledgeAssetPath(rootPath, document.originalPath)
+    || resolveKnowledgeAssetPath(rootPath, document.originalRelativePath)
+    || resolveKnowledgeAssetPath(rootPath, document.storedRelativePath)
+}
+
+function ImageMaterialCard({
+  document,
+  mode,
+  rootPath,
+  referenceRole,
+  referenceWeight,
+  onOpenDocument,
+  onOpenPreview,
+  onSetPrimary,
+  onSetStyleReference,
+  onSetContentReference,
+  onClearReference,
+  onDelete,
+}: ImageMaterialCardProps) {
+  const [thumbFailed, setThumbFailed] = useState(false)
+  const thumbnailUrl = !thumbFailed ? toDisplayUrl(resolveKnowledgeThumbnailPath(rootPath, document)) : ''
+  const isPrimary = referenceRole === 'primary-style'
+  const isSelected = Boolean(referenceRole)
+  const helperText = mode === 'image'
+    ? referenceRole === 'primary-style'
+      ? '先预览，再决定是否继续把其他图片加入风格参考。当前这张图正在主导整体画风。'
+      : referenceRole === 'style'
+        ? '这张图已加入风格参考，会补充视觉语言，但不会压过主参考图。'
+        : referenceRole === 'content'
+          ? '这张图当前保留为内容参考。你也可以把它直接转成风格参考。'
+          : '先预览，再决定是把它设为主参考图还是加入风格参考。'
+    : referenceRole === 'primary-style'
+      ? '这张图片会作为本轮 PPT 生成的主素材。'
+      : isSelected
+        ? '这张图片已加入本轮 PPT 素材池。'
+        : '可以先预览，再决定是否加入本轮。'
+
+  const imageStyleActionLabel = referenceRole === 'style'
+    ? '移出风格参考'
+    : referenceRole === 'content'
+      ? '转为风格参考'
+      : '加入风格参考'
+
+  return (
+    <ImageCard $primary={isPrimary} $selected={isSelected}>
+      <ImageThumbButton type="button" onClick={() => onOpenPreview(document)} title={`预览：${document.title}`}>
+        <ImageThumbFrame>
+          <ImageBadgeRail>
+            <ImageBadgeGroup>
+              {referenceRole ? <ImageOverlayBadge $tone={isPrimary ? 'primary' : 'secondary'}>{formatImageReferenceRoleLabel(referenceRole)}</ImageOverlayBadge> : null}
+            </ImageBadgeGroup>
+            <ImageBadgeGroup>
+              {typeof referenceWeight === 'number' && isSelected ? <ImageOverlayBadge $tone="neutral">权重 {Math.round(referenceWeight * 100)}%</ImageOverlayBadge> : null}
+            </ImageBadgeGroup>
+          </ImageBadgeRail>
+          {thumbnailUrl ? (
+            <ImageThumb src={thumbnailUrl} alt={document.title} loading="lazy" onError={() => setThumbFailed(true)} />
+          ) : (
+            <ImageFallback>
+              <ImageOff size={18} />
+              <span>缩略图加载失败</span>
+            </ImageFallback>
+          )}
+        </ImageThumbFrame>
+      </ImageThumbButton>
+      <DocumentMain type="button" onClick={() => onOpenDocument(document)}>
+        <DocumentTitle>{document.title}</DocumentTitle>
+        <DocumentExcerpt>{document.originalName || document.previewText || '图片素材'}</DocumentExcerpt>
+      </DocumentMain>
+      <MetaRow>
+        <MetaChip $accent>IMAGE</MetaChip>
+        {referenceRole ? <MetaChip $accent>{formatImageCardRoleLabel(mode, referenceRole)}</MetaChip> : null}
+        {isSelected ? <MetaChip $accent>{mode === 'image' ? '本轮参与生成' : '已加入本轮'}</MetaChip> : <MetaChip>可用素材</MetaChip>}
+      </MetaRow>
+      <WorkflowActionStack>
+        {mode === 'image' ? (
+          <>
+            <WorkflowPrimaryActions $columns={2}>
+              <WorkflowMainButton type="button" $tone="primary" $active={referenceRole === 'primary-style'} onClick={() => onSetPrimary(document)}>
+                {referenceRole === 'primary-style' ? '当前主参考图' : '设为主参考图'}
+              </WorkflowMainButton>
+              <WorkflowMainButton
+                type="button"
+                $tone="secondary"
+                $active={referenceRole === 'style'}
+                onClick={() => {
+                  if (referenceRole === 'style') {
+                    onClearReference(document)
+                    return
+                  }
+                  onSetStyleReference(document)
+                }}
+              >
+                {imageStyleActionLabel}
+              </WorkflowMainButton>
+            </WorkflowPrimaryActions>
+            <WorkflowSecondaryActions>
+              <ActionButton type="button" onClick={() => onOpenPreview(document)}>
+                预览
+              </ActionButton>
+              <SoftDangerButton type="button" onClick={() => onDelete(document)} title={`删除知识库资料：${document.title}`}>
+                删除
+              </SoftDangerButton>
+            </WorkflowSecondaryActions>
+          </>
+        ) : (
+          <WorkflowPrimaryActions $columns={2}>
+            <WorkflowMainButton type="button" $tone="primary" $active={referenceRole === 'primary-style'} onClick={() => onSetPrimary(document)}>
+              {referenceRole === 'primary-style' ? '当前主素材' : '设为主素材'}
+            </WorkflowMainButton>
+            <WorkflowMainButton type="button" $tone="secondary" $active={referenceRole === 'style'} onClick={() => onSetStyleReference(document)}>
+              {referenceRole === 'style' ? '移出本轮' : '加入本轮'}
+            </WorkflowMainButton>
+          </WorkflowPrimaryActions>
+        )}
+        {mode !== 'image' ? (
+          <WorkflowUtilityActions>
+            <UtilityActionGroup>
+              <ActionButton type="button" onClick={() => onOpenPreview(document)}>
+                预览
+              </ActionButton>
+            </UtilityActionGroup>
+            <SoftDangerButton type="button" onClick={() => onDelete(document)} title={`删除知识库资料：${document.title}`}>
+              删除
+            </SoftDangerButton>
+          </WorkflowUtilityActions>
+        ) : null}
+        <WorkflowHint>
+          {helperText}
+        </WorkflowHint>
+      </WorkflowActionStack>
+    </ImageCard>
+  )
+}
+
+const EmptyState = styled.div`
+  border: 1px dashed #cfe0f1;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #fbfdff 0%, #f5f9ff 100%);
+  padding: 14px;
+  font-size: 12px;
+  line-height: 1.7;
+  color: #667d92;
+`
+
+const Footer = styled.div`
+  padding: 10px 12px 12px;
+  border-top: 1px solid #e3ebf3;
+  background: rgba(255, 255, 255, 0.96);
+  display: grid;
+  gap: 8px;
+`
+
+const FooterActions = styled.div`
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+`
+
+const FooterButton = styled.button`
+  min-height: 34px;
+  border-radius: 10px;
+  border: 1px solid #d8e2ed;
+  background: #ffffff;
+  color: #4b6278;
+  font-size: 12px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    background: #f4f8fc;
+  }
+
+  &:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+`
+
+interface GenerationKnowledgeSidebarProps {
+  onCollapse?: () => void
+  embedded?: boolean
+}
+
+type MaterialFilter = 'all' | 'document' | 'image'
+
+function matchesSearch(document: KnowledgeDocumentMeta, keyword: string): boolean {
+  const normalized = keyword.trim().toLowerCase()
+  if (!normalized) return true
+  const haystack = [
+    document.title,
+    document.originalName,
+    document.previewText,
+    document.documentCategory,
+    document.categoryDetail,
+  ].join(' ').toLowerCase()
+  return haystack.includes(normalized)
+}
+
+function getPriorityScore(
+  mode: GenerationMode,
+  document: KnowledgeDocumentMeta,
+  selectedIds: Set<string>,
+  currentTemplateId: string | null,
+  primaryAssetId: string | null,
+): number {
+  if (mode === 'document') {
+    return (document.id === currentTemplateId ? 1000 : 0)
+      + (selectedIds.has(document.id) ? 400 : 0)
+      + (isDocumentTemplateCandidate(document) ? 120 : 0)
+  }
+  if (mode === 'image') {
+    return (document.id === primaryAssetId ? 1000 : 0)
+      + (selectedIds.has(document.id) ? 420 : 0)
+  }
+  return (selectedIds.has(document.id) ? 500 : 0)
+}
+
+function formatDocumentType(document: KnowledgeDocumentMeta): string {
+  return document.sourceType === 'image' ? 'IMAGE' : document.sourceType.toUpperCase()
+}
+
+export default function GenerationKnowledgeSidebar({ onCollapse, embedded = false }: GenerationKnowledgeSidebarProps) {
+  const { currentMode } = useWorkspaceMode()
+  const workbench = useGenerationWorkbench()
+  const knowledge = useKnowledge()
+  const { openKnowledgeDocumentPreview } = useDocumentEngineHostCommands()
+  const { setCommitResult } = useFormalTemplateSession()
+  const { setStatusMessage } = useDocument()
+  const [panelWidth, setPanelWidth] = useState(300)
+  const [searchText, setSearchText] = useState('')
+  const [materialFilter, setMaterialFilter] = useState<MaterialFilter>('all')
+  const [previewDocument, setPreviewDocument] = useState<PreviewableKnowledgeDocument | null>(null)
+  const [previewFailed, setPreviewFailed] = useState(false)
+
+  const modeOption = getGenerationModeOption(currentMode)
+  const assetSelectedIdSet = useMemo(() => new Set(workbench.selectedAssetIds), [workbench.selectedAssetIds])
+  const imageReferenceMap = useMemo(() => new Map(workbench.imageReferences.map((item) => [item.id, item])), [workbench.imageReferences])
+  const imageSelectedIdSet = useMemo(() => new Set(workbench.imageReferences.map((item) => item.id)), [workbench.imageReferences])
+  const selectedIdSet = useMemo(() => {
+    if (currentMode === 'image') return imageSelectedIdSet
+    return assetSelectedIdSet
+  }, [assetSelectedIdSet, currentMode, imageSelectedIdSet])
+
+  const visibleDocuments = useMemo(() => {
+    return knowledge.documents
+      .filter((document) => matchesGenerationCandidate(currentMode, document))
+      .filter((document) => {
+        if (materialFilter === 'all') return true
+        if (materialFilter === 'image') return document.sourceType === 'image'
+        return document.sourceType !== 'image'
+      })
+      .filter((document) => matchesSearch(document, searchText))
+      .sort((left, right) => {
+        const scoreDiff = getPriorityScore(currentMode, right, selectedIdSet, workbench.currentTemplateId, workbench.primaryAssetId)
+          - getPriorityScore(currentMode, left, selectedIdSet, workbench.currentTemplateId, workbench.primaryAssetId)
+        if (scoreDiff !== 0) return scoreDiff
+        return String(right.importedAt || '').localeCompare(String(left.importedAt || ''))
+      })
+  }, [currentMode, knowledge.documents, materialFilter, searchText, selectedIdSet, workbench.currentTemplateId, workbench.primaryAssetId])
+
+  const handleResize = (event: React.MouseEvent) => {
+    event.preventDefault()
+    const startX = event.clientX
+    const startWidth = panelWidth
+    const onMove = (moveEvent: MouseEvent) => {
+      setPanelWidth(Math.max(280, Math.min(320, startWidth + moveEvent.clientX - startX)))
+    }
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+    }
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }
+
+  const handleImport = async () => {
+    try {
+      const result = await knowledge.importDocuments()
+      const importedCount = result.imported.length
+      const duplicateCount = result.duplicates.length
+      setStatusMessage(importedCount > 0
+        ? `已导入 ${importedCount} 份资料${duplicateCount > 0 ? `，跳过 ${duplicateCount} 份重复文件` : ''}`
+        : duplicateCount > 0
+          ? `本次没有新文件，已识别 ${duplicateCount} 份重复资料`
+          : '本次没有导入新的资料')
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? `导入资料失败：${error.message}` : '导入资料失败')
+    }
+  }
+
+  const handleClearSelections = () => {
+    if (currentMode === 'document') {
+      if (knowledge.templateDocumentId) knowledge.setTemplateDocument(null)
+      if (knowledge.referenceDocumentIds.length > 0) {
+        knowledge.unselectReferenceDocuments(knowledge.referenceDocumentIds)
+      }
+      setCommitResult(null)
+      workbench.clearCurrentResult()
+      setStatusMessage('已清空文稿模式的模板与本轮资料')
+      return
+    }
+
+    if (currentMode === 'image') {
+      if (knowledge.styleImageDocumentIds.length > 0) {
+        knowledge.unselectStyleImageDocuments(knowledge.styleImageDocumentIds)
+      }
+      workbench.clearCurrentSelections()
+      workbench.clearCurrentResult()
+      setStatusMessage('已清空图片模式的参考图选择')
+      return
+    }
+
+    workbench.clearCurrentSelections()
+    workbench.clearCurrentResult()
+    setStatusMessage('已清空 PPT 模式的本轮素材')
+  }
+
+  const handleOpenDocument = async (document: KnowledgeDocumentMeta) => {
+    try {
+      await knowledge.openDocument(document.id)
+      await openKnowledgeDocumentPreview(document.id)
+      setStatusMessage(`已只读打开资料：${document.title}`)
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? `打开资料失败：${error.message}` : '打开资料失败')
+    }
+  }
+
+  const handleOpenPreview = (document: KnowledgeDocumentMeta) => {
+    setPreviewFailed(false)
+    setPreviewDocument(document as PreviewableKnowledgeDocument)
+  }
+
+  const handleDeleteDocument = async (document: KnowledgeDocumentMeta) => {
+    const confirmed = window.confirm(`确认从知识库移除“${document.title}”吗？`)
+    if (!confirmed) return
+
+    try {
+      await knowledge.deleteDocument(document.id)
+      workbench.removeDocumentFromSessions(document.id)
+      setStatusMessage(`已从知识库移除：${document.title}`)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '未知错误'
+      setStatusMessage(`删除失败：${message}`)
+      window.alert(`删除“${document.title}”失败：${message}`)
+    }
+  }
+
+  const handleDocumentAction = (document: KnowledgeDocumentMeta) => {
+    if (currentMode === 'document') {
+      if (isDocumentTemplateCandidate(document)) {
+        knowledge.setTemplateDocument(document.id)
+        if (knowledge.referenceDocumentIds.includes(document.id)) {
+          knowledge.unselectReferenceDocuments([document.id])
+        }
+        setStatusMessage(`已将“${document.title}”设为当前模板`)
+      }
+      return
+    }
+
+    if (currentMode === 'image') {
+      if (!isImageMaterialCandidate(document)) {
+        setStatusMessage(`“${document.title}”当前不能作为参考图`)
+        return
+      }
+      if (!knowledge.styleImageDocumentIds.includes(document.id)) {
+        knowledge.selectStyleImageDocuments([document.id])
+      }
+      workbench.setImageReferenceRole(document.id, 'primary-style')
+      setStatusMessage(`已将“${document.title}”设为主参考图`)
+      return
+    }
+
+    if (!workbench.selectedAssetIds.includes(document.id)) {
+      workbench.toggleSelectedAsset(document.id)
+    }
+    workbench.setPrimaryAssetId(document.id)
+    setStatusMessage(`已将“${document.title}”标记为 PPT 主素材`)
+  }
+
+  const handleToggleSelection = (document: KnowledgeDocumentMeta) => {
+    if (currentMode === 'document') {
+      if (!isDocumentMaterialCandidate(document)) {
+        setStatusMessage(`“${document.title}”当前不支持加入文稿资料池`)
+        return
+      }
+      if (document.id === knowledge.templateDocumentId) {
+        setStatusMessage('当前模板不会重复计入本轮资料，请改选其他模板后再加入')
+        return
+      }
+      knowledge.toggleReferenceDocument(document.id)
+      setStatusMessage(selectedIdSet.has(document.id) ? `已将“${document.title}”移出本轮资料` : `已将“${document.title}”加入本轮资料`)
+      return
+    }
+
+    if (currentMode === 'image') {
+      if (!isImageMaterialCandidate(document)) {
+        setStatusMessage(`“${document.title}”当前不支持作为风格参考`)
+        return
+      }
+      const currentRole = imageReferenceMap.get(document.id)?.role || null
+      if (currentRole === 'style') {
+        knowledge.unselectStyleImageDocuments([document.id])
+        workbench.setImageReferenceRole(document.id, null)
+        setStatusMessage(`已移出风格参考：${document.title}`)
+        return
+      }
+      if (!knowledge.styleImageDocumentIds.includes(document.id)) {
+        knowledge.selectStyleImageDocuments([document.id])
+      }
+      workbench.setImageReferenceRole(document.id, 'style')
+      setStatusMessage(`已加入风格参考：${document.title}`)
+      return
+    }
+
+    if (!isPptMaterialCandidate(document)) {
+      setStatusMessage(`“${document.title}”当前不能加入 PPT 素材池`)
+      return
+    }
+    if (workbench.primaryAssetId === document.id) {
+      setStatusMessage('当前主素材默认参与本轮，请先将其他素材设为主素材后再移出')
+      return
+    }
+    workbench.toggleSelectedAsset(document.id)
+    setStatusMessage(selectedIdSet.has(document.id) ? `已移出 PPT 素材：${document.title}` : `已加入 PPT 素材：${document.title}`)
+  }
+
+  const handleSetImageRole = (document: KnowledgeDocumentMeta, role: ImageReferenceRole | null) => {
+    if (!isImageMaterialCandidate(document)) {
+      setStatusMessage(`“${document.title}”当前不能作为图片参考图`)
+      return
+    }
+
+    if (!role) {
+      if (knowledge.styleImageDocumentIds.includes(document.id)) {
+        knowledge.unselectStyleImageDocuments([document.id])
+      }
+      workbench.setImageReferenceRole(document.id, null)
+      setStatusMessage(`已取消参考图：${document.title}`)
+      return
+    }
+
+    if (!knowledge.styleImageDocumentIds.includes(document.id)) {
+      knowledge.selectStyleImageDocuments([document.id])
+    }
+    workbench.setImageReferenceRole(document.id, role)
+    setStatusMessage(`已将“${document.title}”设为${formatImageReferenceRoleLabel(role)}`)
+  }
+
+  const renderStandardDocumentCard = (document: KnowledgeDocumentMeta) => {
+    const isPrimary = currentMode === 'document'
+      ? document.id === workbench.currentTemplateId
+      : document.id === workbench.primaryAssetId
+    const isSelected = selectedIdSet.has(document.id)
+    const showPrimaryAction = currentMode === 'document'
+      ? isDocumentTemplateCandidate(document)
+      : isPptMaterialCandidate(document)
+    const showSecondaryAction = currentMode === 'document'
+      ? isDocumentMaterialCandidate(document)
+      : isPptMaterialCandidate(document)
+    const disableSecondary = currentMode === 'ppt' && isPrimary
+
+    return (
+      <DocumentCard key={document.id} $active={isPrimary || isSelected}>
+        <DocumentMain type="button" onClick={() => void handleOpenDocument(document)}>
+          <DocumentTitle>{document.title}</DocumentTitle>
+          <DocumentExcerpt>{document.previewText || document.originalName}</DocumentExcerpt>
+        </DocumentMain>
+        <MetaRow>
+          <MetaChip $accent={isPrimary}>{formatDocumentType(document)}</MetaChip>
+          {document.documentCategory ? <MetaChip>{document.documentCategory}</MetaChip> : null}
+          {isPrimary ? <MetaChip $accent>{currentMode === 'document' ? '当前模板' : '主素材'}</MetaChip> : null}
+          {isSelected ? <MetaChip $accent>{currentMode === 'ppt' ? '本轮素材' : '已加入本轮'}</MetaChip> : null}
+        </MetaRow>
+        <ActionRow>
+          {showPrimaryAction ? (
+            <ActionButton type="button" $primary={isPrimary} onClick={() => handleDocumentAction(document)}>
+              {currentMode === 'document'
+                ? isPrimary ? '当前模板' : '设为模板'
+                  : isPrimary ? '当前主素材' : '设为主素材'}
+            </ActionButton>
+          ) : null}
+          {showSecondaryAction ? (
+            <ActionButton type="button" onClick={() => handleToggleSelection(document)} disabled={disableSecondary}>
+              {disableSecondary ? '主素材默认参与' : currentMode === 'document' ? (isSelected ? '移出参考' : '加入参考') : (isSelected ? '移出本轮' : '加入参考')}
+            </ActionButton>
+          ) : null}
+          <SoftDangerButton type="button" onClick={() => void handleDeleteDocument(document)} title={`删除知识库资料：${document.title}`}>
+            删除
+          </SoftDangerButton>
+        </ActionRow>
+      </DocumentCard>
+    )
+  }
+
+  const previewImageUrl = previewDocument ? toDisplayUrl(resolveKnowledgeOriginalPath(knowledge.info?.rootPath, previewDocument)) : ''
+  const previewImageReference = previewDocument ? imageReferenceMap.get(previewDocument.id) || null : null
+  const isImageMode = currentMode === 'image'
+
+  return (
+    <Panel $width={panelWidth} $locked={isImageMode} $embedded={embedded} data-testid="generation-knowledge-sidebar">
+      {!isImageMode && !embedded ? <ResizeHandle onMouseDown={handleResize} /> : null}
+      <Header>
+        <HeaderRow>
+          <HeaderCopy>
+            <HeaderTitle><BookOpen size={14} /> 知识库</HeaderTitle>
+            <HeaderDesc>
+              {currentMode === 'document'
+                ? '统一浏览文稿资料，默认勾选动作为加入参考，需要时可直接设为模板。'
+                : currentMode === 'ppt'
+                  ? '统一浏览 PPT 文档与图片素材，先加入本轮，再指定其中一项作为主素材。'
+                  : '统一浏览图片素材，先设定主参考图，再补充风格或内容参考。'}
+            </HeaderDesc>
+          </HeaderCopy>
+          <HeaderActions>
+            {onCollapse ? (
+              <IconButton type="button" onClick={onCollapse} title="收起左栏">
+                <PanelLeftClose size={14} />
+              </IconButton>
+            ) : null}
+          </HeaderActions>
+        </HeaderRow>
+        <SearchWrap>
+          <Search size={14} color="#708396" />
+          <SearchInput
+            value={searchText}
+            onChange={(event) => setSearchText(event.target.value)}
+            placeholder={`搜索${modeOption.label}资料...`}
+          />
+        </SearchWrap>
+        {currentMode === 'ppt' ? (
+          <ToolbarRow>
+            <ToolbarCluster>
+              <ToolbarLabel>类型</ToolbarLabel>
+              <ToolbarSelect value={materialFilter} onChange={(event) => setMaterialFilter(event.target.value as MaterialFilter)}>
+                <option value="all">全部类型</option>
+                <option value="document">文档</option>
+                <option value="image">图片</option>
+              </ToolbarSelect>
+            </ToolbarCluster>
+            <ToolbarLabel>{visibleDocuments.length} 项可见</ToolbarLabel>
+          </ToolbarRow>
+        ) : null}
+      </Header>
+
+      <Content $imageMode={isImageMode}>
+        {currentMode === 'image' ? (
+          <Section $stretch>
+            <SectionHead>
+              <SectionTitle>图片素材</SectionTitle>
+              <SectionMeta>{visibleDocuments.length} 张</SectionMeta>
+            </SectionHead>
+            {visibleDocuments.length > 0 ? (
+              <CardList $scrollable $twoColumn={embedded}>
+                {visibleDocuments.map((document) => {
+                  const reference = imageReferenceMap.get(document.id) || null
+                  return (
+                    <ImageMaterialCard
+                      key={document.id}
+                      document={document as PreviewableKnowledgeDocument}
+                      mode="image"
+                      rootPath={knowledge.info?.rootPath}
+                      referenceRole={reference?.role || null}
+                      referenceWeight={reference?.weight}
+                      onOpenDocument={(item) => { void handleOpenDocument(item) }}
+                      onOpenPreview={handleOpenPreview}
+                      onSetPrimary={(item) => handleSetImageRole(item, 'primary-style')}
+                      onSetStyleReference={(item) => handleSetImageRole(item, 'style')}
+                      onSetContentReference={(item) => handleSetImageRole(item, 'content')}
+                      onClearReference={(item) => handleSetImageRole(item, null)}
+                      onDelete={(item) => { void handleDeleteDocument(item) }}
+                    />
+                  )
+                })}
+              </CardList>
+            ) : (
+              <EmptyState>当前筛选条件下没有图片素材。可以导入新图片，或调整搜索条件后再挑选参考图。</EmptyState>
+            )}
+          </Section>
+        ) : currentMode === 'ppt' ? (
+          <Section>
+            <SectionHead>
+              <SectionTitle>PPT 素材</SectionTitle>
+              <SectionMeta>{visibleDocuments.length} 份</SectionMeta>
+            </SectionHead>
+            {visibleDocuments.length > 0 ? (
+              <CardList $twoColumn={embedded}>
+                {visibleDocuments.map((document) => (
+                  document.sourceType === 'image' ? (
+                    <ImageMaterialCard
+                      key={document.id}
+                      document={document as PreviewableKnowledgeDocument}
+                      mode="ppt"
+                      rootPath={knowledge.info?.rootPath}
+                      referenceRole={document.id === workbench.primaryAssetId ? 'primary-style' : selectedIdSet.has(document.id) ? 'style' : null}
+                      onOpenDocument={(item) => { void handleOpenDocument(item) }}
+                      onOpenPreview={handleOpenPreview}
+                      onSetPrimary={handleDocumentAction}
+                      onSetStyleReference={handleToggleSelection}
+                      onSetContentReference={handleToggleSelection}
+                      onClearReference={handleToggleSelection}
+                      onDelete={(item) => { void handleDeleteDocument(item) }}
+                    />
+                  ) : renderStandardDocumentCard(document)
+                ))}
+              </CardList>
+            ) : (
+              <EmptyState>当前筛选条件下没有 PPT 候选资料。可以导入新文件，或调整搜索条件后继续挑选。</EmptyState>
+            )}
+          </Section>
+        ) : (
+          <Section>
+            <SectionHead>
+              <SectionTitle>可用资料</SectionTitle>
+              <SectionMeta>{visibleDocuments.length} 份</SectionMeta>
+            </SectionHead>
+            {visibleDocuments.length > 0 ? (
+              <CardList $twoColumn={embedded}>
+                {visibleDocuments.map((document) => renderStandardDocumentCard(document))}
+              </CardList>
+            ) : (
+              <EmptyState>当前筛选条件下没有可用资料。可以导入新文件，或切换到底部输入区直接描述本轮生成任务。</EmptyState>
+            )}
+          </Section>
+        )}
+      </Content>
+
+      <Footer>
+        <FooterActions>
+          <FooterButton type="button" onClick={() => void handleImport()} disabled={knowledge.importing}>
+            <Upload size={14} /> {knowledge.importing ? '导入中' : '导入资料'}
+          </FooterButton>
+          <FooterButton type="button" onClick={() => void knowledge.refresh()} disabled={knowledge.loading}>
+            <RefreshCw size={14} /> 刷新
+          </FooterButton>
+          <FooterButton type="button" onClick={handleClearSelections}>
+            {currentMode === 'document' ? <BookOpen size={14} /> : currentMode === 'image' ? <FileImage size={14} /> : <FileStack size={14} />} 清空本轮
+          </FooterButton>
+        </FooterActions>
+      </Footer>
+
+      {previewDocument ? (
+        <PreviewBackdrop onClick={() => setPreviewDocument(null)}>
+          <PreviewDialog onClick={(event) => event.stopPropagation()}>
+            <PreviewHeader>
+              <PreviewTitleWrap>
+                <PreviewTitle>{previewDocument.title}</PreviewTitle>
+                <PreviewSubtitle>
+                  {currentMode === 'image'
+                    ? previewImageReference
+                      ? `${formatImageReferenceRoleLabel(previewImageReference.role)}${typeof previewImageReference.weight === 'number' ? ` · 权重 ${Math.round(previewImageReference.weight * 100)}%` : ''}`
+                      : '可用图片素材'
+                    : previewDocument.id === workbench.primaryAssetId
+                      ? '当前主素材'
+                      : selectedIdSet.has(previewDocument.id)
+                        ? '当前已选本轮素材'
+                        : '可用图片素材'}
+                  {' · '}
+                  {previewDocument.originalName || '图片预览'}
+                </PreviewSubtitle>
+              </PreviewTitleWrap>
+              <IconButton type="button" onClick={() => setPreviewDocument(null)} title="关闭预览">
+                <X size={14} />
+              </IconButton>
+            </PreviewHeader>
+            <PreviewBody>
+              {previewImageUrl && !previewFailed ? (
+                <PreviewImage src={previewImageUrl} alt={previewDocument.title} onError={() => setPreviewFailed(true)} />
+              ) : (
+                <ImageFallback>
+                  <ImageOff size={20} />
+                  <span>原图预览加载失败</span>
+                </ImageFallback>
+              )}
+            </PreviewBody>
+          </PreviewDialog>
+        </PreviewBackdrop>
+      ) : null}
+    </Panel>
+  )
+}

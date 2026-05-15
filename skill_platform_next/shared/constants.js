@@ -1,0 +1,50 @@
+export const ERROR_CODES = {
+  UNAUTHORIZED: "AUTH_001_UNAUTHORIZED",
+  INVALID_JSON: "REQ_001_INVALID_JSON",
+  INVALID_PAYLOAD: "REQ_002_INVALID_PAYLOAD",
+  INVALID_SCHEMA_VERSION: "REQ_003_INVALID_SCHEMA_VERSION",
+  MISSING_REQUIRED_FIELDS: "REQ_004_MISSING_REQUIRED_FIELDS",
+  MISSING_SOURCE_ARTIFACTS: "REQ_005_MISSING_SOURCE_ARTIFACTS",
+  SKILL_NOT_FOUND: "SKILL_001_NOT_FOUND",
+  SKILL_NOT_INSTALLED: "SKILL_002_NOT_INSTALLED",
+  PACKAGE_NOT_FOUND: "PKG_001_NOT_FOUND",
+  INVALID_PACKAGE_HASH: "PKG_002_INVALID_HASH",
+  INVALID_SIGNATURE: "PKG_003_INVALID_SIGNATURE",
+  INVALID_MANIFEST: "PKG_004_INVALID_MANIFEST",
+  CHECKSUM_MISMATCH: "PKG_005_CHECKSUM_MISMATCH",
+  MISSING_REQUIRED_FILE: "PKG_006_MISSING_REQUIRED_FILE",
+  CLOSED_WORLD_REQUIRED: "PKG_007_CLOSED_WORLD_REQUIRED",
+  EXTERNAL_CALLS_FORBIDDEN: "PKG_008_EXTERNAL_CALLS_FORBIDDEN",
+  RUN_NOT_FOUND: "RUN_001_NOT_FOUND",
+  INTERNAL_ERROR: "SYS_001_INTERNAL_ERROR",
+  NOT_FOUND: "SYS_404_NOT_FOUND"
+};
+
+export const AUDIT_EVENTS = {
+  STORE_PURCHASE_CREATED: "store.purchase.created",
+  STORE_PURCHASE_DUPLICATE: "store.purchase.duplicate",
+  ENTITLEMENTS_FETCHED: "skills.entitlements.fetched",
+  SYNC_PLAN_GENERATED: "skills.sync_plan.generated",
+  INSTALL_TOKEN_ISSUED: "skills.install_token.issued",
+  PACKAGE_METADATA_READ: "skills.package.metadata_read",
+  INSTALL_REPORT_ACCEPTED: "skills.install_report.accepted",
+  ENGINE_INSTALL_VALIDATED: "engine.install.validated",
+  ENGINE_INSTALL_REJECTED: "engine.install.rejected",
+  ENGINE_INSTALL_COMPLETED: "engine.install.completed",
+  ENGINE_RUN_STARTED: "engine.run.started",
+  ENGINE_RUN_COMPLETED: "engine.run.completed",
+  ENGINE_RUN_REJECTED: "engine.run.rejected",
+  ENGINE_UNINSTALL_COMPLETED: "engine.uninstall.completed"
+};
+
+export function errorBody({ code, message, requestId, details }) {
+  return {
+    error: {
+      code,
+      message,
+      request_id: requestId,
+      ...(details ? { details } : {})
+    }
+  };
+}
+

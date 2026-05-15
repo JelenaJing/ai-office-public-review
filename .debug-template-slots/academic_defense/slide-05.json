@@ -1,0 +1,281 @@
+{
+  "templateId": "academic_defense",
+  "slideIndex": 5,
+  "shapeCount": 15,
+  "shapes": [
+    {
+      "shapeId": "10",
+      "shapeName": "文本框 9",
+      "text": "01",
+      "position": {
+        "x": 4962920,
+        "y": 82101,
+        "w": 562976,
+        "h": 461665,
+        "xCm": "13.8cm",
+        "yCm": "0.2cm",
+        "wCm": "1.6cm",
+        "hCm": "1.3cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false,
+      "fontSize": 24
+    },
+    {
+      "shapeId": "11",
+      "shapeName": "文本框 10",
+      "text": "添加标题文本",
+      "position": {
+        "x": 5706090,
+        "y": 140587,
+        "w": 1760251,
+        "h": 369332,
+        "xCm": "15.9cm",
+        "yCm": "0.4cm",
+        "wCm": "4.9cm",
+        "hCm": "1.0cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "4",
+      "shapeName": "矩形 3",
+      "text": "",
+      "position": {
+        "x": 4826350,
+        "y": 1531465,
+        "w": 3055028,
+        "h": 3965609,
+        "xCm": "13.4cm",
+        "yCm": "4.3cm",
+        "wCm": "8.5cm",
+        "hCm": "11.0cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "2",
+      "shapeName": "矩形 1",
+      "text": "",
+      "position": {
+        "x": 8189235,
+        "y": 1531465,
+        "w": 3055028,
+        "h": 3965609,
+        "xCm": "22.7cm",
+        "yCm": "4.3cm",
+        "wCm": "8.5cm",
+        "hCm": "11.0cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "21",
+      "shapeName": "文本框 20",
+      "text": "添加标题文本",
+      "position": {
+        "x": 244082,
+        "y": 1906534,
+        "w": 2235567,
+        "h": 338554,
+        "xCm": "0.7cm",
+        "yCm": "5.3cm",
+        "wCm": "6.2cm",
+        "hCm": "0.9cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "13",
+      "shapeName": "文本框 12",
+      "text": "单击此处添加标题文本",
+      "position": {
+        "x": 283599,
+        "y": 1906534,
+        "w": 2895862,
+        "h": 400110,
+        "xCm": "0.8cm",
+        "yCm": "5.3cm",
+        "wCm": "8.0cm",
+        "hCm": "1.1cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false,
+      "fontSize": 20
+    },
+    {
+      "shapeId": "20",
+      "shapeName": "文本框 19",
+      "text": "根据自己的需要添加适当的文字，此处添加详细文本描述，建议与标题相关尽量简洁... ...",
+      "position": {
+        "x": 283599,
+        "y": 2190603,
+        "w": 2156534,
+        "h": 796757,
+        "xCm": "0.8cm",
+        "yCm": "6.1cm",
+        "wCm": "6.0cm",
+        "hCm": "2.2cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "25",
+      "shapeName": "任意多边形: 形状 24",
+      "text": "",
+      "position": {
+        "x": 6024925,
+        "y": 2415417,
+        "w": 57150,
+        "h": 114300,
+        "xCm": "16.7cm",
+        "yCm": "6.7cm",
+        "wCm": "0.2cm",
+        "hCm": "0.3cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "27",
+      "shapeName": "任意多边形: 形状 26",
+      "text": "",
+      "position": {
+        "x": 6386875,
+        "y": 2415417,
+        "w": 57150,
+        "h": 114300,
+        "xCm": "17.7cm",
+        "yCm": "6.7cm",
+        "wCm": "0.2cm",
+        "hCm": "0.3cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "12",
+      "shapeName": "文本框 11",
+      "text": "此处添加详细文本描述，建议与标题相关并符合整体语言风格，语言描述尽量简洁生动。尽量将每页幻灯片的字数控制在200字以内，据统计每页幻灯片的最好控制在5分钟之内。",
+      "position": {
+        "x": 283598,
+        "y": 2444603,
+        "w": 3388239,
+        "h": 1084271,
+        "xCm": "0.8cm",
+        "yCm": "6.8cm",
+        "wCm": "9.4cm",
+        "hCm": "3.0cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false,
+      "fontSize": 11
+    },
+    {
+      "shapeId": "28",
+      "shapeName": "任意多边形: 形状 27",
+      "text": "",
+      "position": {
+        "x": 5910625,
+        "y": 2472567,
+        "w": 647700,
+        "h": 133350,
+        "xCm": "16.4cm",
+        "yCm": "6.9cm",
+        "wCm": "1.8cm",
+        "hCm": "0.4cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "26",
+      "shapeName": "任意多边形: 形状 25",
+      "text": "",
+      "position": {
+        "x": 5910625,
+        "y": 2644017,
+        "w": 647700,
+        "h": 419100,
+        "xCm": "16.4cm",
+        "yCm": "7.3cm",
+        "wCm": "1.8cm",
+        "hCm": "1.2cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "14",
+      "shapeName": "文本框 13",
+      "text": "此处添加详细文本描述，建议与标题相关并符合整体语言风格，语言描述尽量简洁生动。尽量将每页幻灯片的字数控制在200字以内，据统计每页幻灯片的最好控制在5分钟之内。",
+      "position": {
+        "x": 283598,
+        "y": 3676471,
+        "w": 3388239,
+        "h": 1084271,
+        "xCm": "0.8cm",
+        "yCm": "10.2cm",
+        "wCm": "9.4cm",
+        "hCm": "3.0cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false,
+      "fontSize": 11
+    },
+    {
+      "shapeId": "17",
+      "shapeName": "任意多边形: 形状 16",
+      "text": "",
+      "position": {
+        "x": 912813,
+        "y": 4772578,
+        "w": 2056606,
+        "h": 469900,
+        "xCm": "2.5cm",
+        "yCm": "13.3cm",
+        "wCm": "5.7cm",
+        "hCm": "1.3cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    },
+    {
+      "shapeId": "29",
+      "shapeName": "文本框 28",
+      "text": "添加关键词",
+      "position": {
+        "x": 1249172,
+        "y": 4829604,
+        "w": 1322798,
+        "h": 369332,
+        "xCm": "3.5cm",
+        "yCm": "13.4cm",
+        "wCm": "3.7cm",
+        "hCm": "1.0cm"
+      },
+      "isVertical": false,
+      "isImage": false,
+      "isPlaceholder": false
+    }
+  ]
+}
