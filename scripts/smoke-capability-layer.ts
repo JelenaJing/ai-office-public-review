@@ -8,6 +8,7 @@ import {
   getCatalogEntry,
   isCapabilityId,
   listCatalogEntries,
+  validateCapabilityInvoke,
   validateManifestCapabilities,
 } from '../src/capabilities'
 
@@ -125,6 +126,16 @@ for (const id of ['document.applyPatch', 'docx.writeback', 'documentTemplate.val
   const entry = getCatalogEntry(id)
   assert(entry?.invokeEnabled === false, `${id} invokeEnabled=false`)
 }
+
+// 11. validateCapabilityInvoke 错误码优先级
+const pptxImportInvoke = validateCapabilityInvoke('pptx.import', 'skill')
+assert(!pptxImportInvoke.ok && pptxImportInvoke.code === 'RESTRICTED_FOR_SKILL', 'pptx.import skill invoke → RESTRICTED_FOR_SKILL')
+
+const writeLogInvoke = validateCapabilityInvoke('runtime.writeLog', 'skill')
+assert(!writeLogInvoke.ok && writeLogInvoke.code === 'RESTRICTED_FOR_SKILL', 'runtime.writeLog skill invoke → RESTRICTED_FOR_SKILL')
+
+const applyPatchInvoke = validateCapabilityInvoke('document.applyPatch', 'skill')
+assert(!applyPatchInvoke.ok && applyPatchInvoke.code === 'PLANNED_NOT_INVOKABLE', 'document.applyPatch skill invoke → PLANNED_NOT_INVOKABLE')
 
 console.log(`\n[smoke-capability-layer] done: ${passed} passed, ${failed} failed`)
 if (failed > 0) {

@@ -177,14 +177,6 @@ export function validateCapabilityInvoke(
     return { ok: false, code: 'CAPABILITY_NOT_FOUND', message: `Catalog 中未找到: ${capabilityId}` }
   }
 
-  if (catalogEntry.implementationStatus === 'planned') {
-    return { ok: false, code: 'PLANNED_NOT_INVOKABLE', message: `${capabilityId} 尚未实现 invoke` }
-  }
-
-  if (!catalogEntry.invokeEnabled) {
-    return { ok: false, code: 'CAPABILITY_NOT_INVOKABLE', message: `${capabilityId} 未开放 invoke` }
-  }
-
   if (catalogEntry.skillCallable === 'forbidden' && callerType === 'skill') {
     return {
       ok: false,
@@ -199,6 +191,14 @@ export function validateCapabilityInvoke(
       code: 'RESTRICTED_FOR_SKILL',
       message: catalogEntry.notes || `${capabilityId} 仅 Agent 可调用`,
     }
+  }
+
+  if (catalogEntry.implementationStatus === 'planned') {
+    return { ok: false, code: 'PLANNED_NOT_INVOKABLE', message: `${capabilityId} 尚未实现 invoke` }
+  }
+
+  if (!catalogEntry.invokeEnabled) {
+    return { ok: false, code: 'CAPABILITY_NOT_INVOKABLE', message: `${capabilityId} 未开放 invoke` }
   }
 
   return { ok: true }
