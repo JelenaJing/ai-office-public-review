@@ -787,4 +787,24 @@ npx tsx scripts/smoke-capability-layer.ts
 
 ---
 
+## 12. 下一层：Skill Manifest Validator
+
+| 层级 | 模块 | 说明 |
+|------|------|------|
+| Core Capability | `src/capabilities/*` | 定义能力契约、Catalog、invoke 路由（第一批 deck） |
+| **Skill Manifest** | `src/skills/manifest/*` | 校验 Skill 包 `manifest.json` 是否合法、安全、可安装 |
+
+要点：
+
+- **manifest.json** 是 AI Office 运行时读取的**机器协议**（字段见 [AI_OFFICE_SKILL_MANIFEST_VALIDATOR.md](./AI_OFFICE_SKILL_MANIFEST_VALIDATOR.md)）。
+- **skill.md** 仅为说明 / prompt 文档，**不作为**唯一运行协议。
+- Manifest 校验会调用 `validateManifestCapabilities`，并额外检查 assets 路径、permissions 白名单、workflow.steps。
+- 本层**不**执行 shell、不安装依赖、不调用 `invokeCapability`（除非后续安装器显式集成）。
+
+```bash
+npx tsx scripts/smoke-skill-manifest-validator.ts
+```
+
+---
+
 *文档维护：架构组 · 设计稿 v0.3 · 2026-05*
