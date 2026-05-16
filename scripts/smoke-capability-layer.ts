@@ -101,8 +101,33 @@ assert(
   workflowPlanned.warnings.some((w) => w.code === 'PLANNED_DECLARED'),
   'Workflow + planned 含 PLANNED_DECLARED warning',
 )
+assert(
+  !workflowPlanned.warnings.some((w) => w.code === 'WRAPPER_ONLY'),
+  'Workflow + planned 不含 WRAPPER_ONLY warning',
+)
+assert(
+  workflowPlanned.warnings.filter((w) => w.code === 'PLANNED_DECLARED').length === 2,
+  'Workflow + planned 仅 PLANNED_DECLARED（2 项）',
+)
 
-// 8. Agent Action exportDeckToUserPath 返回 UNKNOWN_CAPABILITY
+const wrapperOnlyManifest = validateManifestCapabilities({
+  requiredCapabilities: ['llm.generate'],
+  skillKind: 'workflow',
+  callerType: 'skill',
+})
+assert(wrapperOnlyManifest.ok, 'wrapper capability manifest 无 error')
+assert(
+  wrapperOnlyManifest.warnings.some((w) => w.code === 'WRAPPER_ONLY' && w.capability === 'llm.generate'),
+  'llm.generate wrapper 产生 WRAPPER_ONLY warning',
+)
+
+// 8. Catalog 成熟度语义
+assert(getCatalogEntry('deck.create')?.implementationStatus === 'planned', 'deck.create 为 planned')
+assert(getCatalogEntry('workspace.readFile')?.implementationStatus === 'planned', 'workspace.readFile 为 planned')
+assert(getCatalogEntry('deck.applyPatch')?.wrapper === undefined, 'deck.applyPatch 无 wrapper 字段')
+assert(getCatalogEntry('docx.extractFields')?.wrapper === undefined, 'docx.extractFields 无 wrapper 字段')
+
+// 9. Agent Action exportDeckToUserPath 返回 UNKNOWN_CAPABILITY
 const agentAction = validateManifestCapabilities({
   requiredCapabilities: ['exportDeckToUserPath'],
   skillKind: 'workflow',
@@ -114,20 +139,20 @@ assert(
   'exportDeckToUserPath → UNKNOWN_CAPABILITY',
 )
 
-// 9. 第一批 invokeEnabled=true
+// 10. 第一批 invokeEnabled=true
 for (const id of ['deck.load', 'deck.save', 'deck.render', 'deck.preview', 'deckTemplate.list'] as const) {
   const entry = getCatalogEntry(id)
   assert(entry?.invokeEnabled === true, `${id} invokeEnabled=true`)
   assert(entry?.invokeBatch === 'batch-1-deck', `${id} invokeBatch=batch-1-deck`)
 }
 
-// 10. 暂缓 invoke 能力 invokeEnabled=false
+// 11. 暂缓 invoke 能力 invokeEnabled=false
 for (const id of ['document.applyPatch', 'docx.writeback', 'documentTemplate.validate'] as const) {
   const entry = getCatalogEntry(id)
   assert(entry?.invokeEnabled === false, `${id} invokeEnabled=false`)
 }
 
-// 11. validateCapabilityInvoke 错误码优先级
+// 12. validateCapabilityInvoke 错误码优先级
 const pptxImportInvoke = validateCapabilityInvoke('pptx.import', 'skill')
 assert(!pptxImportInvoke.ok && pptxImportInvoke.code === 'RESTRICTED_FOR_SKILL', 'pptx.import skill invoke → RESTRICTED_FOR_SKILL')
 

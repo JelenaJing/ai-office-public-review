@@ -142,7 +142,10 @@ export function validateManifestCapabilities(
       )
     }
 
-    if (!catalogEntry.invokeEnabled) {
+    if (
+      catalogEntry.implementationStatus === 'wrapper'
+      && !catalogEntry.invokeEnabled
+    ) {
       pushWarning(
         warnings,
         capability,

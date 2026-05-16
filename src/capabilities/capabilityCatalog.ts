@@ -76,14 +76,14 @@ const CAPABILITY_CATALOG_ENTRIES: CapabilityCatalogEntry[] = [
   }),
   entry('workspace.readFile', {
     layer: 'primitive',
-    implementationStatus: 'wrapper',
+    implementationStatus: 'planned',
     displayName: '读取工作区文件',
     description: '读取工作区相对路径文件',
     consumesTokens: false,
     skillCallable: 'allowed',
     invokeBatch: 'none',
     invokeEnabled: false,
-    wrapper: { transport: 'ipc', target: 'workspace:tree' },
+    notes: 'workspace.readFile IPC 待实现；workspace:tree 只能列目录，不能作为 readFile',
   }),
   entry('workspace.writeFile', {
     layer: 'primitive',
@@ -220,7 +220,7 @@ const CAPABILITY_CATALOG_ENTRIES: CapabilityCatalogEntry[] = [
     skillCallable: 'allowed',
     invokeBatch: 'none',
     invokeEnabled: false,
-    wrapper: { transport: 'ipc', target: 'formalTemplate:analyze' },
+    notes: '候选 IPC: formalTemplate:analyze；非可 invoke wrapper',
   }),
   entry('docx.writeback', {
     layer: 'adapter',
@@ -261,13 +261,14 @@ const CAPABILITY_CATALOG_ENTRIES: CapabilityCatalogEntry[] = [
   // —— Deck Primitive ——
   entry('deck.create', {
     layer: 'primitive',
-    implementationStatus: 'wrapper',
+    implementationStatus: 'planned',
     displayName: '创建 Deck',
     description: '创建空 DeckDocument',
     consumesTokens: false,
     skillCallable: 'allowed',
     invokeBatch: 'none',
     invokeEnabled: false,
+    notes: '待实现 createDeckDocument capability；当前由 Agent/业务流程构造 DeckDocument 后调用 deck.save',
   }),
   entry('deck.load', {
     layer: 'primitive',
@@ -300,7 +301,7 @@ const CAPABILITY_CATALOG_ENTRIES: CapabilityCatalogEntry[] = [
     skillCallable: 'allowed',
     invokeBatch: 'none',
     invokeEnabled: false,
-    wrapper: { transport: 'ipc', target: 'deck:updateSlide' },
+    notes: '候选 IPC: deck:updateSlide、deck:updateDeckDocument；非可 invoke wrapper',
   }),
   entry('deck.render', {
     layer: 'primitive',
