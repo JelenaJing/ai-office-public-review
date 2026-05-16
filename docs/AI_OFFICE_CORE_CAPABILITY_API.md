@@ -744,4 +744,47 @@ interface CapabilityResult<T = unknown> {
 
 ---
 
+## 11. 当前代码落地状态
+
+> 截至仓库实现批次：`feat: add core capability catalog and deck router`
+
+### 11.1 已实现
+
+| 模块 | 路径 | 说明 |
+|------|------|------|
+| **类型与契约** | `src/capabilities/capabilityTypes.ts` | `CapabilityId` 全量枚举、`CapabilityResult` 信封等 |
+| **Catalog** | `src/capabilities/capabilityCatalog.ts` | `CAPABILITY_CATALOG` 31 项，含 `implementationStatus` / `invokeEnabled` |
+| **Validator** | `src/capabilities/capabilityValidator.ts` | `validateManifestCapabilities`、`validateCapabilityInvoke` |
+| **统一导出** | `src/capabilities/index.ts` | 渲染进程 / 工具脚本可引用 |
+| **Invoke 路由（第一批）** | `electron/main/capabilities/capabilityRouter.ts` | `invokeCapability()` |
+| **冒烟测试** | `scripts/smoke-capability-layer.ts` | Catalog / Validator 静态校验 |
+
+### 11.2 第一批可 invoke 的 capability
+
+经 `invokeCapability()` 转发至现有服务（返回统一 `CapabilityResult`，deck 类 `cost` 恒为 0）：
+
+| capability | 转发目标 |
+|------------|----------|
+| `deck.load` | `deckDocumentService.loadDeckDocument` |
+| `deck.save` | `deckDocumentService.saveDeckDocument` |
+| `deck.render` | `deckDocumentService.renderDeckDocument` |
+| `deck.preview` | `pptxPreviewService.renderPptxPreview` |
+| `deckTemplate.list` | `pptTemplateRegistry.listPptTemplates` |
+
+### 11.3 尚未接入 invoke
+
+- 其余 capability 仅在 Catalog 中登记契约与成熟度，**不**经 `invokeCapability` 执行。  
+- `planned`（如 `document.applyPatch`、`docx.writeback`、`llm.generateJson`）invoke 返回 `PLANNED_NOT_INVOKABLE`。  
+- `restricted` 的 `pptx.import`：`skillCallable: forbidden`，Skill manifest 校验拒绝声明。  
+- **未修改**现有 IPC（`deck:load` 等）与 UI 调用路径；Capability 层为并行新增基础设施。
+
+### 11.4 本地验证
+
+```bash
+npm run typecheck
+npx tsx scripts/smoke-capability-layer.ts
+```
+
+---
+
 *文档维护：架构组 · 设计稿 v0.3 · 2026-05*
