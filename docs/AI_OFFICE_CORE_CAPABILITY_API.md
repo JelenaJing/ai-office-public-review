@@ -655,13 +655,22 @@ interface ValidateManifestCapabilitiesResult {
 
 ## 7. 调用矩阵（速查）
 
-| 分层 | 前缀 | Skill 默认 | Agent |
-|------|------|------------|-------|
-| Primitive | `llm`, `knowledge`, `workspace`, `document`, `deck` | ✓ | ✓ |
-| Adapter | `docx`, `pptx`, `pdf` | ✓ | ✓ |
-| Runtime | `runtime` | ✓（writeLog 受限） | ✓ |
-| Registry | `deckTemplate`, `documentTemplate` | ✓ | ✓ |
-| Agent Action | — | ✗ | 编排实现 |
+> **权威来源**：某 capability 是否允许 Skill **声明**（`requiredCapabilities`）或 **调用**（invoke），以 **Capability Catalog** 条目为准，看 `skillCallable`、`implementationStatus`、`invokeEnabled` — **不是**仅看 namespace 前缀。
+
+| 分层 | 前缀 | Skill 默认 | Agent | Catalog 例外 / 备注 |
+|------|------|------------|-------|-------------------|
+| Primitive | `llm`, `knowledge`, `workspace`, `document`, `deck` | 取决于 Catalog | ✓ | 如 `document.applyPatch` 为 `planned` 时 Skill 不可 invoke |
+| Adapter | `docx`, `pptx`, `pdf` | 取决于 Catalog | ✓ | **`pptx.import` 禁止 Skill 声明**（`restricted`）；普通 Skill 用 `pptx.extract` |
+| Runtime | `runtime` | 取决于 Catalog | ✓ | **`runtime.writeLog` 受限**（Template Skill 不得声明；Workflow only） |
+| Registry | `deckTemplate`, `documentTemplate` | 取决于 Catalog | ✓ | 如 `documentTemplate.validate` 为 `planned` 时暂缓 invoke |
+| Agent Action | — | ✗（不得写入 manifest） | 编排实现 | 非 Catalog capability id |
+
+**校验顺序（Skill 安装 / 运行）**：
+
+1. Catalog 是否存在该 `id`  
+2. `skillCallable` 是否允许当前 `skillKind` / `callerType`  
+3. `implementationStatus` 是否为 `restricted` / `planned` / `deprecated`  
+4. `invokeEnabled` 是否允许本次 invoke（第一批仅部分 deck* 为 `true`）
 
 ---
 
