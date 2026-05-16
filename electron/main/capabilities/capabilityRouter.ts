@@ -122,6 +122,7 @@ export async function invokeCapability(
           })
         }
         return success({
+          pptxPath: result.outputPath,
           outputPath: result.outputPath,
           slideCount: result.slideCount,
           manifestId: result.manifestId,

@@ -142,15 +142,6 @@ export function validateManifestCapabilities(
       )
     }
 
-    if (input.skillKind === 'template' && capability === 'runtime.writeLog') {
-      pushError(
-        errors,
-        capability,
-        'RESTRICTED_FOR_SKILL',
-        'Template Skill 不得声明 runtime.writeLog',
-      )
-    }
-
     if (!catalogEntry.invokeEnabled) {
       pushWarning(
         warnings,

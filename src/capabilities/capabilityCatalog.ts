@@ -126,11 +126,11 @@ const CAPABILITY_CATALOG_ENTRIES: CapabilityCatalogEntry[] = [
     displayName: '写入审计日志',
     description: '写入用户行为 / 任务审计日志',
     consumesTokens: false,
-    skillCallable: 'workflow-only',
+    skillCallable: 'forbidden',
     invokeBatch: 'none',
     invokeEnabled: false,
     wrapper: { transport: 'in-process', target: 'userActionLogService.appendAction' },
-    notes: 'Template Skill 不得声明；仅 Workflow / Agent 场景',
+    notes: 'Skill 不得声明；由 Agent / Runtime 自动写日志',
   }),
 
   // —— Document Primitive ——

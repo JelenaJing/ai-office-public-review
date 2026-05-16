@@ -58,6 +58,37 @@ assert(
   'Template + pptx.import 含 RESTRICTED_FOR_SKILL',
 )
 
+// 6b. runtime.writeLog：forbidden，任意 Skill 不得声明
+const writeLogEntry = getCatalogEntry('runtime.writeLog')
+assert(writeLogEntry?.implementationStatus === 'restricted', 'runtime.writeLog 为 restricted')
+assert(writeLogEntry?.skillCallable === 'forbidden', 'runtime.writeLog skillCallable 为 forbidden')
+assert(
+  writeLogEntry?.notes === 'Skill 不得声明；由 Agent / Runtime 自动写日志',
+  'runtime.writeLog notes 正确',
+)
+
+const templateWriteLog = validateManifestCapabilities({
+  requiredCapabilities: ['runtime.writeLog'],
+  skillKind: 'template',
+  callerType: 'skill',
+})
+assert(!templateWriteLog.ok, 'Template + runtime.writeLog manifest 校验失败')
+assert(
+  templateWriteLog.errors.some((e) => e.code === 'RESTRICTED_FOR_SKILL' && e.capability === 'runtime.writeLog'),
+  'Template + runtime.writeLog 含 RESTRICTED_FOR_SKILL',
+)
+
+const workflowWriteLog = validateManifestCapabilities({
+  requiredCapabilities: ['runtime.writeLog'],
+  skillKind: 'workflow',
+  callerType: 'skill',
+})
+assert(!workflowWriteLog.ok, 'Workflow + runtime.writeLog manifest 校验失败')
+assert(
+  workflowWriteLog.errors.some((e) => e.code === 'RESTRICTED_FOR_SKILL' && e.capability === 'runtime.writeLog'),
+  'Workflow + runtime.writeLog 含 RESTRICTED_FOR_SKILL',
+)
+
 // 7. Workflow Skill 声明 planned 能力返回 warning 而非 error
 const workflowPlanned = validateManifestCapabilities({
   requiredCapabilities: ['llm.generateJson', 'document.applyPatch'],

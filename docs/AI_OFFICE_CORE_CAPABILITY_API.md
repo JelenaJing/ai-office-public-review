@@ -144,7 +144,7 @@ Capability 在 Catalog 中除契约 id 外，必须标注 **`implementationStatu
 | `workspace.writeFile` | primitive | **wrapper** | ✓ | |
 | `workspace.copyFile` | primitive | **wrapper** | ✓ | |
 | `runtime.reportProgress` | runtime | **wrapper** | ✓ | |
-| `runtime.writeLog` | runtime | **restricted** | △ Workflow only | Template Skill 不得声明 |
+| `runtime.writeLog` | runtime | **restricted** | **✗** | Skill 不得声明；Agent / Runtime 自动写日志 |
 | `document.create` | primitive | **wrapper** | ✓ | |
 | `document.load` | primitive | **wrapper** | ✓ | |
 | `document.save` | primitive | **wrapper** | ✓ | |
@@ -301,7 +301,7 @@ interface ValidateManifestCapabilitiesResult {
 **校验规则摘要：**
 
 1. 每个 `requiredCapabilities` id 必须存在于 Catalog。  
-2. `skillCallable === 'forbidden'`（含 `pptx.import`、`runtime.writeLog` 对 Template Skill）→ Skill manifest **error**。  
+2. `skillCallable === 'forbidden'`（含 `pptx.import`、`runtime.writeLog`）→ 任意 Skill manifest **error**。  
 3. `implementationStatus === 'planned'` 且 Skill 尝试 invoke → **error**（静态 manifest 仅 **warning**）。  
 4. `implementationStatus === 'restricted'` 且 `callerType === 'skill'` 且 manifest 已声明 → **error**。  
 5. `invokeEnabled === false` 时 invoke 路由返回 `CAPABILITY_NOT_FOUND` 或 `PLANNED_NOT_INVOKABLE`。  
@@ -366,7 +366,7 @@ interface ValidateManifestCapabilitiesResult {
 | Capability | 简述 | Token | Skill |
 |------------|------|-------|-------|
 | `runtime.reportProgress` | 任务步骤进度 | 否 | ✓ |
-| `runtime.writeLog` | 审计 / 行为日志 | 否 | △ 受限 |
+| `runtime.writeLog` | 审计 / 行为日志 | 否 | ✗ |
 
 ### 4.3 A · Document Primitive
 
@@ -516,7 +516,7 @@ interface ValidateManifestCapabilitiesResult {
 |----|------|
 | 输入 | `{ module, action, eventType, details?, status? }` |
 | 输出 | `{ logId? }` |
-| Skill | 受限（Workflow 可用；Template 仅错误路径） |
+| Skill | **禁止**声明（`skillCallable: forbidden`） |
 | 现有代码 | `userActionLogService.ts` |
 
 ---
@@ -618,7 +618,7 @@ interface ValidateManifestCapabilitiesResult {
 
 | 项 | 内容 |
 |----|------|
-| render 输出 | `{ pptxPath, manifestId, warnings? }` |
+| render 输出 | `{ pptxPath, outputPath, slideCount, manifestId, templateId, cloneRendererUsed? }` |
 | preview 输出 | `{ slides: [{ index, imagePath }] }` |
 | 现有代码 | `retemplateEngine.ts`；`pptxPreviewService.ts`；IPC `deck:render`, `deck:preview` |
 
@@ -661,7 +661,7 @@ interface ValidateManifestCapabilitiesResult {
 |------|------|------------|-------|-------------------|
 | Primitive | `llm`, `knowledge`, `workspace`, `document`, `deck` | 取决于 Catalog | ✓ | 如 `document.applyPatch` 为 `planned` 时 Skill 不可 invoke |
 | Adapter | `docx`, `pptx`, `pdf` | 取决于 Catalog | ✓ | **`pptx.import` 禁止 Skill 声明**（`restricted`）；普通 Skill 用 `pptx.extract` |
-| Runtime | `runtime` | 取决于 Catalog | ✓ | **`runtime.writeLog` 受限**（Template Skill 不得声明；Workflow only） |
+| Runtime | `runtime` | 取决于 Catalog | ✓ | **`runtime.writeLog` 禁止 Skill 声明**（Agent / Runtime 自动记录） |
 | Registry | `deckTemplate`, `documentTemplate` | 取决于 Catalog | ✓ | 如 `documentTemplate.validate` 为 `planned` 时暂缓 invoke |
 | Agent Action | — | ✗（不得写入 manifest） | 编排实现 | 非 Catalog capability id |
 
@@ -767,7 +767,7 @@ interface CapabilityResult<T = unknown> {
 |------------|----------|
 | `deck.load` | `deckDocumentService.loadDeckDocument` |
 | `deck.save` | `deckDocumentService.saveDeckDocument` |
-| `deck.render` | `deckDocumentService.renderDeckDocument` |
+| `deck.render` | `deckDocumentService.renderDeckDocument`（`data` 含 `pptxPath` 与 `outputPath`） |
 | `deck.preview` | `pptxPreviewService.renderPptxPreview` |
 | `deckTemplate.list` | `pptTemplateRegistry.listPptTemplates` |
 
@@ -775,7 +775,7 @@ interface CapabilityResult<T = unknown> {
 
 - 其余 capability 仅在 Catalog 中登记契约与成熟度，**不**经 `invokeCapability` 执行。  
 - `planned`（如 `document.applyPatch`、`docx.writeback`、`llm.generateJson`）invoke 返回 `PLANNED_NOT_INVOKABLE`。  
-- `restricted` 的 `pptx.import`：`skillCallable: forbidden`，Skill manifest 校验拒绝声明。  
+- `restricted` 的 `pptx.import`、`runtime.writeLog`：`skillCallable: forbidden`，任意 Skill manifest 校验拒绝声明；日志由 Agent / Runtime 自动写入。  
 - **未修改**现有 IPC（`deck:load` 等）与 UI 调用路径；Capability 层为并行新增基础设施。
 
 ### 11.4 本地验证
