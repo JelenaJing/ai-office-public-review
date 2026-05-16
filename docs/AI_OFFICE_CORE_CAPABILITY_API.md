@@ -410,9 +410,9 @@ interface ValidateManifestCapabilitiesResult {
 | Capability | 简述 | Token | Skill |
 |------------|------|-------|-------|
 | `pptx.extract` | 从 PPTX 提取结构与文本 | 否 | ✓ |
-| `pptx.import` | 一站式导入为 deck（可选便捷入口） | 否 | ✓ |
+| `pptx.import` | 一站式导入为 deck（restricted convenience adapter） | 否 | ✗ / Agent only |
 
-> **说明**：`pptx.import` 内部等价于 `pptx.extract` → `deck.create` → `deck.applyPatch` → `deck.save`；Agent 也可逐步调用 Primitive，不必强制使用 adapter。
+> **说明（`pptx.import`）**：内部等价于 `pptx.extract` → `deck.create` → `deck.applyPatch` → `deck.save`。它是 **Agent Action / 内置 Workflow** 的便捷 adapter（`implementationStatus: restricted`），**不允许**普通 Skill 在 `requiredCapabilities` 中声明。普通 Skill 如需处理 PPTX，应声明 **`pptx.extract`**，由 Agent 或 Workflow 编排后续 `deck.create` / `deck.applyPatch` / `deck.save`（或走平台内置导入流程），而不是声明 `pptx.import`。
 
 ### 4.8 Template Registry（元数据，非格式适配）
 
