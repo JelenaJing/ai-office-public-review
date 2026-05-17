@@ -11,3 +11,17 @@ release/
 .tmp*/
 logs/
 build/vosk-models/
+
+# Flowable local runtime
+aioffice-workflow-service/target/
+aioffice-workflow-service/*.mv.db
+aioffice-workflow-service/*.trace.db
+aioffice-workflow-service/*.lock.db
+aioffice-workflow-service/data/
+
+# Flowable local runtime
+aioffice-workflow-service/target/
+aioffice-workflow-service/*.mv.db
+aioffice-workflow-service/*.trace.db
+aioffice-workflow-service/*.lock.db
+aioffice-workflow-service/data/
