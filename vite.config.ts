@@ -22,47 +22,9 @@ type AiConfig = {
 
 function loadAiConfig(rootDir: string): AiConfig {
   const configPath = path.join(rootDir, 'build', 'ai-config.json')
-
   if (!fs.existsSync(configPath)) {
-    console.warn('[vite] build/ai-config.json not found, using default AI provider config')
-    return {
-      llm: {
-        active: 'cuhk',
-        providers: {
-          cuhk: {
-            builtinKeyEnvNames: [
-              'CUHK_API_KEY',
-              'AI_WRITER_DEFAULT_CUHK_API_KEY',
-            ],
-          },
-          qwen: {
-            builtinKeyEnvNames: [
-              'QWEN_API_KEY',
-              'AI_WRITER_DEFAULT_QWEN_API_KEY',
-            ],
-          },
-          deepseek: {
-            builtinKeyEnvNames: [
-              'DEEPSEEK_API_KEY',
-              'AI_WRITER_DEFAULT_DEEPSEEK_API_KEY',
-            ],
-          },
-        },
-      },
-      image: {
-        active: 'nanobanana',
-        providers: {
-          nanobanana: {
-            builtinKeyEnvNames: [
-              'NANOBANANA_API_KEY',
-              'AI_WRITER_DEFAULT_NANOBANANA_API_KEY',
-            ],
-          },
-        },
-      },
-    }
+    throw new Error('build/ai-config.json 不存在，请参考 .env.local.example 创建')
   }
-
   try {
     return JSON.parse(fs.readFileSync(configPath, 'utf-8')) as AiConfig
   } catch (error) {

@@ -38,8 +38,8 @@ import CalendarWorkspace from './pages/CalendarWorkspace'
 import { DISABLE_FORCE_PASSWORD_CHANGE } from './config'
 import { DEFAULT_APP_ROUTE } from './config/productFeatures'
 
-/** Derive the initial PrimarySection from the feature-flag default route (e.g. '/work' → 'work'). */
-const DEFAULT_PRIMARY_SECTION = DEFAULT_APP_ROUTE.replace(/^\//, '') as import('./components/nav/PrimaryNav').PrimarySection
+/** Derive the initial PrimarySection from the feature-flag default route (e.g. '/work' → 'work', '/' → 'home'). */
+const DEFAULT_PRIMARY_SECTION = (DEFAULT_APP_ROUTE.replace(/^\//, '') || 'home') as import('./components/nav/PrimaryNav').PrimarySection
 
 const IS_DEV = Boolean((import.meta as unknown as { env: Record<string, unknown> }).env?.DEV)
 const SkillDevPanel = IS_DEV

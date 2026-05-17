@@ -570,6 +570,13 @@ const ThreadHeader = styled.div`
   flex-shrink: 0;
 `
 
+const ThreadHeaderTop = styled.div`
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+`
+
 const ThreadHeaderSubject = styled.h2`
   margin: 0 0 6px;
   font-size: 17px;
@@ -588,6 +595,13 @@ const ThreadHeaderMeta = styled.div`
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
+`
+
+const ThreadHeaderActions = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 `
 
 const EmptyCenterState = styled.div`
@@ -1430,6 +1444,32 @@ function formatTime(iso: string): string {
       month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
     })
   } catch { return '' }
+}
+
+function formatForwardSubject(subject: string): string {
+  const trimmed = subject.trim() || '（无主题）'
+  return /^(fwd?|转发)\s*[:：]/i.test(trimmed) ? trimmed : `Fwd: ${trimmed}`
+}
+
+function stripHtmlForForward(html: string): string {
+  if (typeof DOMParser === 'undefined') return html.replace(/<[^>]+>/g, ' ')
+  const doc = new DOMParser().parseFromString(html, 'text/html')
+  return doc.body.textContent || ''
+}
+
+function buildForwardBody(thread: CommunicationThread, message: CommunicationMessage): string {
+  const originalBody = (message.body || (message.htmlBody ? stripHtmlForForward(message.htmlBody) : '')).trim()
+  return [
+    '',
+    '',
+    '---------- 转发邮件 ----------',
+    `发件人：${message.fromName || message.from || '未知发件人'}${message.from ? ` <${message.from}>` : ''}`,
+    `收件人：${message.toName || message.to || ''}${message.to ? ` <${message.to}>` : ''}`,
+    `时间：${formatTime(message.timestamp) || message.timestamp}`,
+    `主题：${thread.subject || '（无主题）'}`,
+    '',
+    originalBody || '（原邮件无正文）',
+  ].join('\n')
 }
 
 function formatFileSize(bytes: number): string {
@@ -2936,7 +2976,6 @@ function CommunicationWorkbenchInner() {
     threads,
     matrixPhase,
     createMatrixDirect,
-    sendBlank,
     deleteMail,
     restoreMail,
     refreshTrash,
@@ -2972,12 +3011,19 @@ function CommunicationWorkbenchInner() {
   const [pendingComposeTo, setPendingComposeTo] = useState<
     { email: string; displayName?: string; personId?: string; mailboxStatus?: string; fromDirectory?: boolean }[] | undefined
   >(undefined)
+  const [pendingComposeDraft, setPendingComposeDraft] = useState<{
+    subject: string
+    body: string
+    attachments: Array<{ fileName: string; filePath: string; mimeType: string; sizeBytes: number }>
+    variant: 'compose' | 'forward'
+  } | undefined>(undefined)
 
   // Consume pending compose recipient on first mount (CommunicationWorkbench not yet alive).
   useEffect(() => {
     const pending = consumePendingCompose()
     if (pending) {
       setPendingComposeTo([pending])
+      setPendingComposeDraft(undefined)
       setShowCompose(true)
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -2988,6 +3034,7 @@ function CommunicationWorkbenchInner() {
       const pending = consumePendingCompose()
       if (pending) {
         setPendingComposeTo([pending])
+        setPendingComposeDraft(undefined)
         setShowCompose(true)
       }
     }
@@ -3235,6 +3282,30 @@ function CommunicationWorkbenchInner() {
     : currentReplyKnowledgeIds.length === 1
       ? `知识库 · 1`
       : `知识库 · ${currentReplyKnowledgeIds.length}`
+
+  const handleForwardSelectedMail = useCallback(() => {
+    if (!selectedThread || !targetMessage) return
+    const forwardAttachments = targetMessage.attachments.flatMap((attachment) => {
+      if (!attachment.tempPath) return []
+      return [{
+        fileName: attachment.filename,
+        filePath: attachment.tempPath,
+        mimeType: attachment.contentType,
+        sizeBytes: attachment.size,
+      }]
+    })
+    if (targetMessage.attachments.length > forwardAttachments.length) {
+      setAttachmentNotice('部分原邮件附件没有本地缓存，未自动加入转发邮件。')
+    }
+    setPendingComposeTo(undefined)
+    setPendingComposeDraft({
+      subject: formatForwardSubject(selectedThread.subject),
+      body: buildForwardBody(selectedThread, targetMessage),
+      attachments: forwardAttachments,
+      variant: 'forward',
+    })
+    setShowCompose(true)
+  }, [selectedThread, targetMessage])
 
   const handleConfirmKnowledgeSelection = useCallback((mailId: string, knowledgeIds: string[]) => {
     const normalized = Array.from(new Set(knowledgeIds.map((id) => id.trim()).filter(Boolean)))
@@ -3521,6 +3592,10 @@ function CommunicationWorkbenchInner() {
   }, [selectedMailId])
 
   const emailAnalysisSummaryExpanded = Boolean(currentBatchSummary && !emailAnalysisSummaryCollapsed)
+  const completedAnalysisCount = analysisProgress.done + analysisProgress.cached + analysisProgress.failed
+  const analysisCompleteByProgress = analysisProgress.total > 0 && completedAnalysisCount >= analysisProgress.total && analysisProgress.running === 0
+  const analysisCompletedWhileBusy = analysisCompleteByProgress && (isAnalyzingEmails || isWorkerRunning || analysisStatus === 'running')
+  const analysisButtonBusy = (isAnalyzingEmails || isWorkerRunning) && !analysisCompleteByProgress
 
   return (
     <Shell>
@@ -3551,7 +3626,7 @@ function CommunicationWorkbenchInner() {
           {/* Row 2: Action buttons */}
           <HeaderActionRow>
             {isRealEmailMode && (
-              <ComposeBtn type="button" onClick={() => setShowCompose(true)}>
+              <ComposeBtn type="button" onClick={() => { setPendingComposeTo(undefined); setPendingComposeDraft(undefined); setShowCompose(true) }}>
                 ✉ 新建邮件
               </ComposeBtn>
             )}
@@ -3559,11 +3634,12 @@ function CommunicationWorkbenchInner() {
               type="button"
               title="分析收件箱邮件，自动分类并为重要邮件生成预回复草稿"
               onClick={triggerAnalysis}
-              disabled={isAnalyzingEmails || isWorkerRunning}
+              disabled={analysisButtonBusy}
             >
-              {isAnalyzingEmails
-                ? `🤖 正在分析 ${analysisProgress.done + analysisProgress.cached + analysisProgress.failed}/${analysisProgress.total}`
+              {analysisButtonBusy
+                ? `🤖 正在分析 ${completedAnalysisCount}/${analysisProgress.total}`
                 : analysisStatus === 'done'
+                  || analysisCompletedWhileBusy
                 ? '✅ 分析完成'
                 : analysisStatus === 'failed'
                 ? '⚠ 分析失败'
@@ -3685,14 +3761,21 @@ function CommunicationWorkbenchInner() {
               {isTrashFolderThread && <RecoverableMailBanner>🗑 此邮件位于可恢复区域</RecoverableMailBanner>}
               {attachmentNotice && <AttachOpenBanner>{attachmentNotice}</AttachOpenBanner>}
               <ThreadHeader>
-                <ThreadHeaderSubject>
-                  {selectedThread.subject}
-                </ThreadHeaderSubject>
-                <ThreadHeaderMeta>
-                  <span>发件人：{targetMessage.fromName || targetMessage.from}</span>
-                  <span>收件人：{targetMessage.toName || targetMessage.to || ''}</span>
-                  <span>{formatTime(targetMessage.timestamp)}</span>
-                </ThreadHeaderMeta>
+                <ThreadHeaderTop>
+                  <div style={{ minWidth: 0 }}>
+                    <ThreadHeaderSubject>
+                      {selectedThread.subject}
+                    </ThreadHeaderSubject>
+                    <ThreadHeaderMeta>
+                      <span>发件人：{targetMessage.fromName || targetMessage.from}</span>
+                      <span>收件人：{targetMessage.toName || targetMessage.to || ''}</span>
+                      <span>{formatTime(targetMessage.timestamp)}</span>
+                    </ThreadHeaderMeta>
+                  </div>
+                  <ThreadHeaderActions>
+                    <Btn $variant="muted" onClick={handleForwardSelectedMail}>转发</Btn>
+                  </ThreadHeaderActions>
+                </ThreadHeaderTop>
               </ThreadHeader>
 
               <EmailBodyView message={targetMessage} />
@@ -4014,7 +4097,11 @@ function CommunicationWorkbenchInner() {
       {showCompose && (
         <ComposeModal
           initialTo={pendingComposeTo}
-          onClose={() => { setShowCompose(false); setPendingComposeTo(undefined) }}
+          initialSubject={pendingComposeDraft?.subject}
+          initialBody={pendingComposeDraft?.body}
+          initialAttachments={pendingComposeDraft?.attachments}
+          variant={pendingComposeDraft?.variant}
+          onClose={() => { setShowCompose(false); setPendingComposeTo(undefined); setPendingComposeDraft(undefined) }}
         />
       )}
     </Shell>

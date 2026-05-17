@@ -331,6 +331,15 @@ export function GenerationWorkbenchProvider({ children }: { children: ReactNode 
           sourceTabId: null,
           targetSelection: null,
           activeTaskId: null,
+          pptStopRequested: false,
+          pptResumeRequested: false,
+          pptIsResuming: false,
+          // Keep terminal/safe statuses; reset any in-flight generating state to idle
+          pptTaskStatus: (['idle', 'ready', 'stopped', 'completed', 'failed'] as PptTaskStatus[]).includes(
+            (saved as Partial<GenerationModeSession>)?.pptTaskStatus as PptTaskStatus,
+          )
+            ? (saved as Partial<GenerationModeSession>).pptTaskStatus as PptTaskStatus
+            : 'idle',
         }
       }
       return next
@@ -366,6 +375,20 @@ export function GenerationWorkbenchProvider({ children }: { children: ReactNode 
           currentMailId: s.currentMailId,
           replyTone: s.replyTone,
           pptPrimarySource: s.pptPrimarySource,
+          pptDeckDocumentId: s.pptDeckDocumentId,
+          pptDeckPath: s.pptDeckPath ?? null,
+          pptActiveTemplateManifestId: s.pptActiveTemplateManifestId ?? null,
+          pptSourceType: s.pptSourceType,
+          pptOriginalFilePath: s.pptOriginalFilePath,
+          pptOriginalFileName: s.pptOriginalFileName,
+          pptImportStatus: s.pptImportStatus,
+          pptImportWarnings: s.pptImportWarnings,
+          pptPreviewSlides: s.pptPreviewSlides,
+          pptLiveSlides: s.pptLiveSlides,
+          pptTotalSlides: s.pptTotalSlides,
+          pptActiveSlideIndex: s.pptActiveSlideIndex,
+          pptContentPackageId: s.pptContentPackageId,
+          pptActiveSkillId: s.pptActiveSkillId,
           lastUpdatedAt: s.lastUpdatedAt,
           selectedKnowledgeBaseIds: s.selectedKnowledgeBaseIds,
         }

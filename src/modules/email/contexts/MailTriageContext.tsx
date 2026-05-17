@@ -116,6 +116,47 @@ export function useMailTriage(): MailTriageContextValue {
 const now = () => new Date().toISOString()
 const ACTIVE_POLL_MS = 500
 const MAX_RETRIES = 2
+const MAIL_ANALYSIS_TIMEOUT_MS = 60_000
+const MAIL_DRAFT_TIMEOUT_MS = 45_000
+const MAIL_SAVE_TIMEOUT_MS = 10_000
+const ANALYSIS_STATUS_RESET_MS = 8_000
+
+function logAnalysis(event: string, payload?: Record<string, unknown>): void {
+  console.info(`[mail-analysis] ${event}`, payload ?? '')
+}
+
+function warnAnalysis(event: string, payload?: Record<string, unknown>): void {
+  console.warn(`[mail-analysis] ${event}`, payload ?? '')
+}
+
+function errorMessageOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
+async function runWithTimeout<T>(
+  label: string,
+  timeoutMs: number,
+  task: (signal: AbortSignal) => Promise<T>,
+): Promise<T> {
+  const controller = new AbortController()
+  let timeoutId: ReturnType<typeof setTimeout> | null = null
+  const timeoutPromise = new Promise<never>((_resolve, reject) => {
+    timeoutId = setTimeout(() => {
+      controller.abort()
+      reject(new Error(`${label} timeout after ${Math.round(timeoutMs / 1000)}s`))
+    }, timeoutMs)
+  })
+  try {
+    return await Promise.race([task(controller.signal), timeoutPromise])
+  } catch (error) {
+    if (controller.signal.aborted) {
+      throw new Error(`${label} timeout after ${Math.round(timeoutMs / 1000)}s`)
+    }
+    throw error
+  } finally {
+    if (timeoutId !== null) clearTimeout(timeoutId)
+  }
+}
 
 /** Build a lightweight triage result for mails that should bypass LLM analysis. */
 function buildSkippedResult(mail: MailItem, accountId: string, reason: AiMailSkipReason): AiMailTriageResult {
@@ -365,7 +406,7 @@ async function generateDraftForMail(
 /* ------------------------------------------------------------------ */
 
 export function MailTriageProvider({ children }: { children: ReactNode }) {
-  const { mails, accountConfig } = useEmail()
+  const { mails, accountConfig, refreshMails } = useEmail()
   const { activeWorkspacePath } = useWorkspace()
   const { state: internalAccountState } = useInternalAccount()
   const accountId = resolveAccountId(accountConfig)
@@ -385,6 +426,7 @@ export function MailTriageProvider({ children }: { children: ReactNode }) {
   const queueRef = useRef<MailTriageJob[]>([])
   const workerActiveRef = useRef(false)
   const workerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const statusResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const [isWorkerRunning, setIsWorkerRunning] = useState(false)
   const [analysisStatus, setAnalysisStatus] = useState<AnalysisStatus>('idle')
@@ -424,11 +466,13 @@ export function MailTriageProvider({ children }: { children: ReactNode }) {
 
   /* ---- Publish a result to reactive state + cache ---- */
   const publishResult = useCallback((result: AiMailTriageResult) => {
+    logAnalysis('save analysis result start', { messageId: result.messageId, status: result.status })
     const mergedTodos = mergeAnalysisTodos(accountId, workspaceId, result.todos ?? [])
     const nextResult = { ...result, todos: mergedTodos, updatedAt: now() }
     setCachedTriage(nextResult)
     setTriageResults((prev) => ({ ...prev, [nextResult.messageId]: nextResult }))
     setMailTodos(getMailTodos(accountId, workspaceId))
+    logAnalysis('save analysis result end', { messageId: nextResult.messageId, status: nextResult.status })
   }, [accountId, workspaceId])
 
   const enrichWithCalendarEvent = useCallback(async (mail: MailItem, result: AiMailTriageResult): Promise<AiMailTriageResult> => {
@@ -470,6 +514,7 @@ export function MailTriageProvider({ children }: { children: ReactNode }) {
     const batchId = currentBatchIdRef.current
     if (!batchId) {
       setIsAnalyzingEmails(false)
+      logAnalysis('set isAnalyzing false', { reason: 'missing active batch' })
       return
     }
 
@@ -493,7 +538,127 @@ export function MailTriageProvider({ children }: { children: ReactNode }) {
     setCurrentBatchResults(nextResults)
     setCurrentBatchSummary(buildEmailAnalysisBatchSummary(batchId, nextResults))
     setIsAnalyzingEmails(false)
+    logAnalysis('set isAnalyzing false', { batchId })
   }, [accountId, mails])
+
+  const scheduleStatusReset = useCallback(() => {
+    if (statusResetTimerRef.current !== null) clearTimeout(statusResetTimerRef.current)
+    statusResetTimerRef.current = setTimeout(() => {
+      setAnalysisStatus((s) => (s === 'done' || s === 'failed' ? 'idle' : s))
+      statusResetTimerRef.current = null
+    }, ANALYSIS_STATUS_RESET_MS)
+  }, [])
+
+  const finalizeAnalysis = useCallback((status: Exclude<AnalysisStatus, 'idle' | 'running'>, batchId: string | null) => {
+    logAnalysis('finalize analysis called', { batchId, status })
+    if (workerTimerRef.current !== null) {
+      clearTimeout(workerTimerRef.current)
+      workerTimerRef.current = null
+    }
+    workerActiveRef.current = false
+    setIsWorkerRunning(false)
+    finalizeCurrentBatch()
+    setAnalysisProgress((progress) => {
+      const next = { ...progress, running: 0 }
+      logAnalysis('progress updated', {
+        total: next.total,
+        cached: next.cached,
+        done: next.done,
+        failed: next.failed,
+        running: next.running,
+      })
+      return next
+    })
+    setAnalysisStatus(status)
+    setCurrentAnalysisBatchId(null)
+    logAnalysis('set isAnalyzing false', { batchId, status })
+    if (currentUserId) {
+      logActivity(currentUserId, 'mail', status === 'failed' ? 'ai_mail_analysis_failed' : 'ai_mail_analysis_completed', {
+        workspaceId,
+        summary: `${status === 'failed' ? '完成 AI 邮件分析（部分失败）' : '完成 AI 邮件分析'}，生成 ${getMailTodos(accountId, workspaceId).length} 条待办`,
+        metadata: { batchId, status },
+      })
+    }
+    try {
+      logAnalysis('refresh inbox start', { batchId, nonBlocking: true })
+      refreshMails()
+      logAnalysis('refresh inbox end', { batchId, nonBlocking: true })
+    } catch (error) {
+      warnAnalysis('refresh inbox warning', { batchId, error: errorMessageOf(error) })
+    }
+    scheduleStatusReset()
+  }, [accountId, currentUserId, finalizeCurrentBatch, refreshMails, scheduleStatusReset, workspaceId])
+
+  const generateDraftsForFinishedBatch = useCallback(async (batchId: string) => {
+    const mailMap = new Map(mails.map((m) => [m.id, m]))
+    const qualified: Array<{ mail: MailItem; result: AiMailTriageResult; bodyHash: string }> = []
+
+    for (const mailId of batchMailIdsRef.current) {
+      const result = batchTriageResultsRef.current[mailId] ?? latestTriageResultsRef.current[mailId]
+      if (!result) continue
+      if (!qualifiesForDraft(result)) continue
+      const mail = mailMap.get(mailId)
+      if (!mail) continue
+      const bodyHash = computeBodyHash(mail.body)
+      if (hasAiDraft(accountId, mailId, bodyHash)) {
+        const existingDraft = getAiDraft(accountId, mailId, bodyHash)
+        if (existingDraft) {
+          setAiDrafts((prev) => ({ ...prev, [mailId]: existingDraft }))
+          if (currentBatchIdRef.current === batchId) recordBatchResult(mail, result, existingDraft)
+        }
+        continue
+      }
+      qualified.push({ mail, result, bodyHash })
+    }
+
+    if (qualified.length === 0) {
+      if (currentBatchIdRef.current === batchId) finalizeCurrentBatch()
+      if (currentBatchIdRef.current === batchId) currentBatchIdRef.current = null
+      return
+    }
+
+    const settled = await Promise.allSettled(qualified.map(async ({ mail, result, bodyHash }) => {
+      const draft = await runWithTimeout(
+        `draft generation ${mail.id}`,
+        MAIL_DRAFT_TIMEOUT_MS,
+        () => generateDraftForMail(mail, accountId, bodyHash, result),
+      )
+      return { mail, result, draft }
+    }))
+
+    let draftsGenerated = 0
+    const generatedDrafts: Record<string, AiMailReplyDraft> = {}
+    for (const outcome of settled) {
+      if (outcome.status === 'rejected') {
+        warnAnalysis('draft generation fail', { batchId, error: errorMessageOf(outcome.reason) })
+        continue
+      }
+      const { mail, result, draft } = outcome.value
+      if (!draft) continue
+      draftsGenerated++
+      generatedDrafts[mail.id] = draft
+      setAiDrafts((prev) => ({ ...prev, [mail.id]: draft }))
+      if (currentBatchIdRef.current === batchId) recordBatchResult(mail, result, draft)
+    }
+
+    if (draftsGenerated > 0) {
+      setAnalysisProgress((p) => {
+        const next = { ...p, drafts: p.drafts + draftsGenerated }
+        logAnalysis('progress updated', { total: next.total, drafts: next.drafts })
+        return next
+      })
+      if (currentBatchIdRef.current === batchId) finalizeCurrentBatch(generatedDrafts)
+      if (currentUserId) {
+        logActivity(currentUserId, 'mail', 'ai_reply_draft_generated', {
+          workspaceId,
+          summary: `生成了 ${draftsGenerated} 封邮件预回复`,
+          metadata: { batchId, draftCount: draftsGenerated },
+        })
+      }
+    }
+
+    if (currentBatchIdRef.current === batchId) currentBatchIdRef.current = null
+  }, [accountId, currentUserId, finalizeCurrentBatch, mails, recordBatchResult, workspaceId])
 
   /* ---- Background worker: processes one batch per tick ---- */
   const scheduleWorker = useCallback(
@@ -524,70 +689,96 @@ export function MailTriageProvider({ children }: { children: ReactNode }) {
             [job.messageId]: { ...buildPendingResult(job, mailMap.get(job.messageId)), status: 'running' },
           }))
         }
-        setAnalysisProgress((p) => ({ ...p, running: p.running + batch.length }))
+        setAnalysisProgress((p) => {
+          const next = { ...p, running: p.running + batch.length }
+          logAnalysis('progress updated', {
+            total: next.total,
+            cached: next.cached,
+            done: next.done,
+            failed: next.failed,
+            running: next.running,
+          })
+          return next
+        })
 
-        const mailsToClassify = batch
-          .map((job) => mailMap.get(job.messageId))
-          .filter((m): m is MailItem => m !== undefined)
+        const settled = await Promise.allSettled(batch.map(async (job) => {
+          const mail = mailMap.get(job.messageId)
+          if (!mail) throw new Error('邮件不存在')
+          logAnalysis('each email analysis start', { messageId: job.messageId, retryCount: job.retryCount })
+          const results = await runWithTimeout(
+            `email analysis ${job.messageId}`,
+            MAIL_ANALYSIS_TIMEOUT_MS,
+            (signal) => classifyMailsBatch([mail], accountId, signal),
+          )
+          const result = results.find((item) => item.messageId === job.messageId) ?? results[0]
+          if (!result) throw new Error('无匹配结果')
+          const linkedResult = await runWithTimeout(
+            `save analysis result ${job.messageId}`,
+            MAIL_SAVE_TIMEOUT_MS,
+            () => enrichWithCalendarEvent(mail, result),
+          ).catch((error) => {
+            warnAnalysis('save analysis result warning', { messageId: job.messageId, error: errorMessageOf(error) })
+            return result
+          })
+          publishResult(linkedResult)
+          recordBatchResult(mail, linkedResult)
+          logAnalysis('each email analysis success', { messageId: job.messageId })
+          return { job, mail }
+        }))
 
-        try {
-          const results = await classifyMailsBatch(mailsToClassify, accountId)
+        logAnalysis('allSettled completed', {
+          batchSize: batch.length,
+          fulfilled: settled.filter((item) => item.status === 'fulfilled').length,
+          rejected: settled.filter((item) => item.status === 'rejected').length,
+        })
 
-          for (const result of results) {
-            const job = batch.find((j) => j.messageId === result.messageId)
-            if (job) { job.status = 'success'; job.updatedAt = now() }
-            const mail = mailMap.get(result.messageId)
-            const linkedResult = mail ? await enrichWithCalendarEvent(mail, result) : result
-            publishResult(linkedResult)
-            if (mail) recordBatchResult(mail, linkedResult)
+        let successCount = 0
+        let failCount = 0
+        settled.forEach((outcome, index) => {
+          const job = batch[index]
+          if (!job || job.status !== 'running') return
+          if (outcome.status === 'fulfilled') {
+            job.status = 'success'
+            job.updatedAt = now()
+            successCount++
+            return
           }
-          // Mark jobs with no result as failed
-          for (const job of batch) {
-            if (job.status === 'running') {
-              job.status = 'failed'; job.errorMessage = '无匹配结果'; job.updatedAt = now()
-              const mail = mailMap.get(job.messageId)
-              if (mail) {
-                setTriageResults((prev) => ({
-                  ...prev, [job.messageId]: buildFailedResult(job, mail, '无匹配结果'),
-                }))
-                recordBatchResult(mail, buildFailedResult(job, mail, '无匹配结果'))
-              }
+
+          const msg = errorMessageOf(outcome.reason)
+          warnAnalysis('each email analysis fail', { messageId: job.messageId, error: msg, retryCount: job.retryCount })
+          job.retryCount++
+          if (job.retryCount >= MAX_RETRIES) {
+            job.status = 'failed'
+            job.errorMessage = msg
+            failCount++
+            const mail = mailMap.get(job.messageId)
+            if (mail) {
+              const failedResult = buildFailedResult(job, mail, msg)
+              setTriageResults((prev) => ({ ...prev, [job.messageId]: failedResult }))
+              recordBatchResult(mail, failedResult)
             }
+          } else {
+            job.status = 'pending'
           }
-          const successCount = batch.filter((j) => j.status === 'success').length
-          const failCount = batch.filter((j) => j.status === 'failed').length
-          setAnalysisProgress((p) => ({
+          job.updatedAt = now()
+        })
+
+        setAnalysisProgress((p) => {
+          const next = {
             ...p,
             running: Math.max(0, p.running - batch.length),
             done: p.done + successCount,
             failed: p.failed + failCount,
-          }))
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err)
-          for (const job of batch) {
-            if (job.status === 'running') {
-              job.retryCount++
-              if (job.retryCount >= MAX_RETRIES) {
-                job.status = 'failed'; job.errorMessage = msg
-                const mail = mailMap.get(job.messageId)
-                if (mail) {
-                  const failedResult = buildFailedResult(job, mail, msg)
-                  setTriageResults((prev) => ({ ...prev, [job.messageId]: failedResult }))
-                  recordBatchResult(mail, failedResult)
-                }
-              } else {
-                job.status = 'pending'
-              }
-              job.updatedAt = now()
-            }
           }
-          const failCount = batch.filter((j) => j.status === 'failed').length
-          setAnalysisProgress((p) => ({
-            ...p,
-            running: Math.max(0, p.running - batch.length),
-            failed: p.failed + failCount,
-          }))
-        }
+          logAnalysis('progress updated', {
+            total: next.total,
+            cached: next.cached,
+            done: next.done,
+            failed: next.failed,
+            running: next.running,
+          })
+          return next
+        })
 
         scheduleWorker(ACTIVE_POLL_MS)
       }, delay)
@@ -598,70 +789,31 @@ export function MailTriageProvider({ children }: { children: ReactNode }) {
 
   /* ---- Cleanup worker on unmount ---- */
   useEffect(() => {
-    return () => { if (workerTimerRef.current !== null) clearTimeout(workerTimerRef.current) }
+    return () => {
+      if (workerTimerRef.current !== null) clearTimeout(workerTimerRef.current)
+      if (statusResetTimerRef.current !== null) clearTimeout(statusResetTimerRef.current)
+    }
   }, [])
 
-  /* ---- Watch for worker finishing; generate drafts when done ---- */
+  /* ---- Watch for classification completion; finalize before optional follow-up work. ---- */
   useEffect(() => {
-    if (isWorkerRunning) return
     if (analysisStatus !== 'running') return
-
-    // Worker just stopped — generate pre-reply drafts for qualifying results
-    const mailMap = new Map(mails.map((m) => [m.id, m]))
-    const qualified: Array<{ mail: MailItem; result: AiMailTriageResult; bodyHash: string }> = []
-
-    for (const mailId of batchMailIdsRef.current) {
-      const result = batchTriageResultsRef.current[mailId] ?? triageResults[mailId]
-      if (!result) continue
-      if (!qualifiesForDraft(result)) continue
-      const mail = mailMap.get(mailId)
-      if (!mail) continue
-      const bodyHash = computeBodyHash(mail.body)
-      if (hasAiDraft(accountId, mailId, bodyHash)) continue // already generated
-      qualified.push({ mail, result, bodyHash })
-    }
-
+    if (analysisProgress.total <= 0) return
+    const completedCount = analysisProgress.cached + analysisProgress.done + analysisProgress.failed
+    if (completedCount < analysisProgress.total || analysisProgress.running > 0) return
+    const batchId = currentBatchIdRef.current
     const hasFailed = queueRef.current.some((j) => j.status === 'failed')
-
-    if (qualified.length > 0) {
-      // Generate drafts async (fire-and-forget, sequential to avoid LLM overload)
-      void (async () => {
-        let draftsGenerated = 0
-        const generatedDrafts: Record<string, AiMailReplyDraft> = {}
-        for (const { mail, result, bodyHash } of qualified) {
-          const draft = await generateDraftForMail(mail, accountId, bodyHash, result)
-          if (draft) {
-            draftsGenerated++
-            generatedDrafts[mail.id] = draft
-            setAiDrafts((prev) => ({ ...prev, [mail.id]: draft }))
-            recordBatchResult(mail, result, draft)
-          }
-        }
-        setAnalysisProgress((p) => ({ ...p, drafts: p.drafts + draftsGenerated }))
-        finalizeCurrentBatch(generatedDrafts)
-        if (currentUserId && draftsGenerated > 0) {
-          logActivity(currentUserId, 'mail', 'ai_reply_draft_generated', {
-            workspaceId,
-            summary: `生成了 ${draftsGenerated} 封邮件预回复`,
-            metadata: { draftCount: draftsGenerated },
-          })
-        }
-        setAnalysisStatus(hasFailed ? 'failed' : 'done')
-      })()
-    } else {
-      finalizeCurrentBatch()
-      setAnalysisStatus(hasFailed ? 'failed' : 'done')
-    }
-
-    // Auto-reset "done/failed" status after 8 s
-    const timer = setTimeout(() => setAnalysisStatus((s) => (s === 'done' || s === 'failed' ? 'idle' : s)), 8_000)
-    return () => clearTimeout(timer)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isWorkerRunning])
+    finalizeAnalysis(hasFailed ? 'failed' : 'done', batchId)
+    if (batchId) void generateDraftsForFinishedBatch(batchId)
+  }, [analysisProgress, analysisStatus, finalizeAnalysis, generateDraftsForFinishedBatch])
 
   /* ---- Public API: user-initiated "AI邮件分析" ---- */
   const triggerAnalysis = useCallback(async () => {
     // Clear previous queue
+    if (statusResetTimerRef.current !== null) {
+      clearTimeout(statusResetTimerRef.current)
+      statusResetTimerRef.current = null
+    }
     queueRef.current = []
     workerActiveRef.current = false
     batchMailIdsRef.current = new Set()
@@ -687,7 +839,10 @@ export function MailTriageProvider({ children }: { children: ReactNode }) {
     batchMailIdsRef.current = new Set(unreadMails.map((mail) => mail.id))
     setCurrentAnalysisBatchId(batchId)
     setIsAnalyzingEmails(true)
+    logAnalysis('start analysis', { batchId })
+    logAnalysis('total emails count', { batchId, total: unreadMails.length })
 
+    try {
     let cached = 0
     let enqueued = 0
 
@@ -698,7 +853,14 @@ export function MailTriageProvider({ children }: { children: ReactNode }) {
       if (isAttachmentOnlyMail(mail)) {
         const existingCached = getCachedTriage(accountId, mail.id, bodyHash)
         if (existingCached?.status === 'success') {
-          const linkedCached = await refreshCachedResult(mail, existingCached)
+          const linkedCached = await runWithTimeout(
+            `refresh cached result ${mail.id}`,
+            MAIL_SAVE_TIMEOUT_MS,
+            () => refreshCachedResult(mail, existingCached),
+          ).catch((error) => {
+            warnAnalysis('save analysis result warning', { messageId: mail.id, error: errorMessageOf(error) })
+            return existingCached
+          })
           // Respect a previous explicit analysis — don't downgrade to skipped
           recordBatchResult(mail, linkedCached)
         } else {
@@ -714,7 +876,14 @@ export function MailTriageProvider({ children }: { children: ReactNode }) {
       if (isSystemDeliveryNotice(mail)) {
         const existingCached = getCachedTriage(accountId, mail.id, bodyHash)
         if (existingCached?.status === 'success') {
-          const linkedCached = await refreshCachedResult(mail, existingCached)
+          const linkedCached = await runWithTimeout(
+            `refresh cached result ${mail.id}`,
+            MAIL_SAVE_TIMEOUT_MS,
+            () => refreshCachedResult(mail, existingCached),
+          ).catch((error) => {
+            warnAnalysis('save analysis result warning', { messageId: mail.id, error: errorMessageOf(error) })
+            return existingCached
+          })
           recordBatchResult(mail, linkedCached)
         } else {
           const skippedResult = buildSkippedResult(mail, accountId, 'system_delivery_notice')
@@ -730,10 +899,24 @@ export function MailTriageProvider({ children }: { children: ReactNode }) {
       if (localResult) {
         const existingCached = getCachedTriage(accountId, mail.id, bodyHash)
         if (existingCached) {
-          const linkedCached = await refreshCachedResult(mail, existingCached)
+          const linkedCached = await runWithTimeout(
+            `refresh cached result ${mail.id}`,
+            MAIL_SAVE_TIMEOUT_MS,
+            () => refreshCachedResult(mail, existingCached),
+          ).catch((error) => {
+            warnAnalysis('save analysis result warning', { messageId: mail.id, error: errorMessageOf(error) })
+            return existingCached
+          })
           recordBatchResult(mail, linkedCached)
         } else {
-          const linkedLocal = await enrichWithCalendarEvent(mail, localResult)
+          const linkedLocal = await runWithTimeout(
+            `save analysis result ${mail.id}`,
+            MAIL_SAVE_TIMEOUT_MS,
+            () => enrichWithCalendarEvent(mail, localResult),
+          ).catch((error) => {
+            warnAnalysis('save analysis result warning', { messageId: mail.id, error: errorMessageOf(error) })
+            return localResult
+          })
           publishResult(linkedLocal)
           recordBatchResult(mail, linkedLocal)
         }
@@ -744,7 +927,14 @@ export function MailTriageProvider({ children }: { children: ReactNode }) {
       // Check cache hit
       const cachedResult = getCachedTriage(accountId, mail.id, bodyHash)
       if (cachedResult) {
-        const linkedCached = await refreshCachedResult(mail, cachedResult)
+        const linkedCached = await runWithTimeout(
+          `refresh cached result ${mail.id}`,
+          MAIL_SAVE_TIMEOUT_MS,
+          () => refreshCachedResult(mail, cachedResult),
+        ).catch((error) => {
+          warnAnalysis('save analysis result warning', { messageId: mail.id, error: errorMessageOf(error) })
+          return cachedResult
+        })
         recordBatchResult(mail, linkedCached)
         cached++
         continue
@@ -766,6 +956,7 @@ export function MailTriageProvider({ children }: { children: ReactNode }) {
     }
 
     setAnalysisProgress({ total: unreadMails.length, cached, enqueued, running: 0, done: 0, drafts: 0, failed: 0 })
+    logAnalysis('progress updated', { total: unreadMails.length, cached, enqueued, running: 0, done: 0, failed: 0 })
     setAnalysisStatus('running')
     setIsWorkerRunning(enqueued > 0)
     if (currentUserId) {
@@ -778,51 +969,12 @@ export function MailTriageProvider({ children }: { children: ReactNode }) {
 
     if (enqueued > 0) {
       scheduleWorker(ACTIVE_POLL_MS)
-    } else {
-      // All from cache — immediately transition to done
-      workerActiveRef.current = false
-      // Trigger draft generation for qualifying cached results
-      const mailMap = new Map(mails.map((m) => [m.id, m]))
-      void (async () => {
-        let draftsGenerated = 0
-        const generatedDrafts: Record<string, AiMailReplyDraft> = {}
-        for (const mailId of batchMailIdsRef.current) {
-          const result = batchTriageResultsRef.current[mailId] ?? triageResults[mailId]
-          if (!result) continue
-          if (!qualifiesForDraft(result)) continue
-          const mail = mailMap.get(mailId)
-          if (!mail) continue
-          const bodyHash = computeBodyHash(mail.body)
-          if (hasAiDraft(accountId, mailId, bodyHash)) {
-            const existing = getAiDraft(accountId, mailId, bodyHash)
-            if (existing) {
-              setAiDrafts((prev) => ({ ...prev, [mailId]: existing }))
-              recordBatchResult(mail, result, existing)
-            }
-            continue
-          }
-          const draft = await generateDraftForMail(mail, result.accountId, bodyHash, result)
-          if (draft) {
-            draftsGenerated++
-            generatedDrafts[mailId] = draft
-            setAiDrafts((prev) => ({ ...prev, [mailId]: draft }))
-            recordBatchResult(mail, result, draft)
-          }
-        }
-        setAnalysisProgress((p) => ({ ...p, drafts: p.drafts + draftsGenerated }))
-        finalizeCurrentBatch(generatedDrafts)
-        if (currentUserId) {
-          logActivity(currentUserId, 'mail', 'ai_mail_analysis_completed', {
-            workspaceId,
-            summary: `完成 AI 邮件分析：${unreadMails.length} 封邮件，生成 ${getMailTodos(accountId, workspaceId).length} 条待办`,
-            metadata: { total: unreadMails.length, cached, enqueued, draftsGenerated, batchId },
-          })
-        }
-        setAnalysisStatus('done')
-        setTimeout(() => setAnalysisStatus((s) => (s === 'done' ? 'idle' : s)), 8_000)
-      })()
     }
-  }, [mails, triageResults, accountId, publishResult, recordBatchResult, finalizeCurrentBatch, scheduleWorker, currentUserId, workspaceId, enrichWithCalendarEvent, refreshCachedResult])
+    } catch (error) {
+      warnAnalysis('analysis setup fail', { batchId, error: errorMessageOf(error) })
+      finalizeAnalysis('failed', batchId)
+    }
+  }, [mails, accountId, publishResult, recordBatchResult, scheduleWorker, currentUserId, workspaceId, enrichWithCalendarEvent, refreshCachedResult, finalizeAnalysis])
 
   /* ---- Public API: force-reclassify a single mail ---- */
   const enqueueMail = useCallback(

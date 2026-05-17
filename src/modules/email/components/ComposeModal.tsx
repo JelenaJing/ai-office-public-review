@@ -852,9 +852,20 @@ export interface ComposeModalProps {
   onClose: () => void
   /** Pre-populate To field with these recipients */
   initialTo?: RecipientEntry[]
+  initialSubject?: string
+  initialBody?: string
+  initialAttachments?: AttachmentEntry[]
+  variant?: 'compose' | 'forward'
 }
 
-export default function ComposeModal({ onClose, initialTo }: ComposeModalProps) {
+export default function ComposeModal({
+  onClose,
+  initialTo,
+  initialSubject = '',
+  initialBody = '',
+  initialAttachments = [],
+  variant = 'compose',
+}: ComposeModalProps) {
   const { sendBlank, accountConfig } = useEmail()
   const { state } = useInternalAccount()
 
@@ -893,15 +904,16 @@ export default function ComposeModal({ onClose, initialTo }: ComposeModalProps) 
   const [composeMode, setComposeMode] = useState<'single' | 'bulk'>('single')
   const [bulkMode, setBulkMode] = useState<'same' | 'ai'>('same')
   const [selectedDepartment, setSelectedDepartment] = useState('')
+  const allowBulkMode = variant !== 'forward'
 
   // Subject / body
-  const [subject, setSubject] = useState('')
-  const [body, setBody] = useState('')
+  const [subject, setSubject] = useState(initialSubject)
+  const [body, setBody] = useState(initialBody)
   const [bulkGoal, setBulkGoal] = useState('')
   const [bulkDrafts, setBulkDrafts] = useState<BulkEmailDraft[]>([])
 
   // Attachments
-  const [attachments, setAttachments] = useState<AttachmentEntry[]>([])
+  const [attachments, setAttachments] = useState<AttachmentEntry[]>(initialAttachments)
 
   // Sending state
   const [sending, setSending] = useState(false)
@@ -1175,15 +1187,17 @@ export default function ComposeModal({ onClose, initialTo }: ComposeModalProps) 
         <Modal onClick={(e) => e.stopPropagation()}>
           <ModalHeader>
           <HeaderLeft>
-            <ModalTitle>新建邮件</ModalTitle>
-            <ModeTabs>
-              <ModeTab type="button" $active={composeMode === 'single'} onClick={() => setComposeMode('single')}>
-                普通邮件
-              </ModeTab>
-              <ModeTab type="button" $active={composeMode === 'bulk'} onClick={() => setComposeMode('bulk')}>
-                群发邮件
-              </ModeTab>
-            </ModeTabs>
+            <ModalTitle>{variant === 'forward' ? '转发邮件' : '新建邮件'}</ModalTitle>
+            {allowBulkMode && (
+              <ModeTabs>
+                <ModeTab type="button" $active={composeMode === 'single'} onClick={() => setComposeMode('single')}>
+                  普通邮件
+                </ModeTab>
+                <ModeTab type="button" $active={composeMode === 'bulk'} onClick={() => setComposeMode('bulk')}>
+                  群发邮件
+                </ModeTab>
+              </ModeTabs>
+            )}
           </HeaderLeft>
           <CloseBtn type="button" onClick={onClose} title="关闭">✕</CloseBtn>
         </ModalHeader>

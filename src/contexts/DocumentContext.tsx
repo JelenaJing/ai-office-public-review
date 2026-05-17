@@ -564,6 +564,14 @@ export function DocumentProvider({ children }: { children: ReactNode }) {
   const closeTab = useCallback(async (tabId: string) => {
     const targetTab = tabsRef.current.find((tab) => tab.id === tabId)
     if (getEditorTabResolvedDirty(targetTab)) {
+      if (activeTabIdRef.current !== tabId) {
+        // Non-active dirty tab: saveHandlerRef is wired to the currently-active editor,
+        // so calling ensureCurrentDocumentSaved here would operate on the wrong document.
+        // Switch to the target tab first; the user can then save and close again.
+        activateTabState(targetTab!)
+        setStatusMessage(`"${targetTab!.fileName || '文档'}"有未保存修改，已切换到该标签页，请确认后再关闭。`)
+        return
+      }
       if (!await ensureCurrentDocumentSaved('关闭标签页')) return
     }
     setTabs((prev) => {
@@ -586,7 +594,7 @@ export function DocumentProvider({ children }: { children: ReactNode }) {
       }
       return next
     })
-  }, [ensureCurrentDocumentSaved])
+  }, [ensureCurrentDocumentSaved, activateTabState, setStatusMessage])
 
   const switchTab = useCallback(async (tabId: string) => {
     if (tabId !== activeTabIdRef.current && !await ensureCurrentDocumentSaved('切换标签页')) return
