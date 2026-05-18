@@ -39,6 +39,7 @@ import {
   type WorkflowTask,
 } from '../services/workflowClient'
 import WorkflowTasksPanel from './components/WorkflowTasksPanel'
+import { shouldAutoStartWorkflow, buildAutoWorkflowInput } from './services/emailWorkflowAutoStart'
 
 type ImportedDeckSlide = {
   index?: number
@@ -3126,6 +3127,10 @@ function CommunicationWorkbenchInner() {
   const [workflowTasksLoading, setWorkflowTasksLoading] = useState(false)
   const [workflowTasksError, setWorkflowTasksError] = useState<string | null>(null)
   const [completingTaskId, setCompletingTaskId] = useState<string | null>(null)
+  // Tracks which mailIds were auto-started by AI (vs manually triggered) for UI display
+  const [autoStartedByAi, setAutoStartedByAi] = useState<Record<string, boolean>>({})
+  // Ref used as synchronous guard to prevent duplicate auto-start calls between renders
+  const autoStartInitiatedRef = useRef<Set<string>>(new Set())
 
   const unreadCount = useMemo(() => threads.filter((t) => t.unread).length, [threads])
 
@@ -3629,7 +3634,77 @@ function CommunicationWorkbenchInner() {
     setCalendarNotice(null)
   }, [selectedMailId])
 
-  // ── Workflow handlers ────────────────────────────────────────────────────────
+  // ── Auto-start workflow ───────────────────────────────────────────────────────
+
+  // Restore already-initiated mail IDs from localStorage so page refresh won't re-trigger
+  useEffect(() => {
+    try {
+      const stored = JSON.parse(
+        localStorage.getItem('aioffice.autoWorkflowStarted') ?? '[]',
+      ) as string[]
+      stored.forEach((id) => autoStartInitiatedRef.current.add(id))
+    } catch {
+      // ignore parse errors
+    }
+  }, [])
+
+  // Watch triageResults: whenever a new successful triage appears for an eligible mail, fire auto-start
+  useEffect(() => {
+    for (const [mailId, triage] of Object.entries(triageResults)) {
+      if (!triage || triage.status !== 'success') continue
+      if (workflowProcessIds[mailId]) continue                  // already started
+      if (autoStartInitiatedRef.current.has(mailId)) continue   // already initiated (ref is sync-safe)
+
+      const thread = threads.find((t) => {
+        const tid = t.providerType === 'email' ? fromEmailThreadId(t.id) : t.id
+        return tid === mailId
+      })
+      if (!shouldAutoStartWorkflow(triage, thread?.folder)) continue
+
+      // Mark as initiated synchronously (ref) before the async call to prevent double-fire
+      autoStartInitiatedRef.current.add(mailId)
+      try {
+        const stored = JSON.parse(
+          localStorage.getItem('aioffice.autoWorkflowStarted') ?? '[]',
+        ) as string[]
+        localStorage.setItem(
+          'aioffice.autoWorkflowStarted',
+          JSON.stringify([...new Set([...stored, mailId])]),
+        )
+      } catch {
+        // ignore storage errors
+      }
+
+      const msg = thread?.messages?.find((m) => m.isIncoming) ?? thread?.lastMessage
+      const input = buildAutoWorkflowInput(
+        mailId,
+        thread?.id ?? mailId,
+        triage,
+        thread?.subject ?? '(无主题)',
+        msg?.from ?? msg?.fromName ?? 'unknown',
+        currentUserId ?? 'demo-user',
+        activeWorkspacePath ?? 'default',
+      )
+
+      setWorkflowStartStates((prev) => ({ ...prev, [mailId]: 'loading' }))
+      setWorkflowStartErrors((prev) => { const n = { ...prev }; delete n[mailId]; return n })
+
+      startEmailWorkflow(input)
+        .then((result) => {
+          setWorkflowProcessIds((prev) => ({ ...prev, [mailId]: result.processInstanceId }))
+          setWorkflowStartStates((prev) => ({ ...prev, [mailId]: 'done' }))
+          setAutoStartedByAi((prev) => ({ ...prev, [mailId]: true }))
+        })
+        .catch((err) => {
+          setWorkflowStartStates((prev) => ({ ...prev, [mailId]: 'error' }))
+          setWorkflowStartErrors((prev) => ({
+            ...prev,
+            [mailId]: err instanceof Error ? err.message : String(err),
+          }))
+        })
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [triageResults, threads])
 
   const handleStartWorkflow = useCallback(async () => {
     if (!selectedThread || !selectedMailId) return
@@ -3950,30 +4025,48 @@ function CommunicationWorkbenchInner() {
                         移入可恢复区域
                       </Btn>
                     )}
-                    {/* ── 发起流程 button ── */}
+                    {/* ── 发起流程 / AI 自动发起状态 ── */}
                     {selectedMailId && (() => {
                       const wfState = workflowStartStates[selectedMailId] ?? 'idle'
                       const wfError = workflowStartErrors[selectedMailId]
                       const processId = workflowProcessIds[selectedMailId]
+                      const isAutoStarted = autoStartedByAi[selectedMailId]
+                      const autoInitiated = autoStartInitiatedRef.current.has(selectedMailId)
                       return (
                         <div style={{ marginTop: 10 }}>
-                          {wfState !== 'done' && (
-                            <WorkflowInlineBtn
-                              onClick={handleStartWorkflow}
-                              disabled={wfState === 'loading'}
-                            >
-                              {wfState === 'loading' ? '⏳ 发起中…' : '📋 发起流程'}
-                            </WorkflowInlineBtn>
+                          {/* Loading: AI auto-start in progress */}
+                          {wfState === 'loading' && (
+                            <WorkflowStatusMsg $variant="success">
+                              ⏳ AI 正在自动发起流程…
+                            </WorkflowStatusMsg>
                           )}
+                          {/* Done: show different message for AI vs manual */}
                           {wfState === 'done' && (
                             <WorkflowStatusMsg $variant="success">
-                              ✅ 已发起流程：{processId}
+                              {isAutoStarted
+                                ? `🤖 已由 AI 自动发起流程：${processId}`
+                                : `✅ 已发起流程：${processId}`}
                             </WorkflowStatusMsg>
                           )}
+                          {/* Error: show message and keep manual button as fallback */}
                           {wfState === 'error' && (
-                            <WorkflowStatusMsg $variant="error">
-                              ⚠ {wfError}
-                            </WorkflowStatusMsg>
+                            <>
+                              <WorkflowStatusMsg $variant="error">
+                                ⚠ {autoInitiated ? `自动发起流程失败：${wfError}` : wfError}
+                              </WorkflowStatusMsg>
+                              <WorkflowInlineBtn
+                                onClick={handleStartWorkflow}
+                                style={{ marginTop: 6 }}
+                              >
+                                📋 手动发起流程
+                              </WorkflowInlineBtn>
+                            </>
+                          )}
+                          {/* Idle + not auto-initiated → show manual button */}
+                          {wfState === 'idle' && !autoInitiated && (
+                            <WorkflowInlineBtn onClick={handleStartWorkflow}>
+                              📋 发起流程
+                            </WorkflowInlineBtn>
                           )}
                         </div>
                       )

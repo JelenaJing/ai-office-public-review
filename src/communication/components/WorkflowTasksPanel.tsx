@@ -54,6 +54,12 @@ const TaskSummary = styled.div`
   font-size: 11px; color: #4a5568; margin-bottom: 8px; line-height: 1.55;
 `
 
+const AiPreprocessNotice = styled.div`
+  font-size: 10px; color: #6366f1; font-style: italic;
+  margin-bottom: 8px; padding: 4px 8px;
+  background: #f0f0ff; border-radius: 4px;
+`
+
 const TaskActions = styled.div`display: flex; gap: 6px;`
 
 const ActionBtn = styled.button<{ $variant: 'approve' | 'reject' | 'neutral' }>`
@@ -161,20 +167,21 @@ export default function WorkflowTasksPanel({
               {task.aiSummary && (
                 <TaskSummary>{task.aiSummary}</TaskSummary>
               )}
+              <AiPreprocessNotice>AI 已完成预处理，请你做最终确认。</AiPreprocessNotice>
               <TaskActions>
                 <ActionBtn
                   $variant="approve"
                   disabled={completingTaskId === task.taskId}
                   onClick={() => onApprove(task.taskId)}
                 >
-                  {completingTaskId === task.taskId ? '处理中…' : '✔ 通过'}
+                  {completingTaskId === task.taskId ? '处理中…' : '✅ 确认签字'}
                 </ActionBtn>
                 <ActionBtn
                   $variant="reject"
                   disabled={completingTaskId === task.taskId}
                   onClick={() => onReject(task.taskId)}
                 >
-                  {completingTaskId === task.taskId ? '处理中…' : '✕ 驳回'}
+                  {completingTaskId === task.taskId ? '处理中…' : '↩ 驳回/要求补充'}
                 </ActionBtn>
               </TaskActions>
             </TaskItem>
