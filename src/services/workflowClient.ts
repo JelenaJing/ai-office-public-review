@@ -77,7 +77,7 @@ async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
       ...init,
     })
   } catch (networkErr) {
-    throw new Error(`Workflow service unreachable (${url}): ${String(networkErr)}`)
+    throw new Error(`Flowable 服务不可用，请先启动 aioffice-workflow-service。（${String(networkErr)}）`)
   }
   if (!res.ok) {
     let msg = `HTTP ${res.status}`

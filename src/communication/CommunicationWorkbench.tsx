@@ -38,6 +38,7 @@ import {
   completeWorkflowTask,
   type WorkflowTask,
 } from '../services/workflowClient'
+import WorkflowTasksPanel from './components/WorkflowTasksPanel'
 
 type ImportedDeckSlide = {
   index?: number
@@ -450,70 +451,6 @@ const WorkflowInlineBtn = styled.button<{ $variant?: 'start' | 'approve' | 'reje
     if ($variant === 'reject') return 'background:#fed7d7;color:#c53030;&:hover:not(:disabled){background:#feb2b2;}'
     if ($variant === 'neutral') return 'background:#edf2f7;color:#4a5568;&:hover:not(:disabled){background:#e2e8f0;}'
     return 'background:#ebf4ff;color:#2b6cb0;&:hover:not(:disabled){background:#bee3f8;}'
-  }}
-`
-
-const WorkflowPanelOverlay = styled.div`
-  position: fixed; inset: 0; z-index: 900;
-  background: rgba(0,0,0,0.25);
-  display: flex; align-items: flex-start; justify-content: flex-end;
-`
-
-const WorkflowPanelCard = styled.div`
-  width: 480px; max-width: 95vw;
-  height: 100%; max-height: 100vh;
-  background: #fff; box-shadow: -4px 0 24px rgba(0,0,0,0.12);
-  display: flex; flex-direction: column;
-  overflow: hidden;
-`
-
-const WorkflowPanelHeader = styled.div`
-  padding: 18px 20px 14px;
-  border-bottom: 1px solid #e2e8f0;
-  display: flex; align-items: center; justify-content: space-between;
-  flex-shrink: 0;
-`
-
-const WorkflowPanelTitle = styled.div`
-  font-size: 15px; font-weight: 700; color: #1a202c;
-  display: flex; align-items: center; gap: 6px;
-`
-
-const WorkflowPanelBody = styled.div`
-  flex: 1; overflow-y: auto; padding: 10px 14px;
-`
-
-const WorkflowTaskItem = styled.div`
-  padding: 12px 14px; border-radius: 8px; margin-bottom: 8px;
-  background: #f7fafc; border: 1px solid #e2e8f0;
-`
-
-const WorkflowTaskSubject = styled.div`
-  font-size: var(--font-size-sm); font-weight: 700; color: #1a202c; margin-bottom: 4px;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-`
-
-const WorkflowTaskMeta = styled.div`
-  font-size: var(--font-size-xs); color: #718096; margin-bottom: 6px;
-  display: flex; gap: 8px; flex-wrap: wrap;
-`
-
-const WorkflowTaskSummary = styled.div`
-  font-size: var(--font-size-xs); color: #4a5568; margin-bottom: 8px; line-height: 1.55;
-`
-
-const WorkflowTaskActions = styled.div`
-  display: flex; gap: 6px;
-`
-
-const WorkflowPriorityBadge = styled.span<{ $priority?: string | null }>`
-  display: inline-flex; align-items: center;
-  padding: 1px 7px; border-radius: 8px;
-  font-size: var(--font-size-xs); font-weight: 600;
-  ${({ $priority }) => {
-    if ($priority === 'urgent') return 'background:#fff5f5;color:#c53030;border:1px solid #fc8181;'
-    if ($priority === 'important') return 'background:#fffaf0;color:#c05621;border:1px solid #fbd38d;'
-    return 'background:#f0fff4;color:#276749;border:1px solid #9ae6b4;'
   }}
 `
 
@@ -4030,12 +3967,12 @@ function CommunicationWorkbenchInner() {
                           )}
                           {wfState === 'done' && (
                             <WorkflowStatusMsg $variant="success">
-                              ✅ 已发起流程{processId ? `（${processId.slice(0, 8)}…）` : ''}
+                              ✅ 已发起流程：{processId}
                             </WorkflowStatusMsg>
                           )}
                           {wfState === 'error' && (
                             <WorkflowStatusMsg $variant="error">
-                              ⚠ 发起失败：{wfError}
+                              ⚠ {wfError}
                             </WorkflowStatusMsg>
                           )}
                         </div>
@@ -4314,66 +4251,16 @@ function CommunicationWorkbenchInner() {
         />
       )}
       {showWorkflowPanel && (
-        <WorkflowPanelOverlay onClick={(e) => { if (e.target === e.currentTarget) setShowWorkflowPanel(false) }}>
-          <WorkflowPanelCard>
-            <WorkflowPanelHeader>
-              <WorkflowPanelTitle>📋 流程待办</WorkflowPanelTitle>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <WorkflowInlineBtn $variant="neutral" onClick={handleLoadWorkflowTasks} disabled={workflowTasksLoading}>
-                  {workflowTasksLoading ? '刷新中…' : '🔄 刷新'}
-                </WorkflowInlineBtn>
-                <WorkflowInlineBtn $variant="neutral" onClick={() => setShowWorkflowPanel(false)}>✕ 关闭</WorkflowInlineBtn>
-              </div>
-            </WorkflowPanelHeader>
-            <WorkflowPanelBody>
-              {workflowTasksError && (
-                <WorkflowStatusMsg $variant="error" style={{ marginBottom: 10 }}>
-                  ⚠ {workflowTasksError}
-                </WorkflowStatusMsg>
-              )}
-              {workflowTasksLoading && !workflowTasks.length && (
-                <WorkflowStatusMsg $variant="info">加载中…</WorkflowStatusMsg>
-              )}
-              {!workflowTasksLoading && !workflowTasksError && workflowTasks.length === 0 && (
-                <WorkflowStatusMsg $variant="info">暂无待办任务</WorkflowStatusMsg>
-              )}
-              {workflowTasks.map((task) => (
-                <WorkflowTaskItem key={task.taskId}>
-                  <WorkflowTaskSubject>{task.subject || '（无主题）'}</WorkflowTaskSubject>
-                  <WorkflowTaskMeta>
-                    {task.sender && <span>发件人：{task.sender}</span>}
-                    {task.priority && (
-                      <WorkflowPriorityBadge $priority={task.priority}>
-                        {task.priority === 'urgent' ? '紧急' : task.priority === 'important' ? '重要' : '普通'}
-                      </WorkflowPriorityBadge>
-                    )}
-                    {task.category && <span>{task.category}</span>}
-                    {task.createTime && <span>{new Date(task.createTime).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>}
-                  </WorkflowTaskMeta>
-                  {task.aiSummary && (
-                    <WorkflowTaskSummary>{task.aiSummary}</WorkflowTaskSummary>
-                  )}
-                  <WorkflowTaskActions>
-                    <WorkflowInlineBtn
-                      $variant="approve"
-                      onClick={() => { void handleCompleteTask(task.taskId, 'approve') }}
-                      disabled={completingTaskId === task.taskId}
-                    >
-                      {completingTaskId === task.taskId ? '处理中…' : '✔ 通过'}
-                    </WorkflowInlineBtn>
-                    <WorkflowInlineBtn
-                      $variant="reject"
-                      onClick={() => { void handleCompleteTask(task.taskId, 'reject') }}
-                      disabled={completingTaskId === task.taskId}
-                    >
-                      {completingTaskId === task.taskId ? '处理中…' : '✕ 驳回'}
-                    </WorkflowInlineBtn>
-                  </WorkflowTaskActions>
-                </WorkflowTaskItem>
-              ))}
-            </WorkflowPanelBody>
-          </WorkflowPanelCard>
-        </WorkflowPanelOverlay>
+        <WorkflowTasksPanel
+          tasks={workflowTasks}
+          loading={workflowTasksLoading}
+          error={workflowTasksError}
+          completingTaskId={completingTaskId}
+          onClose={() => setShowWorkflowPanel(false)}
+          onRefresh={handleLoadWorkflowTasks}
+          onApprove={(taskId) => { void handleCompleteTask(taskId, 'approve') }}
+          onReject={(taskId) => { void handleCompleteTask(taskId, 'reject') }}
+        />
       )}
     </Shell>
   )
