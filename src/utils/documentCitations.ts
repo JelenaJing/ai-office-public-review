@@ -17,6 +17,7 @@ import type {
   DocumentCitationMark,
   DocumentBlock,
 } from '../document/schema/index'
+import { createHeadingBlock, createParagraphBlock } from '../document/schema/index'
 import { collectCitationOrder, updateCitationNumbersInText } from './citationGroups'
 
 // ── collectCitationOrderFromDocument ──────────────────────────────────────
@@ -284,14 +285,51 @@ export function renderDocumentCitationsForPreview(document: DocumentSchema): str
 // ── renderDocumentCitationsForExport ──────────────────────────────────────
 
 /**
- * Return sorted bibliography items ready for OOXML/docx export.
- * The returned array is ordered by citationNumber ascending.
+ * Prepare a DocumentSchema for export by:
+ *   1. Removing all blocks with `metadata.role === 'references-section'`.
+ *   2. Generating a fresh references section (heading + one paragraph per
+ *      bibliography item) and appending it at the end of the block list.
  *
- * Call this before exporting so the docx references section matches the
- * inline citation markers in the body text.
+ * This guarantees that the exported docx references section always matches the
+ * inline [N] markers in the body text.  Call this before
+ * `compileDocumentSchemaToOoxmlBlocks`.
+ *
+ * If the document has no bibliography items, old references-section blocks are
+ * still removed (so a stale section doesn't leak into the export).
  */
-export function renderDocumentCitationsForExport(document: DocumentSchema): DocumentBibliographyItem[] {
+export function renderDocumentCitationsForExport(document: DocumentSchema): DocumentSchema {
   const bib = document.bibliography
-  if (!bib || !bib.items.length) return []
-  return bib.items.slice().sort((a, b) => a.citationNumber - b.citationNumber)
+
+  // Strip any pre-existing references-section blocks
+  const bodyBlocks = document.blocks.filter(
+    (block) => block.metadata?.role !== 'references-section',
+  )
+
+  // No bibliography — return document with references-section stripped
+  if (!bib || !bib.items.length) {
+    return { ...document, blocks: bodyBlocks }
+  }
+
+  // Sort bibliography items by citation number for the rendered section
+  const sortedItems = bib.items.slice().sort((a, b) => a.citationNumber - b.citationNumber)
+
+  const headingBlock = createHeadingBlock({
+    id: 'refs-export-heading',
+    level: 1,
+    text: '参考文献',
+    metadata: { role: 'references-section' },
+  })
+
+  const refParagraphs: DocumentBlock[] = sortedItems.map((item) =>
+    createParagraphBlock({
+      id: `refs-export-item-${item.citationNumber}`,
+      text: item.label,
+      metadata: { role: 'references-section' },
+    }),
+  )
+
+  return {
+    ...document,
+    blocks: [...bodyBlocks, headingBlock, ...refParagraphs],
+  }
 }

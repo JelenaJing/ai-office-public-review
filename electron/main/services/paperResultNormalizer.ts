@@ -315,6 +315,8 @@ function annotateCitationMarks(
   const citationPattern = /\[(\d+(?:\s*[,\-]\s*\d+)*)\]/g
   return blocks.map((block) => {
     if (block.type !== 'paragraph') return block
+    // References-section paragraphs already have their own [N] text; skip annotation.
+    if (block.metadata?.role === 'references-section') return block
     const text = String(block.text || '')
 
     // Extract citation marks from text using current (original) numbers
@@ -323,6 +325,7 @@ function annotateCitationMarks(
     let m: RegExpExecArray | null
     while ((m = citationPattern.exec(text)) !== null) {
       const rawMark = m[0]
+      const offset = m.index
       for (const commaPart of m[1].split(',')) {
         const dashParts = commaPart.trim().split('-').map((p) => p.trim())
         if (dashParts.length === 2) {
@@ -333,7 +336,7 @@ function annotateCitationMarks(
               const newNum = remap.get(n)
               const citationId = idRemap.get(n)
               if (newNum !== undefined && citationId) {
-                marks.push({ citationId, citationNumber: newNum, rawMark })
+                marks.push({ citationId, citationNumber: newNum, rawMark, offset })
               }
             }
           }
@@ -343,7 +346,7 @@ function annotateCitationMarks(
             const newNum = remap.get(n)
             const citationId = idRemap.get(n)
             if (newNum !== undefined && citationId) {
-              marks.push({ citationId, citationNumber: newNum, rawMark })
+              marks.push({ citationId, citationNumber: newNum, rawMark, offset })
             }
           }
         }

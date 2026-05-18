@@ -13,3 +13,11 @@ build/
 *.pfx
 .DS_Store
 Thumbs.db
+dist-electron/
+aioffice-workflow-service/target/
+aioffice-workflow-service/*.mv.db
+aioffice-workflow-service/*.trace.db
+aioffice-workflow-service/data/*.mv.db
+aioffice-workflow-service/data/*.trace.db
+*.jar
+*.class

@@ -21,6 +21,7 @@ import {
   type DocumentResource,
   type DocumentSchema,
 } from '../../../src/document/schema'
+import { renderDocumentCitationsForExport } from '../../../src/utils/documentCitations'
 
 const docxDocumentEngineService = new DocumentEngineService()
 const WORKSPACE_DOCUMENT_JSON_FILE = 'document.json'
@@ -925,13 +926,16 @@ export class WorkspaceService {
         await fs.copyFile(preparedTemplateSource.filePath, targetPath)
       }
 
-      const compiledBlocks = compileDocumentSchemaToOoxmlBlocks(document, {
+      // Pre-render citations so inline [N] and the bibliography section are
+      // consistent before the OOXML boundary compiler processes the document.
+      const exportDocument = renderDocumentCitationsForExport(document)
+      const compiledBlocks = compileDocumentSchemaToOoxmlBlocks(exportDocument, {
         workspacePath: wsPath,
         resourceBasePath: wsPath,
       })
       const rewritten = await docxDocumentEngineService.writeOoxmlPackage(targetPath, {
         blocks: compiledBlocks,
-        documentSectionPropertiesXml: resolveDocumentSchemaDocumentSectionPropertiesXml(document),
+        documentSectionPropertiesXml: resolveDocumentSchemaDocumentSectionPropertiesXml(exportDocument),
       })
       if (!rewritten.success) {
         throw new Error('DOCX boundary compiler 写回失败')

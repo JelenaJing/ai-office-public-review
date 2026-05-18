@@ -6,7 +6,7 @@
  *   2. insertCitationIntoDocument 后原有引用编号自动后移
  *   3. 删除 citationMark 后 renumberDocumentCitations 自动重排
  *   4. images 数组中未被 markdown 引用的图片仍能生成 image blocks（unmatched fallback）
- *   5. renderDocumentCitationsForExport 输出与正文 citationMarks 一致
+ *   5. renderDocumentCitationsForExport 替换旧 references-section 并根据 bibliography 生成新的参考文献区
  *
  * 运行: npm exec --yes --package tsx tsx build/run-citations-smoke.ts
  */
@@ -286,33 +286,46 @@ assertEq(
 
 console.log()
 
-// ── Case 5: renderDocumentCitationsForExport consistency ─────────────────────
+// ── Case 5: renderDocumentCitationsForExport builds DocumentSchema ────────────
 
-console.log('Case 5: renderDocumentCitationsForExport consistency with body')
+console.log('Case 5: renderDocumentCitationsForExport returns DocumentSchema with references section')
 
-const exportItems5 = renderDocumentCitationsForExport(doc1)
+const exportedDoc5 = renderDocumentCitationsForExport(doc1)
 const previewText5 = renderDocumentCitationsForPreview(doc1)
 
-assertEq(exportItems5.length, 3, 'export returns 3 items')
-assert(
-  exportItems5[0].citationNumber < exportItems5[1].citationNumber,
-  'export items sorted by citationNumber',
-)
+// Must return a DocumentSchema object (not an array)
+assert(exportedDoc5 !== null && typeof exportedDoc5 === 'object' && !Array.isArray(exportedDoc5), 'renderDocumentCitationsForExport returns a DocumentSchema object')
+assert(Array.isArray(exportedDoc5.blocks), 'exported document has blocks array')
+
+// Must have a references-section heading
+const refHeading5 = exportedDoc5.blocks.find((b) => b.type === 'heading' && b.metadata?.role === 'references-section')
+assert(refHeading5 !== undefined, 'exported document has references-section heading')
+
+// Must have the right number of reference paragraphs (one per bib item)
+const refParas5 = exportedDoc5.blocks.filter((b) => b.type === 'paragraph' && b.metadata?.role === 'references-section')
+assertEq(refParas5.length, 3, 'exported document has 3 reference paragraphs (one per bib item)')
+
+// Reference paragraphs must be sorted by citation number and labelled [1] [2] [3]
+assert(String((refParas5[0] as any).text || '').includes('[1]'), 'first ref para is [1]')
+assert(String((refParas5[1] as any).text || '').includes('[2]'), 'second ref para is [2]')
+assert(String((refParas5[2] as any).text || '').includes('[3]'), 'third ref para is [3]')
+
+// Body blocks must be preserved (non-references-section)
+const bodyBlocks5 = exportedDoc5.blocks.filter((b) => b.metadata?.role !== 'references-section')
+assert(bodyBlocks5.length > 0, 'body blocks preserved in exported document')
+
+// Preview still works on original (un-mutated) document
 assert(previewText5.includes('[1]'), 'preview text includes [1]')
 assert(previewText5.includes('[2]'), 'preview text includes [2]')
 assert(previewText5.includes('[3]'), 'preview text includes [3]')
 
-// Each export item's citationNumber should match a citationMark in the body
-const allBodyMarks: number[] = doc1.blocks
-  .filter((b) => b.type === 'paragraph')
-  .flatMap((b) => (b.metadata?.citationMarks as DocumentCitationMark[] || []).map((m) => m.citationNumber))
-
-for (const item of exportItems5) {
-  assert(
-    allBodyMarks.includes(item.citationNumber),
-    `export item [${item.citationNumber}] has matching citationMark in body`,
-  )
-}
+// If the input document already had a references-section, calling renderDocumentCitationsForExport
+// again on the output should be idempotent (still exactly one heading + 3 paras)
+const exportedDoc5b = renderDocumentCitationsForExport(exportedDoc5)
+const refHeadings5b = exportedDoc5b.blocks.filter((b) => b.type === 'heading' && b.metadata?.role === 'references-section')
+assertEq(refHeadings5b.length, 1, 'idempotent: exactly one references-section heading after double-render')
+const refParas5b = exportedDoc5b.blocks.filter((b) => b.type === 'paragraph' && b.metadata?.role === 'references-section')
+assertEq(refParas5b.length, 3, 'idempotent: still 3 reference paragraphs after double-render')
 
 // Verify citationId consistency: every citationMark.citationId should match a bibliography item
 const allMarksInDoc = doc1.blocks

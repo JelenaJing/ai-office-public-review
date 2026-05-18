@@ -210,13 +210,19 @@ export function buildPaperArtifact(payload: Record<string, any> | null | undefin
   })
   const sourceRefs = collectStringRefs(context.sourceRefs, referenceDocumentIds)
   const exportRefs = collectStringRefs(context.exportRefs, normalizeOptionalString(context.manuscriptPath), citationSidecarPath)
-  const document = buildDocumentSchemaFromText({
-    id: `document:${normalizeOptionalString(context.artifactId) ?? taskId ?? 'paper-compat'}`,
-    profile: 'paper',
-    title: topic || '论文',
-    text: resultFragments.paperMarkdown || resultFragments.markdown || resolvePaperText(payload),
-    sourceType: 'compat',
-  })
+
+  // Prefer an already-normalized DocumentSchema if one is present on the payload;
+  // only fall back to plain-text construction to avoid losing resources/bibliography/citationMarks.
+  const existingSchema = payload.documentSchema ?? payload.document_schema
+  const document = existingSchema
+    ? existingSchema
+    : buildDocumentSchemaFromText({
+        id: `document:${normalizeOptionalString(context.artifactId) ?? taskId ?? 'paper-compat'}`,
+        profile: 'paper',
+        title: topic || '论文',
+        text: resultFragments.paperMarkdown || resultFragments.markdown || resolvePaperText(payload),
+        sourceType: 'compat',
+      })
 
   return toPaperArtifact({
     artifactId: normalizeOptionalString(context.artifactId) ?? `paper:${taskId || 'compat'}:${boundary}`,
@@ -596,6 +602,7 @@ export async function generatePaper(
     } else if (event.type === 'done') {
       const structuredBlocks = Array.isArray(event.result?.structuredBlocks) ? event.result.structuredBlocks : undefined
       const ooxmlSnapshot = event.result?.ooxmlSnapshot || event.result?.ooxml_snapshot
+      const documentSchema = event.result?.documentSchema ?? event.result?.document_schema
       callbacks.onComplete({
         type: 'complete',
         paper_markdown: resolvePaperText({
@@ -607,6 +614,11 @@ export async function generatePaper(
         ooxml_snapshot: ooxmlSnapshot,
         image: event.result?.image as Record<string, any> | undefined,
         images: Array.isArray(event.result?.images) ? event.result.images : undefined,
+        documentSchema,
+        document_schema: documentSchema,
+        bibliography: documentSchema?.bibliography,
+        citations: documentSchema?.citations,
+        resources: documentSchema?.resources,
       })
     }
   })

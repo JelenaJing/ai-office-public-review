@@ -1,3 +1,0 @@
-2026-05-17 23:52:02 jdbc[3]: exception
-org.h2.jdbc.JdbcSQLSyntaxErrorException: Table "FLW_EV_DATABASECHANGELOGLOCK" not found; SQL statement:
-SELECT COUNT(*) FROM PUBLIC.FLW_EV_DATABASECHANGELOGLOCK [42102-214]

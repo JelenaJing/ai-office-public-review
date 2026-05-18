@@ -1,8 +1,0 @@
-com\aioffice\workflow\controller\WorkflowController.class
-com\aioffice\workflow\controller\GlobalExceptionHandler.class
-com\aioffice\workflow\dto\CompleteTaskRequest.class
-com\aioffice\workflow\dto\WorkflowTaskDto.class
-com\aioffice\workflow\AiOfficeWorkflowApplication.class
-com\aioffice\workflow\service\WorkflowService.class
-com\aioffice\workflow\config\WebConfig.class
-com\aioffice\workflow\dto\StartWorkflowRequest.class
