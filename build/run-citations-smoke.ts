@@ -340,6 +340,108 @@ for (const mark of allMarksInDoc) {
 
 console.log()
 
+// ── Case 6: insertCitationIntoDocument full flow — new ref becomes [1], old shift ──
+
+console.log('Case 6: full insertCitationIntoDocument flow — save/read roundtrip preserves citationMarks + bibliography')
+
+// Build a document with two body paragraphs citing [1] and [2]
+import {
+  createDocumentSchema,
+  createParagraphBlock,
+  createHeadingBlock,
+} from '../src/document/schema/index'
+
+const baseDoc6 = createDocumentSchema({ id: 'doc6', profile: 'paper' as const, title: 'Doc6', text: '', sourceType: 'compat' as const })
+
+const para6a = createParagraphBlock({
+  id: 'p6a',
+  text: 'First paragraph citing [1].',
+  metadata: {
+    citationMarks: [{ citationId: 'citation-1', citationNumber: 1, rawMark: '[1]', offset: 22 }],
+  },
+})
+const para6b = createParagraphBlock({
+  id: 'p6b',
+  text: 'Second paragraph citing [2].',
+  metadata: {
+    citationMarks: [{ citationId: 'citation-2', citationNumber: 2, rawMark: '[2]', offset: 23 }],
+  },
+})
+
+const doc6 = {
+  ...baseDoc6,
+  blocks: [para6a, para6b],
+  bibliography: {
+    items: [
+      { id: 'citation-1', citationNumber: 1, label: '[1] Alpha Paper.' },
+      { id: 'citation-2', citationNumber: 2, label: '[2] Beta Paper.' },
+    ],
+    generatedAt: new Date().toISOString(),
+  },
+}
+
+// Insert a NEW reference at the FIRST paragraph (before existing [1]) → new ref should be [1]
+const afterInsert6 = insertCitationIntoDocument(doc6, {
+  blockId: 'p6a',
+  offset: 0,
+  reference: {
+    title: 'Gamma Paper (new)',
+    doi: '10.3/gamma',
+  },
+})
+
+// New bibliography should have 3 items
+assertEq(afterInsert6.bibliography?.items.length, 3, 'bibliography grows from 2 to 3 after insert')
+
+// Since the new citation is inserted at offset=0 in the first block (before anything),
+// the anchor number is 0, so new citation gets citationNumber=1.
+// Old [1] → [2], old [2] → [3]
+const bib6Items = (afterInsert6.bibliography?.items || []).slice().sort((a, b) => a.citationNumber - b.citationNumber)
+assertEq(bib6Items[0].label.startsWith('[1]'), true, 'first bib item is [1]')
+assert(bib6Items[0].label.includes('Gamma'), 'new reference is [1]')
+assertEq(bib6Items[1].label.startsWith('[2]'), true, 'old [1] shifted to [2]')
+assert(bib6Items[1].label.includes('Alpha'), 'Alpha Paper is now [2]')
+assertEq(bib6Items[2].label.startsWith('[3]'), true, 'old [2] shifted to [3]')
+assert(bib6Items[2].label.includes('Beta'), 'Beta Paper is now [3]')
+
+// Body paragraph texts should also be renumbered
+const para6aAfter = afterInsert6.blocks.find((b) => b.id === 'p6a')
+const para6bAfter = afterInsert6.blocks.find((b) => b.id === 'p6b')
+
+assert(para6aAfter !== undefined, 'first paragraph still exists')
+assert(para6bAfter !== undefined, 'second paragraph still exists')
+
+// First paragraph now has [1] (new) inserted at the start, old [1] → [2]
+// The block text should contain both the new [1] and the shifted old [2]
+const text6a = String((para6aAfter as any)?.text || '')
+assert(text6a.includes('[1]'), 'first para text has [1] (new citation inserted)')
+assert(text6a.includes('[2]'), 'first para text has [2] (old [1] shifted)')
+
+// Second paragraph old [2] → [3]
+const text6b = String((para6bAfter as any)?.text || '')
+assert(text6b.includes('[3]'), 'second para text has [3] (old [2] shifted to [3])')
+
+// renderDocumentCitationsForExport should generate 3 reference paragraphs
+const exported6 = renderDocumentCitationsForExport(afterInsert6)
+const refParas6 = exported6.blocks.filter((b) => b.type === 'paragraph' && b.metadata?.role === 'references-section')
+assertEq(refParas6.length, 3, 'exported schema has 3 reference paragraphs matching bibliography')
+assert(String((refParas6[0] as any).text || '').startsWith('[1]'), 'first ref para starts with [1]')
+assert(String((refParas6[1] as any).text || '').startsWith('[2]'), 'second ref para starts with [2]')
+assert(String((refParas6[2] as any).text || '').startsWith('[3]'), 'third ref para starts with [3]')
+
+// Simulate save/read roundtrip (JSON serialisation — same as workspace document.json)
+const roundTrip6 = JSON.parse(JSON.stringify(afterInsert6)) as typeof afterInsert6
+const rtBib = roundTrip6.bibliography?.items || []
+assertEq(rtBib.length, 3, 'bibliography survives JSON roundtrip with 3 items')
+assert(rtBib.every((item: { citationNumber: number }) => typeof item.citationNumber === 'number'), 'all bib items have citationNumber after roundtrip')
+
+const rtPara6a = roundTrip6.blocks.find((b: { id: string }) => b.id === 'p6a')
+const rtMarks6a = (rtPara6a as any)?.metadata?.citationMarks as Array<{ citationId: string; citationNumber: number }> | undefined
+assert(Array.isArray(rtMarks6a) && rtMarks6a.length > 0, 'citationMarks survive JSON roundtrip')
+assert(rtMarks6a!.every((m) => typeof m.citationNumber === 'number'), 'citationMark.citationNumber preserved after roundtrip')
+
+console.log()
+
 // ── Summary ───────────────────────────────────────────────────────────────────
 
 console.log(`[smoke:citations] ${passed} passed, ${failed} failed`)

@@ -49,6 +49,7 @@ import { isDirectMode, directContinueWriting } from '../../../services/AIClientF
 import { generateSelectionImage, getDefaultInsertedGeneratedImageWidthPx } from '../../image/services/ImageService'
 import { saveImageIncrementallyToWorkspace } from '../../../utils/workspaceFiles'
 import { buildCitationRenumberPlan, CitationReferenceItem, formatCitationNumbers, parseLeadingCitationNumber, stripLeadingCitationPrefix, updateCitationNumbersInText } from '../../../utils/citationGroups'
+import { insertCitationIntoDocument } from '../../../utils/documentCitations'
 import { getBackendUrl } from '../../../config'
 import DocumentPreviewPane from './DocumentPreviewPane'
 import Toolbar from '../../../components/Toolbar'
@@ -89,7 +90,7 @@ import {
 import { resolveDocumentRewriteTargetInEditor } from '../../../document/rewriteTargeting'
 import { resolveManuscriptSelectionAnchorToEditorRange } from '../../../document/selection'
 import { createDocumentArtifact } from '../../../document/core'
-import { buildDocumentSchemaFromHtml } from '../../../document/schema'
+import { buildDocumentSchemaFromHtml, serializeDocumentSchemaToHtml, type DocumentSchema } from '../../../document/schema'
 import { freewriteOrchestrator, paperOrchestrator } from '../../../document/profiles'
 import { MANUSCRIPT_COMMAND_EVENT, isRoutedManuscriptCommand } from '../../../components/manuscript/manuscriptCommandEvents'
 import type { ManuscriptProfileId } from '../../../components/manuscript/ManuscriptProfileSwitcher'
@@ -1137,6 +1138,48 @@ function isLegacySelectionInAbstractSection(editor: Editor | null): boolean {
 
 function parseCitationNumber(text: string, fallbackNumber?: number): number | undefined {
   return parseLeadingCitationNumber(text, fallbackNumber)
+}
+
+/**
+ * Map a TipTap editor position to a DocumentSchema block ID + character offset.
+ *
+ * TipTap's `textBetween(0, fromPos, '\n')` gives plain-text content before the
+ * cursor, with '\n' separating every block.  We accumulate `block.text` lengths
+ * (+ 1 for the separator) to find which block contains `fromPos` and how many
+ * characters into it the cursor sits.
+ *
+ * Falls back to the first non-references-section paragraph when the scan fails.
+ */
+function resolveSchemaInsertionTarget(
+  schema: DocumentSchema,
+  editor: import('@tiptap/react').Editor | null,
+  fromPos: number,
+): { blockId: string; charOffset: number | undefined } {
+  const bodyBlocks = (schema.blocks || []).filter(
+    (b) => (b.type === 'paragraph' || b.type === 'heading') && b.metadata?.role !== 'references-section',
+  )
+  const firstBodyId = bodyBlocks[0]?.id || schema.blocks[0]?.id || ''
+  const fallback = { blockId: firstBodyId, charOffset: undefined }
+
+  if (!editor || !bodyBlocks.length) return fallback
+
+  try {
+    const textBefore = editor.state.doc.textBetween(0, fromPos, '\n')
+    let accumulated = 0
+    for (const block of bodyBlocks) {
+      const blockText = String((block as { text?: string }).text || '')
+      const blockEnd = accumulated + blockText.length
+      if (textBefore.length <= blockEnd) {
+        const charOffset = Math.max(0, Math.min(textBefore.length - accumulated, blockText.length))
+        return { blockId: block.id, charOffset }
+      }
+      accumulated = blockEnd + 1 // +1 for '\n' separator
+    }
+  } catch {
+    // Ignore editor state access errors; return fallback below
+  }
+
+  return fallback
 }
 
 function walkLegacyTextNodes(root: Node, visitor: (textNode: Text) => void) {
@@ -4139,6 +4182,70 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
       setStatusMessage('请至少勾选一篇文献')
       return
     }
+
+    // ── DocumentSchema-first path ────────────────────────────────────────────
+    // When the current document artifact carries a structured DocumentSchema
+    // (blocks + bibliography), use insertCitationIntoDocument so that the
+    // bibliography and citationMarks stay in sync rather than manipulating raw HTML.
+    const currentDocSchema = compatDocumentArtifact?.document as DocumentSchema | undefined
+    const hasDocSchema = Array.isArray(currentDocSchema?.blocks) && (currentDocSchema?.blocks?.length ?? 0) > 0
+    if (hasDocSchema && currentDocSchema) {
+      try {
+        const { blockId, charOffset } = resolveSchemaInsertionTarget(currentDocSchema, editor, inlineRef.from)
+        if (!blockId) throw new Error('无法定位插入位置')
+        const prevBibIds = new Set((currentDocSchema.bibliography?.items || []).map((item) => item.id))
+
+        let nextDoc = currentDocSchema
+        const assignedNumbers: number[] = []
+        for (const citation of normalizedCitations) {
+          nextDoc = insertCitationIntoDocument(nextDoc, {
+            blockId,
+            offset: charOffset,
+            reference: {
+              title: String(citation.citation || '').trim(),
+              doi: citation.doi || undefined,
+              abstract: citation.abstract || undefined,
+            },
+          })
+          // Find the newly added bibliography item (id not in previous set)
+          const newItem = nextDoc.bibliography?.items.find((item) => !prevBibIds.has(item.id))
+          if (newItem) {
+            assignedNumbers.push(newItem.citationNumber)
+            prevBibIds.add(newItem.id)
+          }
+        }
+
+        // Update workbench session so the canonical artifact carries the new schema
+        setWorkbenchModeSession('document', (session) => {
+          if (!session.documentArtifact) return session
+          return {
+            ...session,
+            documentArtifact: { ...session.documentArtifact, document: nextDoc },
+            lastUpdatedAt: new Date().toISOString(),
+          }
+        })
+
+        // Apply to editor via full schema→HTML re-render
+        const nextHtml = serializeDocumentSchemaToHtml(nextDoc)
+        applyReferenceHtmlToDocument(nextHtml)
+
+        // Persist to workspace document.json
+        const marker = formatCitationMarker(assignedNumbers)
+        if (activeWorkspacePath) {
+          void window.electronAPI.saveWorkspaceDocumentSchema(activeWorkspacePath, nextDoc)
+            .then(() => setStatusMessage(`已插入引用 ${marker}，已保存到工作区`))
+            .catch(() => setStatusMessage(`已插入引用 ${marker}，工作区保存失败`))
+        } else {
+          setStatusMessage(`已插入引用 ${marker}`)
+        }
+      } catch {
+        setStatusMessage('插入引用失败')
+      }
+      setInlineRef(null)
+      return
+    }
+
+    // ── Legacy HTML path (fallback when no DocumentSchema is available) ────────
     try {
       let nextHtml = editor ? editor.getHTML() : markdown
       const assignedNumbers: number[] = []
@@ -4179,7 +4286,7 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
       setStatusMessage('插入引用失败')
     }
     setInlineRef(null)
-  }, [applyReferenceHtmlToDocument, currentRuntime, editor, inlineRef, markdown, persistReferenceSectionToWorkspace, setStatusMessage])
+  }, [activeWorkspacePath, applyReferenceHtmlToDocument, compatDocumentArtifact, currentRuntime, editor, inlineRef, markdown, persistReferenceSectionToWorkspace, setStatusMessage, setWorkbenchModeSession])
 
   const toggleInlineCitationSelection = useCallback((citation: CitationItem) => {
     const citationKey = buildCitationSelectionKey(citation)
