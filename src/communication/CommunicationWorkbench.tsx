@@ -32,6 +32,13 @@ import { detectCalendarConflicts } from '../calendar/calendarConflict'
 import { createCalendarEventFromEmail } from '../calendar/emailCalendarBridge'
 import { listCalendarEvents } from '../calendar/calendarService'
 import type { CalendarEventType } from '../calendar/types'
+import {
+  startEmailWorkflow,
+  getMyWorkflowTasks,
+  completeWorkflowTask,
+  type WorkflowTask,
+} from '../services/workflowClient'
+import WorkflowTasksPanel from './components/WorkflowTasksPanel'
 
 type ImportedDeckSlide = {
   index?: number
@@ -431,6 +438,27 @@ const AiRecommendCard = styled.div<{ $risk?: boolean }>`
   border: 1px solid ${({ $risk }) => ($risk ? '#fc8181' : '#bee3f8')};
 `
 
+/* ---- Workflow UI components ---- */
+
+const WorkflowInlineBtn = styled.button<{ $variant?: 'start' | 'approve' | 'reject' | 'neutral' }>`
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 4px 12px; border-radius: 6px; border: none;
+  font-size: var(--font-size-xs); font-weight: 600; cursor: pointer;
+  transition: all 0.13s;
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+  ${({ $variant }) => {
+    if ($variant === 'approve') return 'background:#c6f6d5;color:#276749;&:hover:not(:disabled){background:#9ae6b4;}'
+    if ($variant === 'reject') return 'background:#fed7d7;color:#c53030;&:hover:not(:disabled){background:#feb2b2;}'
+    if ($variant === 'neutral') return 'background:#edf2f7;color:#4a5568;&:hover:not(:disabled){background:#e2e8f0;}'
+    return 'background:#ebf4ff;color:#2b6cb0;&:hover:not(:disabled){background:#bee3f8;}'
+  }}
+`
+
+const WorkflowStatusMsg = styled.div<{ $variant?: 'error' | 'info' | 'success' }>`
+  font-size: var(--font-size-xs); margin-top: 6px;
+  color: ${({ $variant }) => $variant === 'error' ? '#c53030' : $variant === 'success' ? '#276749' : '#4a5568'};
+`
+
 const AiRecommendTitle = styled.div`
   font-size: var(--font-size-xs);
   font-weight: 700;
@@ -570,6 +598,13 @@ const ThreadHeader = styled.div`
   flex-shrink: 0;
 `
 
+const ThreadHeaderTop = styled.div`
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+`
+
 const ThreadHeaderSubject = styled.h2`
   margin: 0 0 6px;
   font-size: 17px;
@@ -588,6 +623,13 @@ const ThreadHeaderMeta = styled.div`
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
+`
+
+const ThreadHeaderActions = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 `
 
 const EmptyCenterState = styled.div`
@@ -1430,6 +1472,32 @@ function formatTime(iso: string): string {
       month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
     })
   } catch { return '' }
+}
+
+function formatForwardSubject(subject: string): string {
+  const trimmed = subject.trim() || '（无主题）'
+  return /^(fwd?|转发)\s*[:：]/i.test(trimmed) ? trimmed : `Fwd: ${trimmed}`
+}
+
+function stripHtmlForForward(html: string): string {
+  if (typeof DOMParser === 'undefined') return html.replace(/<[^>]+>/g, ' ')
+  const doc = new DOMParser().parseFromString(html, 'text/html')
+  return doc.body.textContent || ''
+}
+
+function buildForwardBody(thread: CommunicationThread, message: CommunicationMessage): string {
+  const originalBody = (message.body || (message.htmlBody ? stripHtmlForForward(message.htmlBody) : '')).trim()
+  return [
+    '',
+    '',
+    '---------- 转发邮件 ----------',
+    `发件人：${message.fromName || message.from || '未知发件人'}${message.from ? ` <${message.from}>` : ''}`,
+    `收件人：${message.toName || message.to || ''}${message.to ? ` <${message.to}>` : ''}`,
+    `时间：${formatTime(message.timestamp) || message.timestamp}`,
+    `主题：${thread.subject || '（无主题）'}`,
+    '',
+    originalBody || '（原邮件无正文）',
+  ].join('\n')
 }
 
 function formatFileSize(bytes: number): string {
@@ -2936,7 +3004,6 @@ function CommunicationWorkbenchInner() {
     threads,
     matrixPhase,
     createMatrixDirect,
-    sendBlank,
     deleteMail,
     restoreMail,
     refreshTrash,
@@ -2972,12 +3039,19 @@ function CommunicationWorkbenchInner() {
   const [pendingComposeTo, setPendingComposeTo] = useState<
     { email: string; displayName?: string; personId?: string; mailboxStatus?: string; fromDirectory?: boolean }[] | undefined
   >(undefined)
+  const [pendingComposeDraft, setPendingComposeDraft] = useState<{
+    subject: string
+    body: string
+    attachments: Array<{ fileName: string; filePath: string; mimeType: string; sizeBytes: number }>
+    variant: 'compose' | 'forward'
+  } | undefined>(undefined)
 
   // Consume pending compose recipient on first mount (CommunicationWorkbench not yet alive).
   useEffect(() => {
     const pending = consumePendingCompose()
     if (pending) {
       setPendingComposeTo([pending])
+      setPendingComposeDraft(undefined)
       setShowCompose(true)
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -2988,6 +3062,7 @@ function CommunicationWorkbenchInner() {
       const pending = consumePendingCompose()
       if (pending) {
         setPendingComposeTo([pending])
+        setPendingComposeDraft(undefined)
         setShowCompose(true)
       }
     }
@@ -3041,6 +3116,16 @@ function CommunicationWorkbenchInner() {
   const chatFileInputRef = useRef<HTMLInputElement>(null)
   const messagePaneRef = useRef<HTMLDivElement>(null)
   const [highlightedBatchMailIds, setHighlightedBatchMailIds] = useState<Set<string>>(new Set())
+
+  // ── Workflow state ───────────────────────────────────────────────────────────
+  const [workflowProcessIds, setWorkflowProcessIds] = useState<Record<string, string>>({})
+  const [workflowStartStates, setWorkflowStartStates] = useState<Record<string, 'idle' | 'loading' | 'done' | 'error'>>({})
+  const [workflowStartErrors, setWorkflowStartErrors] = useState<Record<string, string>>({})
+  const [showWorkflowPanel, setShowWorkflowPanel] = useState(false)
+  const [workflowTasks, setWorkflowTasks] = useState<WorkflowTask[]>([])
+  const [workflowTasksLoading, setWorkflowTasksLoading] = useState(false)
+  const [workflowTasksError, setWorkflowTasksError] = useState<string | null>(null)
+  const [completingTaskId, setCompletingTaskId] = useState<string | null>(null)
 
   const unreadCount = useMemo(() => threads.filter((t) => t.unread).length, [threads])
 
@@ -3235,6 +3320,30 @@ function CommunicationWorkbenchInner() {
     : currentReplyKnowledgeIds.length === 1
       ? `知识库 · 1`
       : `知识库 · ${currentReplyKnowledgeIds.length}`
+
+  const handleForwardSelectedMail = useCallback(() => {
+    if (!selectedThread || !targetMessage) return
+    const forwardAttachments = targetMessage.attachments.flatMap((attachment) => {
+      if (!attachment.tempPath) return []
+      return [{
+        fileName: attachment.filename,
+        filePath: attachment.tempPath,
+        mimeType: attachment.contentType,
+        sizeBytes: attachment.size,
+      }]
+    })
+    if (targetMessage.attachments.length > forwardAttachments.length) {
+      setAttachmentNotice('部分原邮件附件没有本地缓存，未自动加入转发邮件。')
+    }
+    setPendingComposeTo(undefined)
+    setPendingComposeDraft({
+      subject: formatForwardSubject(selectedThread.subject),
+      body: buildForwardBody(selectedThread, targetMessage),
+      attachments: forwardAttachments,
+      variant: 'forward',
+    })
+    setShowCompose(true)
+  }, [selectedThread, targetMessage])
 
   const handleConfirmKnowledgeSelection = useCallback((mailId: string, knowledgeIds: string[]) => {
     const normalized = Array.from(new Set(knowledgeIds.map((id) => id.trim()).filter(Boolean)))
@@ -3520,7 +3629,88 @@ function CommunicationWorkbenchInner() {
     setCalendarNotice(null)
   }, [selectedMailId])
 
+  // ── Workflow handlers ────────────────────────────────────────────────────────
+
+  const handleStartWorkflow = useCallback(async () => {
+    if (!selectedThread || !selectedMailId) return
+    const msg = targetMessage
+    const triage = selectedTriage
+
+    const priority: 'urgent' | 'important' | 'normal' =
+      triage?.urgency === 'urgent' ? 'urgent'
+      : (triage?.urgency === 'soon' || triage?.priority === 'high') ? 'important'
+      : 'normal'
+
+    const input = {
+      sourceType: 'email' as const,
+      emailId: selectedMailId,
+      threadId: selectedThread.id,
+      subject: selectedThread.subject || '(无主题)',
+      sender: msg?.from || msg?.fromName || 'unknown',
+      requesterId: currentUserId || 'demo-user',
+      assignee: 'approver-001',
+      priority,
+      category: triage?.emailCategory || triage?.category || 'email_approval',
+      aiSummary: triage?.summary || (msg?.body?.slice(0, 200) ?? ''),
+      attachmentIds: (msg?.attachments ?? []).map((a) => a.id),
+      workspaceId: activeWorkspacePath || 'default',
+    }
+
+    setWorkflowStartStates((prev) => ({ ...prev, [selectedMailId]: 'loading' }))
+    setWorkflowStartErrors((prev) => { const n = { ...prev }; delete n[selectedMailId]; return n })
+
+    try {
+      const result = await startEmailWorkflow(input)
+      setWorkflowProcessIds((prev) => ({ ...prev, [selectedMailId]: result.processInstanceId }))
+      setWorkflowStartStates((prev) => ({ ...prev, [selectedMailId]: 'done' }))
+    } catch (err) {
+      setWorkflowStartStates((prev) => ({ ...prev, [selectedMailId]: 'error' }))
+      setWorkflowStartErrors((prev) => ({
+        ...prev,
+        [selectedMailId]: err instanceof Error ? err.message : String(err),
+      }))
+    }
+  }, [selectedThread, selectedMailId, targetMessage, selectedTriage, currentUserId, activeWorkspacePath])
+
+  const handleLoadWorkflowTasks = useCallback(async () => {
+    setWorkflowTasksLoading(true)
+    setWorkflowTasksError(null)
+    try {
+      const tasks = await getMyWorkflowTasks('approver-001')
+      setWorkflowTasks(tasks)
+    } catch (err) {
+      setWorkflowTasksError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setWorkflowTasksLoading(false)
+    }
+  }, [])
+
+  const handleOpenWorkflowPanel = useCallback(() => {
+    setShowWorkflowPanel(true)
+    void handleLoadWorkflowTasks()
+  }, [handleLoadWorkflowTasks])
+
+  const handleCompleteTask = useCallback(async (taskId: string, decision: 'approve' | 'reject') => {
+    setCompletingTaskId(taskId)
+    try {
+      await completeWorkflowTask(taskId, {
+        decision,
+        comment: decision === 'approve' ? '同意' : '不同意，请补充材料',
+        operatorId: 'approver-001',
+      })
+      await handleLoadWorkflowTasks()
+    } catch (err) {
+      setWorkflowTasksError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setCompletingTaskId(null)
+    }
+  }, [handleLoadWorkflowTasks])
+
   const emailAnalysisSummaryExpanded = Boolean(currentBatchSummary && !emailAnalysisSummaryCollapsed)
+  const completedAnalysisCount = analysisProgress.done + analysisProgress.cached + analysisProgress.failed
+  const analysisCompleteByProgress = analysisProgress.total > 0 && completedAnalysisCount >= analysisProgress.total && analysisProgress.running === 0
+  const analysisCompletedWhileBusy = analysisCompleteByProgress && (isAnalyzingEmails || isWorkerRunning || analysisStatus === 'running')
+  const analysisButtonBusy = (isAnalyzingEmails || isWorkerRunning) && !analysisCompleteByProgress
 
   return (
     <Shell>
@@ -3551,7 +3741,7 @@ function CommunicationWorkbenchInner() {
           {/* Row 2: Action buttons */}
           <HeaderActionRow>
             {isRealEmailMode && (
-              <ComposeBtn type="button" onClick={() => setShowCompose(true)}>
+              <ComposeBtn type="button" onClick={() => { setPendingComposeTo(undefined); setPendingComposeDraft(undefined); setShowCompose(true) }}>
                 ✉ 新建邮件
               </ComposeBtn>
             )}
@@ -3559,16 +3749,20 @@ function CommunicationWorkbenchInner() {
               type="button"
               title="分析收件箱邮件，自动分类并为重要邮件生成预回复草稿"
               onClick={triggerAnalysis}
-              disabled={isAnalyzingEmails || isWorkerRunning}
+              disabled={analysisButtonBusy}
             >
-              {isAnalyzingEmails
-                ? `🤖 正在分析 ${analysisProgress.done + analysisProgress.cached + analysisProgress.failed}/${analysisProgress.total}`
+              {analysisButtonBusy
+                ? `🤖 正在分析 ${completedAnalysisCount}/${analysisProgress.total}`
                 : analysisStatus === 'done'
+                  || analysisCompletedWhileBusy
                 ? '✅ 分析完成'
                 : analysisStatus === 'failed'
                 ? '⚠ 分析失败'
                 : '✨ AI邮件分析'}
             </AiComposeBtn>
+            <WorkflowInlineBtn $variant="neutral" onClick={handleOpenWorkflowPanel} title="查看流程待办">
+              📋 流程待办
+            </WorkflowInlineBtn>
           </HeaderActionRow>
         </LeftHeader>
 
@@ -3685,14 +3879,21 @@ function CommunicationWorkbenchInner() {
               {isTrashFolderThread && <RecoverableMailBanner>🗑 此邮件位于可恢复区域</RecoverableMailBanner>}
               {attachmentNotice && <AttachOpenBanner>{attachmentNotice}</AttachOpenBanner>}
               <ThreadHeader>
-                <ThreadHeaderSubject>
-                  {selectedThread.subject}
-                </ThreadHeaderSubject>
-                <ThreadHeaderMeta>
-                  <span>发件人：{targetMessage.fromName || targetMessage.from}</span>
-                  <span>收件人：{targetMessage.toName || targetMessage.to || ''}</span>
-                  <span>{formatTime(targetMessage.timestamp)}</span>
-                </ThreadHeaderMeta>
+                <ThreadHeaderTop>
+                  <div style={{ minWidth: 0 }}>
+                    <ThreadHeaderSubject>
+                      {selectedThread.subject}
+                    </ThreadHeaderSubject>
+                    <ThreadHeaderMeta>
+                      <span>发件人：{targetMessage.fromName || targetMessage.from}</span>
+                      <span>收件人：{targetMessage.toName || targetMessage.to || ''}</span>
+                      <span>{formatTime(targetMessage.timestamp)}</span>
+                    </ThreadHeaderMeta>
+                  </div>
+                  <ThreadHeaderActions>
+                    <Btn $variant="muted" onClick={handleForwardSelectedMail}>转发</Btn>
+                  </ThreadHeaderActions>
+                </ThreadHeaderTop>
               </ThreadHeader>
 
               <EmailBodyView message={targetMessage} />
@@ -3749,6 +3950,34 @@ function CommunicationWorkbenchInner() {
                         移入可恢复区域
                       </Btn>
                     )}
+                    {/* ── 发起流程 button ── */}
+                    {selectedMailId && (() => {
+                      const wfState = workflowStartStates[selectedMailId] ?? 'idle'
+                      const wfError = workflowStartErrors[selectedMailId]
+                      const processId = workflowProcessIds[selectedMailId]
+                      return (
+                        <div style={{ marginTop: 10 }}>
+                          {wfState !== 'done' && (
+                            <WorkflowInlineBtn
+                              onClick={handleStartWorkflow}
+                              disabled={wfState === 'loading'}
+                            >
+                              {wfState === 'loading' ? '⏳ 发起中…' : '📋 发起流程'}
+                            </WorkflowInlineBtn>
+                          )}
+                          {wfState === 'done' && (
+                            <WorkflowStatusMsg $variant="success">
+                              ✅ 已发起流程：{processId}
+                            </WorkflowStatusMsg>
+                          )}
+                          {wfState === 'error' && (
+                            <WorkflowStatusMsg $variant="error">
+                              ⚠ {wfError}
+                            </WorkflowStatusMsg>
+                          )}
+                        </div>
+                      )
+                    })()}
                   </AiRecommendCard>
                 )
               })()}
@@ -4014,7 +4243,23 @@ function CommunicationWorkbenchInner() {
       {showCompose && (
         <ComposeModal
           initialTo={pendingComposeTo}
-          onClose={() => { setShowCompose(false); setPendingComposeTo(undefined) }}
+          initialSubject={pendingComposeDraft?.subject}
+          initialBody={pendingComposeDraft?.body}
+          initialAttachments={pendingComposeDraft?.attachments}
+          variant={pendingComposeDraft?.variant}
+          onClose={() => { setShowCompose(false); setPendingComposeTo(undefined); setPendingComposeDraft(undefined) }}
+        />
+      )}
+      {showWorkflowPanel && (
+        <WorkflowTasksPanel
+          tasks={workflowTasks}
+          loading={workflowTasksLoading}
+          error={workflowTasksError}
+          completingTaskId={completingTaskId}
+          onClose={() => setShowWorkflowPanel(false)}
+          onRefresh={handleLoadWorkflowTasks}
+          onApprove={(taskId) => { void handleCompleteTask(taskId, 'approve') }}
+          onReject={(taskId) => { void handleCompleteTask(taskId, 'reject') }}
         />
       )}
     </Shell>
