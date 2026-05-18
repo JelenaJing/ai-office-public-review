@@ -21,7 +21,7 @@ import { isDirectMode, directContinueWriting } from '../services/AIClientFactory
 import { generateSelectionImage, getDefaultInsertedGeneratedImageWidthPx } from '../modules/image/services/ImageService'
 import { buildCitationRenumberPlan, CitationReferenceItem, formatCitationNumbers, insertCitationMarkerAtSelection, parseLeadingCitationNumber, stripLeadingCitationPrefix, updateCitationNumbersInText } from '../utils/citationGroups'
 import { insertCitationIntoDocument, renumberDocumentCitations } from '../utils/documentCitations'
-import type { DocumentSchema } from '../document/schema/index'
+import type { DocumentSchema, DocumentResource } from '../document/schema/index'
 import { normalizeContinueDeltaAtStart, normalizeContinueLeadingText } from '../utils/continueStreamText'
 import type { KnowledgeTaskConstraints, PreviewKnowledgeTaskContextResult } from '../types/knowledge'
 import { buildKnowledgeTaskConstraints, resolveKnowledgeTaskPreview } from '../shared/knowledge/knowledgeTaskHelper'
@@ -2276,6 +2276,125 @@ function upsertMultipleCitationsIntoEmbeddedBlocks(
   }
 }
 
+/**
+ * Map an EmbeddedEditorBlock selection (anchorId) to a DocumentSchema block id.
+ *
+ * Priority:
+ *   1. If schema has a block whose id === anchorId, return anchorId directly.
+ *   2. Otherwise find the anchorId's positional index in embeddedBlocks, then
+ *      return the DocumentSchema paragraph/heading block at that same index.
+ *   3. Returns null if the mapping cannot be resolved.
+ */
+function resolveDocumentSchemaBlockId(
+  schema: DocumentSchema,
+  embeddedBlocks: EmbeddedEditorBlock[],
+  selection: DocumentEngineSelection,
+): string | null {
+  const anchorId = selection.anchorId
+  if (!anchorId) return null
+
+  // Strategy 1: direct id match (happy-path when ids are kept in sync)
+  if (schema.blocks.some((b) => b.id === anchorId)) return anchorId
+
+  // Strategy 2: positional index mapping
+  // Only text blocks (paragraph/heading) in embeddedBlocks correspond to
+  // paragraph/heading blocks in DocumentSchema.
+  const embeddedTextBlocks = embeddedBlocks.filter((b) => b.type === 'paragraph' || b.type === 'heading')
+  const embeddedIndex = embeddedTextBlocks.findIndex((b) => b.id === anchorId)
+  if (embeddedIndex < 0) return null
+
+  const schemaTextBlocks = schema.blocks.filter((b) => b.type === 'paragraph' || b.type === 'heading')
+  const schemaBlock = schemaTextBlocks[embeddedIndex]
+  return schemaBlock?.id ?? null
+}
+
+/**
+ * Convert DocumentSchema blocks to EmbeddedEditorBlock[] for display in the
+ * embedded editor.  Used after a DocumentSchema-first citation insertion so the
+ * editor state stays in sync with the schema.
+ *
+ * Notes:
+ * - references-section blocks are rendered as paragraph/heading with the
+ *   appropriate paragraphStyle so the editor shows the updated ref list.
+ * - ImageBlock is converted to EmbeddedImageBlock using resources for preview.
+ * - TableBlock is converted to a minimal EmbeddedTableBlock (best-effort).
+ * - SlotBlock and unknown types are silently skipped.
+ */
+function documentSchemaBlocksToEmbeddedEditorBlocks(schema: DocumentSchema): EmbeddedEditorBlock[] {
+  const resourceMap = new Map<string, DocumentResource>()
+  for (const res of (schema.resources || [])) resourceMap.set(res.id, res)
+
+  const result: EmbeddedEditorBlock[] = []
+
+  for (const block of schema.blocks) {
+    if (block.type === 'heading') {
+      result.push({
+        id: block.id,
+        type: 'heading',
+        text: block.text,
+        level: (block.level as 1 | 2 | 3 | 4 | 5 | 6 | undefined) ?? 1,
+        paragraphStyle: block.metadata?.role === 'references-section' ? 'ReferencesHeading' : `Heading${block.level ?? 1}`,
+        alignment: 'left',
+      } satisfies EmbeddedTextBlock)
+      continue
+    }
+
+    if (block.type === 'paragraph') {
+      const isRef = block.metadata?.role === 'references-section'
+      result.push({
+        id: block.id,
+        type: 'paragraph',
+        text: block.text,
+        paragraphStyle: isRef ? 'Reference' : (block.styleRef || 'Normal'),
+        alignment: 'left',
+      } satisfies EmbeddedTextBlock)
+      continue
+    }
+
+    if (block.type === 'image') {
+      const resource = resourceMap.get(block.resourceRef)
+      const previewSrc = resource?.path || (resource?.metadata?.url as string | undefined)
+      result.push({
+        id: block.id,
+        type: 'image',
+        alt: String(block.metadata?.alt || block.metadata?.caption || ''),
+        title: String(block.metadata?.caption || ''),
+        previewSrc: previewSrc || undefined,
+        mediaPath: resource?.path || undefined,
+      } satisfies EmbeddedImageBlock)
+      continue
+    }
+
+    if (block.type === 'table') {
+      const tableValue = block.value
+      if (tableValue?.rows && Array.isArray(tableValue.rows)) {
+        const rows: EmbeddedTableCell[][] = tableValue.rows.map((row, _ri) =>
+          (row as (string | number | boolean | null)[]).map((cell, ci) => ({
+            text: String(cell ?? ''),
+            paragraphs: [{ text: String(cell ?? '') }],
+            colspan: 1,
+            rowspan: 1,
+            header: _ri === 0,
+            column: ci,
+          })),
+        )
+        result.push({
+          id: block.id,
+          type: 'table',
+          rows: rows.length,
+          cols: rows[0]?.length ?? 0,
+          tableRows: rows,
+        } satisfies EmbeddedTableBlock)
+      }
+      continue
+    }
+
+    // slot / unknown — skip
+  }
+
+  return result.length > 0 ? result : [{ id: createBlockId('paragraph'), type: 'paragraph', text: '' } satisfies EmbeddedTextBlock]
+}
+
 function structuredPayloadBlocksToEditorBlocks(blocks: EmbeddedPayloadBlock[]): EmbeddedEditorBlock[] {
   const editorBlocks: EmbeddedEditorBlock[] = []
 
@@ -3635,7 +3754,7 @@ export default function EmbeddedOfficeEnginePanel() {
     }
   }, [getCurrentSelection, setStatusMessage])
 
-  const handleInsertCitations = useCallback((citations: CitationItem[]) => {
+  const handleInsertCitations = useCallback(async (citations: CitationItem[]) => {
     if (!inlineRef) return
     const normalizedCitations = dedupeCitationItems(citations)
     if (!normalizedCitations.length) {
@@ -3645,13 +3764,17 @@ export default function EmbeddedOfficeEnginePanel() {
 
     // --- DocumentSchema-first path ---
     const currentSchema = currentDocumentSchemaRef.current
-    const blockId = inlineRef.range.anchorId
-    if (currentSchema && Array.isArray(currentSchema.blocks) && currentSchema.blocks.length > 0 && blockId) {
+    const schemaBlockId = currentSchema && Array.isArray(currentSchema.blocks) && currentSchema.blocks.length > 0
+      ? resolveDocumentSchemaBlockId(currentSchema, blocksRef.current, inlineRef.range)
+      : null
+
+    if (currentSchema && schemaBlockId) {
       const offset = inlineRef.range.from ?? 0
+
       let nextDoc = currentSchema
       for (const citation of normalizedCitations) {
         nextDoc = insertCitationIntoDocument(nextDoc, {
-          blockId,
+          blockId: schemaBlockId,
           offset,
           reference: {
             title: citation.citation || '',
@@ -3663,42 +3786,41 @@ export default function EmbeddedOfficeEnginePanel() {
       nextDoc = renumberDocumentCitations(nextDoc)
       currentDocumentSchemaRef.current = nextDoc
 
-      // Also insert visible citation markers into the embedded editor blocks (for UI feedback)
-      const citationNumbers: number[] = nextDoc.bibliography?.items
-        .filter((item) => normalizedCitations.some((c) =>
-          item.label.includes(c.citation || '')
-        ))
-        .map((item) => item.citationNumber) ?? []
-      if (citationNumbers.length) {
-        const marker = formatCitationMarker(citationNumbers)
-        const blocksWithMarker = insertCitationMarkerIntoEmbeddedBlocks(blocksRef.current, inlineRef.range, marker)
-        if (blocksWithMarker) {
-          const renumbered = renumberEmbeddedCitationBlocks(blocksWithMarker)
-          commitBlocks(renumbered.blocks)
-        }
-      }
+      // Determine newly inserted citation numbers by matching reference text
+      // (id-diff is unreliable because the schema reuses citation-N ids after shift)
+      const newItems = (nextDoc.bibliography?.items || []).filter((item) =>
+        normalizedCitations.some((c) => c.citation && item.label.includes(c.citation)),
+      )
+      const newCitationNumbers = newItems.map((item) => item.citationNumber).sort((a, b) => a - b)
 
-      // Save to workspace
+      // Sync editor blocks directly from DocumentSchema (no dual-write)
+      const nextEmbeddedBlocks = documentSchemaBlocksToEmbeddedEditorBlocks(nextDoc)
+      commitBlocks(nextEmbeddedBlocks)
+
       setInlineRef(null)
+
+      // Await save so we can report success/failure
       if (activeWorkspacePath && window.electronAPI?.saveWorkspaceDocumentSchema) {
-        void window.electronAPI.saveWorkspaceDocumentSchema(activeWorkspacePath, nextDoc)
-          .then((res: any) => {
-            if (res?.success) {
-              setStatusMessage('已插入引用，并自动更新参考文献列表（已保存到工作区）')
-            } else {
-              setStatusMessage('引用已插入，但保存到 document.json 失败')
-            }
-          })
-          .catch((err: unknown) => {
-            setStatusMessage(`引用已插入，保存失败: ${err instanceof Error ? err.message : String(err)}`)
-          })
+        try {
+          const res = await window.electronAPI.saveWorkspaceDocumentSchema(activeWorkspacePath, nextDoc)
+          if (res?.success) {
+            const marker = newCitationNumbers.length ? ` ${formatCitationMarker(newCitationNumbers)}` : ''
+            setStatusMessage(`已插入引用${marker}，并自动更新参考文献列表（已保存到工作区）`)
+          } else {
+            setStatusMessage('引用已插入，但保存到 document.json 失败')
+          }
+        } catch (err: unknown) {
+          setStatusMessage(`引用已插入，保存失败：${err instanceof Error ? err.message : String(err)}`)
+        }
       } else {
-        setStatusMessage('已插入引用，并自动更新参考文献列表')
+        const marker = newCitationNumbers.length ? ` ${formatCitationMarker(newCitationNumbers)}` : ''
+        setStatusMessage(`已插入引用${marker}，并自动更新参考文献列表`)
       }
       return
     }
 
-    // --- Legacy fallback (no DocumentSchema) ---
+    // --- Legacy fallback ---
+    // Triggered when: no DocumentSchema, schema has no blocks, or block id cannot be resolved
     const updated = upsertMultipleCitationsIntoEmbeddedBlocks(blocksRef.current, inlineRef.range, normalizedCitations)
     if (!updated) {
       setStatusMessage('插入引用失败')
