@@ -116,6 +116,27 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       setActiveWorkspacePath(wsPath)
       setActiveWorkspaceName(wsPath.split(/[/\\]/).pop() || wsPath)
       setFileTree(tree as FileTreeNode[])
+      // Fire-and-forget: attempt to load document.json and notify the editor so
+      // it can restore persisted content without blocking the open flow.
+      void (async () => {
+        try {
+          const api = window.electronAPI
+          if (typeof api.readWorkspaceDocumentSchema !== 'function') return
+          const docResult = await api.readWorkspaceDocumentSchema(wsPath)
+          if (docResult.source === 'document-json' && docResult.compatHtml) {
+            window.dispatchEvent(new CustomEvent('workspace-document-loaded', {
+              detail: {
+                workspacePath: wsPath,
+                source: docResult.source,
+                compatHtml: docResult.compatHtml,
+                displayName: docResult.displayName,
+              },
+            }))
+          }
+        } catch {
+          // Non-critical — editor stays empty if restore fails
+        }
+      })()
     } finally {
       setLoading(false)
     }

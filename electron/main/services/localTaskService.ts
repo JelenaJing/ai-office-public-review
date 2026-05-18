@@ -43,6 +43,7 @@ type CompatTaskResult = PaperGenerationResult & {
   structured_blocks: PaperGenerationResult['structuredBlocks']
   ooxml_snapshot?: Record<string, unknown>
   reference_list: PaperGenerationResult['references']
+  documentSchema?: PaperGenerationResult['documentSchema']
   figures: Array<{
     url: string
     image_url: string
@@ -246,23 +247,35 @@ export class LocalTaskService {
       const latest = this.tasks.get(taskId)
       if (!latest) return
       latest.result = result
-      latest.info.status = 'completed'
       latest.info.current_structured_blocks = result.structuredBlocks
       latest.info.current_ooxml_snapshot = result.ooxmlSnapshot
       latest.info.current_content = result.ooxmlSnapshot || result.structuredBlocks.length > 0 ? undefined : result.markdown
       latest.info.updated_at = new Date().toISOString()
       latest.info.completion_time = latest.info.updated_at
       latest.info.status_message = '生成完成'
-      this.emitAiEvent?.({ scope: 'paper', type: 'done', taskId, result })
 
-      // Persist canonical DocumentSchema to document.json when workspace is available.
+      // Persist canonical DocumentSchema to document.json BEFORE emitting 'done',
+      // so document.json is on disk before the frontend polls and reads getTaskResult.
       // references.json is already written by the event-handler saveReferences call above.
       const completedWorkspacePath = String(
         (latest.params as PaperGenerationParams & { workspacePath?: string }).workspacePath || '',
       ).trim()
       if (completedWorkspacePath && this.workspaceService && result.documentSchema) {
-        void this.workspaceService.saveWorkspaceDocumentSchema(completedWorkspacePath, result.documentSchema)
+        try {
+          await this.workspaceService.saveWorkspaceDocumentSchema(completedWorkspacePath, result.documentSchema)
+          this.emitAiEvent?.({ scope: 'paper', type: 'document_saved', taskId, workspacePath: completedWorkspacePath, source: 'documentSchema' })
+        } catch (saveError) {
+          this.emitAiEvent?.({
+            scope: 'paper',
+            type: 'document_save_failed',
+            taskId,
+            error: saveError instanceof Error ? saveError.message : String(saveError),
+          })
+        }
       }
+
+      latest.info.status = 'completed'
+      this.emitAiEvent?.({ scope: 'paper', type: 'done', taskId, result })
     } catch (error) {
       const latest = this.tasks.get(taskId)
       if (!latest) return

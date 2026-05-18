@@ -3034,6 +3034,19 @@ const GenerationComposer: React.FC<Props> = ({
                             savedManuscriptPath = savedManuscript.path
                             await saveResultReferencesToWorkspace(activeWorkspacePath, normalizedResponse, savedManuscript.path, setStatusMessage)
                           }
+                          // Persist DocumentSchema as the canonical document.json.
+                          // The backend may have already saved it via document_saved event;
+                          // this is a secondary guarantee that ensures the file is on disk
+                          // even if the backend save was skipped (e.g. no workspacePath in params).
+                          if (response.documentSchema) {
+                            try {
+                              await window.electronAPI.saveWorkspaceDocumentSchema(activeWorkspacePath, response.documentSchema as import('../../../document/schema').DocumentSchema)
+                              setStatusMessage('已保存到工作区')
+                            } catch (docSaveError) {
+                              const dsMsg = docSaveError instanceof Error ? docSaveError.message : String(docSaveError)
+                              setStatusMessage(`论文已生成，但 document.json 保存失败: ${dsMsg}`)
+                            }
+                          }
                           void refreshTree().catch(() => undefined)
                         } catch (workspaceError) {
                           const message = workspaceError instanceof Error ? workspaceError.message : String(workspaceError)
@@ -3295,6 +3308,17 @@ const GenerationComposer: React.FC<Props> = ({
                     })()
                   }
                 }
+                return
+              }
+
+              if (event.type === 'document_saved') {
+                setStatusMessage('已保存到工作区')
+                return
+              }
+
+              if (event.type === 'document_save_failed') {
+                const errMsg = String(event.error || 'document.json 保存失败')
+                setStatusMessage(`论文已生成，但 document.json 保存失败: ${errMsg}`)
                 return
               }
 

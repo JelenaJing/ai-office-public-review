@@ -3720,6 +3720,23 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
     return () => window.removeEventListener('ai-writer-paper-preview-sync', handlePaperPreviewSync as EventListener)
   }, [active, activeTabId, editor, setTabShellContent, writePaperStreamHtmlToActiveEditor])
 
+  // Restore persisted document.json when a workspace is opened.
+  // WorkspaceContext dispatches 'workspace-document-loaded' (source === 'document-json') after
+  // readWorkspaceDocumentSchema returns HTML. Only restore if the current editor is empty so
+  // an active generation or a manually-opened file is never overwritten.
+  useEffect(() => {
+    const handleWorkspaceDocumentLoaded = (event: Event) => {
+      const detail = (event as CustomEvent<any>).detail || {}
+      const html = String(detail.compatHtml || '').trim()
+      if (!html || !activeTabId) return
+      // Avoid restoring when the editor already has user content
+      if (String(markdown || '').trim()) return
+      setTabShellContent(activeTabId, html)
+    }
+    window.addEventListener('workspace-document-loaded', handleWorkspaceDocumentLoaded as EventListener)
+    return () => window.removeEventListener('workspace-document-loaded', handleWorkspaceDocumentLoaded as EventListener)
+  }, [activeTabId, markdown, setTabShellContent])
+
   useEffect(() => () => {
     if (paperStreamFlushTimerRef.current) {
       clearTimeout(paperStreamFlushTimerRef.current)

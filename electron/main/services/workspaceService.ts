@@ -713,6 +713,7 @@ async function persistWorkspaceDocumentForJson(wsPath: string, document: Documen
     resources: Array.from(persistedResources.values()),
     citations: normalized.citations,
     sourceRefs: normalized.sourceRefs,
+    bibliography: normalized.bibliography,
     exportHints: normalized.exportHints,
     templateHints: normalized.templateHints,
   })
