@@ -74,6 +74,45 @@ export interface DocumentSourceRef {
   metadata?: Record<string, unknown>
 }
 
+/**
+ * A single inline citation mark inside a paragraph block.
+ * Stored in ParagraphBlock.metadata.citationMarks[].
+ */
+export interface DocumentCitationMark {
+  /** Matches DocumentBibliographyItem.id, e.g. "citation-2". */
+  citationId: string
+  /** Display number [N] after renumbering by first-appearance order. */
+  citationNumber: number
+  /** Original raw mark in text before renumbering, e.g. "[3]". */
+  rawMark?: string
+  /** Character offset of the mark in block.text (optional). */
+  offset?: number
+}
+
+/** One entry in the paper bibliography, ordered by first appearance in body text. */
+export interface DocumentBibliographyItem {
+  /** Stable ID tied to citation number, e.g. "citation-1". */
+  id: string
+  /** 1-based sequential number ordered by first appearance in body. */
+  citationNumber: number
+  /** Full formatted label, e.g. "[1] Smith et al., 2023. Title..." */
+  label: string
+  /** DOI URL or fallback URL. */
+  uri?: string
+  metadata?: Record<string, unknown>
+}
+
+/**
+ * Structured bibliography for a paper document.
+ * This is the canonical, authoritative source for references —
+ * references.json is derived from this and exists only as a compat copy.
+ */
+export interface DocumentBibliography {
+  /** Items ordered by first appearance in document body. */
+  items: DocumentBibliographyItem[]
+  generatedAt?: string
+}
+
 export type DocumentSourceRefLike = string | DocumentSourceRef
 
 export interface DocumentImageCrop {
@@ -226,6 +265,8 @@ export interface DocumentSchema {
   styles: DocumentStyleTokenMap
   citations?: DocumentSourceRef[]
   sourceRefs?: DocumentSourceRef[]
+  /** Structured bibliography ordered by first appearance in body. Canonical authority for paper references. */
+  bibliography?: DocumentBibliography
   exportHints?: DocumentExportHints
   templateHints?: DocumentTemplateHints
   html: string
@@ -246,6 +287,7 @@ export interface CreateDocumentSchemaInput {
   resources?: DocumentResource[]
   citations?: DocumentSourceRefLike[]
   sourceRefs?: DocumentSourceRefLike[]
+  bibliography?: DocumentBibliography
   exportHints?: DocumentExportHints
   templateHints?: DocumentTemplateHints
   html?: string
@@ -567,6 +609,7 @@ export function createDocumentSchema(input: CreateDocumentSchemaInput): Document
     styles: mergeStyles(input.styles),
     citations: input.citations ? normalizeDocumentSourceRefs(input.citations, 'citation') : undefined,
     sourceRefs: input.sourceRefs ? normalizeDocumentSourceRefs(input.sourceRefs, 'document') : undefined,
+    bibliography: input.bibliography ? cloneUnknownValue(input.bibliography) : undefined,
     exportHints: input.exportHints ? cloneUnknownValue(input.exportHints) : undefined,
     templateHints: input.templateHints ? cloneUnknownValue(input.templateHints) : undefined,
     html: '',
@@ -623,6 +666,7 @@ export function normalizeDocumentSchema(document: Partial<DocumentSchema> | null
     resources: document.resources,
     citations: document.citations,
     sourceRefs: document.sourceRefs,
+    bibliography: document.bibliography,
     exportHints: document.exportHints,
     templateHints: document.templateHints,
     html: typeof document.html === 'string' ? document.html : undefined,

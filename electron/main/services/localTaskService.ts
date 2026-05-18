@@ -254,6 +254,15 @@ export class LocalTaskService {
       latest.info.completion_time = latest.info.updated_at
       latest.info.status_message = '生成完成'
       this.emitAiEvent?.({ scope: 'paper', type: 'done', taskId, result })
+
+      // Persist canonical DocumentSchema to document.json when workspace is available.
+      // references.json is already written by the event-handler saveReferences call above.
+      const completedWorkspacePath = String(
+        (latest.params as PaperGenerationParams & { workspacePath?: string }).workspacePath || '',
+      ).trim()
+      if (completedWorkspacePath && this.workspaceService && result.documentSchema) {
+        void this.workspaceService.saveWorkspaceDocumentSchema(completedWorkspacePath, result.documentSchema)
+      }
     } catch (error) {
       const latest = this.tasks.get(taskId)
       if (!latest) return
