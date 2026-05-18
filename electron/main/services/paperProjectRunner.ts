@@ -32,6 +32,7 @@ import { generateSectionFigures } from './advancedFigureGenerator'
 import { reviewFullPaper } from './paperQualityControl'
 import { parsePaperMarkdownToEmbeddedBlocks } from '../../../src/engines/documentEngine/embeddedPaperDocument'
 import { buildGeneratedOoxmlSnapshot } from './generatedOoxmlSnapshot'
+import { normalizePaperGenerationResultToDocumentSchema } from './paperResultNormalizer'
 import {
   storeGetProject,
   storeUpdateProject,
@@ -321,8 +322,17 @@ export async function runSection(
             eventType: 'image',
           })
         }
-      } catch {
-        // figure generation is best-effort
+      } catch (error) {
+        // Emit a specific image_error event so the UI can surface it to the user.
+        const errMsg = error instanceof Error ? error.message : String(error)
+        emit({
+          scope: 'paper-section',
+          type: 'image_error',
+          projectId,
+          sectionIndex,
+          sectionTitle: sectionPlan.title,
+          message: errMsg,
+        })
       }
     }
 
@@ -636,6 +646,12 @@ export async function runFinalizeProject(
     steps: [],
     paperPlan: project.paperPlan ?? undefined,
     reviewResult,
+    documentSchema: normalizePaperGenerationResultToDocumentSchema({
+      title: project.title,
+      markdown: assembledMarkdown,
+      references: finalReferencePool,
+      images: allFigures,
+    }),
   }
 
   emit({

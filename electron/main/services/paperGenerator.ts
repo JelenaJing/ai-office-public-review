@@ -7,6 +7,7 @@ import { parsePaperMarkdownToEmbeddedBlocks, type EmbeddedPayloadBlock } from '.
 import { resolveArticleBlueprint } from '../../../src/services/ArticleClassificationService'
 import { buildGeneratedOoxmlSnapshot } from './generatedOoxmlSnapshot'
 import { generatePaperNFTCORE } from './paperGeneratorNFTCORE'
+import type { DocumentSchema } from '../../../src/document/schema/index'
 
 export interface PaperGenerationParams {
   topic: string
@@ -35,6 +36,8 @@ export interface PaperGenerationResult {
   references: ReferenceItem[]
   images: Array<{ section: string; path: string; sectionTitle?: string; caption?: string; markdown?: string; url?: string }>
   steps: Array<{ step: number; message: string }>
+  /** 规范化后的 DocumentSchema（权威文档结构，包含 blocks/resources/citations） */
+  documentSchema?: DocumentSchema
 }
 
 export interface WritingAssistantParams {

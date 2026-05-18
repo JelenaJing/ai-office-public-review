@@ -25,6 +25,8 @@ import {
   parseTitleAndAbstract,
   shouldDeferReferenceInsertion,
 } from './nftcorePromptFactory'
+import { normalizePaperGenerationResultToDocumentSchema } from './paperResultNormalizer'
+import type { DocumentSchema } from '../../../src/document/schema/index'
 
 // 导入新模块
 import { buildPaperPlanDynamic, type PaperPlan, type SectionPlan } from './paperStructurePlanner'
@@ -68,6 +70,8 @@ export interface PaperGenerationResult {
   paperPlan?: PaperPlan
   /** 全文审查结果（如果启用） */
   reviewResult?: ReturnType<typeof reviewFullPaper> extends Promise<infer T> ? T : never
+  /** 规范化后的 DocumentSchema（权威文档结构，包含 blocks/resources/citations） */
+  documentSchema?: DocumentSchema
 }
 
 interface GenerationEvent {
@@ -992,5 +996,18 @@ export async function generatePaperNFTCORE(
     steps: progressLog,
     paperPlan,
     reviewResult,
+    documentSchema: normalizePaperGenerationResultToDocumentSchema({
+      title,
+      markdown: assembledMarkdown,
+      references: organizedReferences,
+      images: allFigures.map((fig) => ({
+        section: fig.sectionNum.toString(),
+        sectionTitle: fig.sectionTitle,
+        path: fig.localPath,
+        caption: fig.caption,
+        markdown: fig.markdown,
+        url: fig.url,
+      })),
+    }),
   }
 }

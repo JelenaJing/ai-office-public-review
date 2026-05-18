@@ -103,12 +103,14 @@ export class LocalTaskService {
       images: Array.isArray(record.result.images) ? record.result.images : [],
       figures: Array.isArray(record.result.images)
         ? record.result.images.map((item) => ({
-            url: item.path,
-            image_url: item.path,
+            url: item.url || item.path,
+            image_url: item.url || item.path,
             path: item.path,
-            caption: item.section || '',
-            markdown: item.path ? `![${item.section || 'figure'}](${item.path})` : '',
-            filename: String(item.path || '').split(/[\\/]/).pop(),
+            caption: item.caption || (item as { section?: string }).section || '',
+            markdown: item.markdown || (item.url || item.path
+              ? `![${item.caption || (item as { section?: string }).section || 'figure'}](${item.url || item.path})`
+              : ''),
+            filename: String(item.path || item.url || '').split(/[\\/]/).pop(),
           }))
         : [],
     }
@@ -236,8 +238,8 @@ export class LocalTaskService {
 
         const workspacePath = String((current.params as PaperGenerationParams & { workspacePath?: string }).workspacePath || '').trim()
         if (workspacePath && this.workspaceService && Array.isArray(event.references) && event.references.length > 0) {
+          // Only saveReferences — appendReferences would be a redundant second write to the same file.
           void this.workspaceService.saveReferences(workspacePath, event.references)
-          void this.workspaceService.appendReferences(workspacePath, event.references)
         }
       })
 
