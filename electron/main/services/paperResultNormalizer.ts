@@ -10,6 +10,7 @@
  */
 
 import { randomUUID } from 'node:crypto'
+import { existsSync } from 'node:fs'
 import {
   createDocumentSchema,
   createHeadingBlock,
@@ -33,6 +34,8 @@ import type { FigureInfo } from './advancedFigureGenerator'
 export interface PaperImageEntry {
   /** Section number string (e.g. "1", "2") or section title. */
   section?: string
+  /** Numeric section number from advanced figure generation. */
+  sectionNum?: number
   /** Resolved human-readable section title. */
   sectionTitle?: string
   /** Absolute local file path. */
@@ -43,6 +46,11 @@ export interface PaperImageEntry {
   markdown?: string
   /** file:// or http URL for the image. */
   url?: string
+  /** Optional explicit placement anchors for paper-generated figures. */
+  afterHeadingText?: string
+  afterBlockId?: string
+  anchorParagraphText?: string
+  placementFallback?: boolean
 }
 
 export interface PaperGenerationResultLike {
@@ -55,6 +63,12 @@ export interface PaperGenerationResultLike {
 export interface DocumentImageResource {
   resource: DocumentResource
   block: DocumentBlock
+}
+
+interface ImagePlacementStats {
+  unmatchedImageCount: number
+  fallbackImageCount: number
+  imagePlacementMode: 'markdown' | 'section-anchor' | 'mixed' | 'fallback' | 'none'
 }
 
 // ── Figure normalizer ──────────────────────────────────────────────────────
@@ -75,6 +89,8 @@ export function normalizeFigureToDocumentResource(
 
   const altText = fig.caption || `Figure ${fig.sectionNum}.${fig.figureIndex}`
   const localPathForward = String(fig.localPath || '').replace(/\\/g, '/')
+  const normalizedLocalPath = String(fig.localPath || '').replace(/^file:\/\//i, '')
+  const imagePathExists = normalizedLocalPath ? existsSync(normalizedLocalPath) : false
 
   const resource: DocumentResource = {
     id: resourceId,
@@ -89,6 +105,7 @@ export function normalizeFigureToDocumentResource(
       sectionNum: fig.sectionNum,
       alt: altText,
       source: 'paper-generation',
+      pathExists: imagePathExists,
     },
   }
 
@@ -105,6 +122,8 @@ export function normalizeFigureToDocumentResource(
       figureIndex: fig.figureIndex,
       sectionNum: fig.sectionNum,
       localPath: fig.localPath || undefined,
+      caption: fig.caption || undefined,
+      alt: altText,
       source: 'paper-generation',
     },
   })
@@ -377,19 +396,224 @@ function parseMarkdownTable(chunk: string): boolean {
   return lines.length >= 2 && !!lines[1] && /^[\s|:-]+$/.test(lines[1])
 }
 
+function normalizeAnchorText(value: unknown): string {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/^#{1,6}\s+/, '')
+    .replace(/^第[一二三四五六七八九十百]+[章节部分]\s*/u, '')
+    .replace(/^\s*\d+(?:\.\d+)*[.、\s-]*/u, '')
+    .replace(/[^\p{L}\p{N}]+/gu, '')
+    .trim()
+}
+
+function extractImageSectionNum(image: PaperImageEntry, fallback: number): number {
+  const direct = typeof image.sectionNum === 'number'
+    ? image.sectionNum
+    : Number.parseInt(String(image.section || ''), 10)
+  return Number.isFinite(direct) && direct > 0 ? direct : fallback
+}
+
+function getCaptionFromImageBlock(block: DocumentBlock): string {
+  if (block.type !== 'image') return ''
+  return String(block.value?.caption || block.value?.text || block.metadata?.caption || '').trim()
+}
+
+function isFigureCaptionText(text: string): boolean {
+  const normalized = String(text || '').trim().replace(/^\*\*(.+)\*\*$/, '$1').trim()
+  return /^(?:Figure|Fig\.?|图|图表)\s*\d+(?:\.\d+)*[\s:：.．-]/i.test(normalized)
+}
+
+function mergeCaptionIntoImageBlock(block: DocumentBlock, caption: string): DocumentBlock {
+  if (block.type !== 'image') return block
+  const normalizedCaption = String(caption || '').trim().replace(/^\*\*(.+)\*\*$/, '$1').trim()
+  if (!normalizedCaption) return block
+  const existing = getCaptionFromImageBlock(block)
+  if (existing && normalizeAnchorText(existing) === normalizeAnchorText(normalizedCaption)) return block
+  return {
+    ...block,
+    value: {
+      ...(block.value || {}),
+      caption: existing || normalizedCaption,
+      text: existing || normalizedCaption,
+      alt: block.value?.alt || existing || normalizedCaption,
+    },
+    metadata: {
+      ...(block.metadata || {}),
+      caption: existing || normalizedCaption,
+      alt: block.metadata?.alt || existing || normalizedCaption,
+    },
+  }
+}
+
+function applyImagePlacementMetadata(
+  block: DocumentBlock,
+  image: PaperImageEntry,
+  placement: {
+    sectionNum: number
+    afterHeadingText?: string
+    afterBlockId?: string
+    anchorParagraphText?: string
+    placementFallback: boolean
+    placementMode: 'markdown' | 'section-title' | 'section-num' | 'fallback'
+  },
+): DocumentBlock {
+  if (block.type !== 'image') return block
+  return {
+    ...block,
+    metadata: {
+      ...(block.metadata || {}),
+      source: 'paper-generation',
+      caption: block.metadata?.caption || image.caption || block.value?.caption || undefined,
+      sectionTitle: image.sectionTitle || image.section || block.metadata?.sectionTitle || undefined,
+      sectionNum: placement.sectionNum,
+      afterHeadingText: placement.afterHeadingText,
+      afterBlockId: placement.afterBlockId,
+      anchorParagraphText: placement.anchorParagraphText,
+      placementFallback: placement.placementFallback,
+      placementMode: placement.placementMode,
+    },
+  }
+}
+
+function findSectionAnchorBlockIndex(
+  blocks: DocumentBlock[],
+  image: PaperImageEntry,
+): { insertAfterIndex: number; afterHeadingText?: string; afterBlockId?: string; anchorParagraphText?: string; mode: 'section-title' | 'section-num' } | null {
+  const imageTitle = normalizeAnchorText(image.sectionTitle || image.section || '')
+  const sectionNum = String(image.sectionNum ?? image.section ?? '').trim()
+  const explicitAfterBlockId = String(image.afterBlockId || '').trim()
+  if (explicitAfterBlockId) {
+    const explicitIndex = blocks.findIndex((block) => block.id === explicitAfterBlockId)
+    if (explicitIndex >= 0) {
+      const explicit = blocks[explicitIndex]
+      return {
+        insertAfterIndex: explicitIndex,
+        afterHeadingText: explicit.type === 'heading' ? explicit.text : undefined,
+        afterBlockId: explicit.id,
+        anchorParagraphText: explicit.type === 'paragraph' ? explicit.text : undefined,
+        mode: imageTitle ? 'section-title' : 'section-num',
+      }
+    }
+  }
+
+  let headingIndex = -1
+  let matchMode: 'section-title' | 'section-num' = 'section-title'
+  for (let i = 0; i < blocks.length; i++) {
+    const block = blocks[i]
+    if (block.metadata?.role === 'references-section') break
+    if (block.type !== 'heading') continue
+    const headingText = String(block.text || '')
+    const normalizedHeading = normalizeAnchorText(headingText)
+    if (imageTitle && (normalizedHeading.includes(imageTitle) || imageTitle.includes(normalizedHeading))) {
+      headingIndex = i
+      matchMode = 'section-title'
+      break
+    }
+    if (sectionNum && new RegExp(`^\\s*(?:第\\s*)?${sectionNum.replace(/\./g, '\\.')}[\\.、\\s-]`).test(headingText)) {
+      headingIndex = i
+      matchMode = 'section-num'
+      break
+    }
+  }
+
+  if (headingIndex < 0) return null
+
+  let insertAfterIndex = headingIndex
+  let paragraphsSeen = 0
+  for (let i = headingIndex + 1; i < blocks.length; i++) {
+    const block = blocks[i]
+    if (block.metadata?.role === 'references-section') break
+    if (block.type === 'heading') break
+    if (block.type === 'paragraph' && String(block.text || '').trim()) {
+      paragraphsSeen += 1
+      insertAfterIndex = i
+      if (paragraphsSeen >= 2) break
+    }
+  }
+
+  const heading = blocks[headingIndex]
+  const anchor = blocks[insertAfterIndex]
+  return {
+    insertAfterIndex,
+    afterHeadingText: heading.type === 'heading' ? heading.text : undefined,
+    afterBlockId: anchor.id,
+    anchorParagraphText: anchor.type === 'paragraph' ? anchor.text : undefined,
+    mode: matchMode,
+  }
+}
+
+function insertImageBlockNearSection(
+  blocks: DocumentBlock[],
+  imageBlock: DocumentBlock,
+  image: PaperImageEntry,
+  sectionNum: number,
+): { fallback: boolean } {
+  const anchor = findSectionAnchorBlockIndex(blocks, image)
+  if (anchor) {
+    blocks.splice(anchor.insertAfterIndex + 1, 0, applyImagePlacementMetadata(imageBlock, image, {
+      sectionNum,
+      afterHeadingText: anchor.afterHeadingText,
+      afterBlockId: anchor.afterBlockId,
+      anchorParagraphText: anchor.anchorParagraphText,
+      placementFallback: false,
+      placementMode: anchor.mode,
+    }))
+    return { fallback: false }
+  }
+
+  const refsIndex = blocks.findIndex((block) => block.metadata?.role === 'references-section')
+  const insertIndex = refsIndex >= 0 ? refsIndex : blocks.length
+  blocks.splice(insertIndex, 0, applyImagePlacementMetadata(imageBlock, image, {
+    sectionNum,
+    placementFallback: true,
+    placementMode: 'fallback',
+  }))
+  return { fallback: true }
+}
+
+function dedupeFigureCaptions(blocks: DocumentBlock[]): DocumentBlock[] {
+  const result: DocumentBlock[] = []
+  let lastImageCaption = ''
+  let lastCaptionParagraph = ''
+  for (const block of blocks) {
+    if (block.type === 'image') {
+      const caption = getCaptionFromImageBlock(block)
+      result.push(block)
+      lastImageCaption = normalizeAnchorText(caption)
+      lastCaptionParagraph = ''
+      continue
+    }
+
+    if (block.type === 'paragraph' && (block.metadata?.role === 'figure-caption' || isFigureCaptionText(block.text))) {
+      const normalized = normalizeAnchorText(block.text)
+      if (normalized && (normalized === lastImageCaption || normalized === lastCaptionParagraph)) {
+        continue
+      }
+      lastCaptionParagraph = normalized
+      result.push(block)
+      continue
+    }
+
+    lastImageCaption = ''
+    lastCaptionParagraph = ''
+    result.push(block)
+  }
+  return result
+}
+
 /**
  * Parse assembled markdown into DocumentBlocks, replacing image markdown
  * lines with proper ImageBlocks that reference DocumentResources.
  *
  * Images are matched by URL/path against the provided figures array.
- * Any images in the `images` array that were NOT referenced in the markdown
- * are appended at the end (fallback: ensures all figures get blocks).
+ * Images missing from markdown are placed near their section anchor. Only if no
+ * anchor can be found are they placed at the end and marked placementFallback.
  */
 function buildBlocksFromMarkdownWithImages(
   markdown: string,
   images: PaperImageEntry[],
   blockIdPrefix: string,
-): { blocks: DocumentBlock[]; resources: DocumentResource[] } {
+): { blocks: DocumentBlock[]; resources: DocumentResource[]; placementStats: ImagePlacementStats } {
   const blocks: DocumentBlock[] = []
   const resources: DocumentResource[] = []
   let blockIdx = 0
@@ -402,9 +626,13 @@ function buildBlocksFromMarkdownWithImages(
   }
 
   const usedImages = new Set<PaperImageEntry>()
+  let markdownPlacedCount = 0
+  let sectionPlacedCount = 0
+  let fallbackImageCount = 0
 
   const lines = String(markdown || '').replace(/\r/g, '').split('\n')
   let pendingLines: string[] = []
+  let lastImageBlockId: string | null = null
 
   const flushPending = () => {
     const text = pendingLines.join('\n').trim()
@@ -434,7 +662,27 @@ function buildBlocksFromMarkdownWithImages(
 
     // Bold caption line (figure caption pattern: **Figure N.M text**)
     const boldCaptionMatch = text.match(/^\*\*(.+)\*\*$/)
-    if (boldCaptionMatch) {
+    if (boldCaptionMatch && isFigureCaptionText(boldCaptionMatch[1]) && lastImageBlockId) {
+      const lastIndex = blocks.findIndex((block) => block.id === lastImageBlockId)
+      if (lastIndex >= 0) {
+        const caption = boldCaptionMatch[1].trim()
+        blocks[lastIndex] = mergeCaptionIntoImageBlock(blocks[lastIndex], caption)
+        const imageBlock = blocks[lastIndex]
+        if (imageBlock.type === 'image') {
+          const resource = resources.find((res) => res.id === imageBlock.resourceRef)
+          if (resource) {
+            resource.metadata = {
+              ...(resource.metadata || {}),
+              caption,
+              alt: resource.metadata?.alt || caption,
+            }
+          }
+        }
+      }
+      return
+    }
+
+    if (boldCaptionMatch && isFigureCaptionText(boldCaptionMatch[1])) {
       blocks.push(
         createParagraphBlock({
           id: `${blockIdPrefix}-${++blockIdx}`,
@@ -450,6 +698,7 @@ function buildBlocksFromMarkdownWithImages(
     blocks.push(
       createParagraphBlock({ id: `${blockIdPrefix}-${++blockIdx}`, text }),
     )
+    lastImageBlockId = null
   }
 
   for (const line of lines) {
@@ -464,18 +713,28 @@ function buildBlocksFromMarkdownWithImages(
       if (matchedImg) {
         usedImages.add(matchedImg)
         // Determine sectionNum from image entry
-        const sectionNum = matchedImg.sectionTitle
-          ? (images.indexOf(matchedImg) + 1)
-          : Number.parseInt(String(matchedImg.section || '1'), 10) || 1
+        const sectionNum = extractImageSectionNum(matchedImg, images.indexOf(matchedImg) + 1)
         const figureIndex = 1
-        const { resource, block } = normalizePaperImageEntryToDocumentResource(
+        const normalized = normalizePaperImageEntryToDocumentResource(
           matchedImg,
           sectionNum,
           figureIndex,
           { blockIdPrefix, blockIndex: ++blockIdx },
         )
+        const previousTextBlock = [...blocks].reverse().find((block) => block.type === 'paragraph' || block.type === 'heading')
+        const block = applyImagePlacementMetadata(normalized.block, matchedImg, {
+          sectionNum,
+          afterHeadingText: previousTextBlock?.type === 'heading' ? previousTextBlock.text : undefined,
+          afterBlockId: previousTextBlock?.id,
+          anchorParagraphText: previousTextBlock?.type === 'paragraph' ? previousTextBlock.text : undefined,
+          placementFallback: false,
+          placementMode: 'markdown',
+        })
+        const resource = normalized.resource
         resources.push(resource)
         blocks.push(block)
+        lastImageBlockId = block.id
+        markdownPlacedCount += 1
       }
       // Unknown images are silently skipped (not added as blocks)
       continue
@@ -489,10 +748,10 @@ function buildBlocksFromMarkdownWithImages(
   }
   flushPending()
 
-  // Fallback: append any images from the images array that were NOT referenced in markdown
+  // Place images that were not represented in markdown near their section anchors.
   images.forEach((img, imgIdx) => {
     if (usedImages.has(img)) return
-    const sectionNum = Number.parseInt(String(img.section || String(imgIdx + 1)), 10) || (imgIdx + 1)
+    const sectionNum = extractImageSectionNum(img, imgIdx + 1)
     const figureIndex = imgIdx + 1
     const { resource, block } = normalizePaperImageEntryToDocumentResource(
       img,
@@ -501,10 +760,41 @@ function buildBlocksFromMarkdownWithImages(
       { blockIdPrefix, blockIndex: ++blockIdx },
     )
     resources.push(resource)
-    blocks.push(block)
+    const placed = insertImageBlockNearSection(blocks, block, img, sectionNum)
+    if (placed.fallback) {
+      fallbackImageCount += 1
+    } else {
+      sectionPlacedCount += 1
+    }
   })
 
-  return { blocks, resources }
+  const unmatchedImageCount = images.length - usedImages.size
+  const imagePlacementMode: ImagePlacementStats['imagePlacementMode'] =
+    images.length === 0
+      ? 'none'
+      : fallbackImageCount === images.length
+        ? 'fallback'
+        : fallbackImageCount > 0 && (markdownPlacedCount > 0 || sectionPlacedCount > 0)
+          ? 'mixed'
+        : markdownPlacedCount > 0 && sectionPlacedCount > 0
+          ? 'mixed'
+          : markdownPlacedCount > 0
+            ? 'markdown'
+            : sectionPlacedCount > 0
+              ? 'section-anchor'
+              : fallbackImageCount > 0
+                ? 'fallback'
+                : 'none'
+
+  return {
+    blocks: dedupeFigureCaptions(blocks),
+    resources,
+    placementStats: {
+      unmatchedImageCount,
+      fallbackImageCount,
+      imagePlacementMode,
+    },
+  }
 }
 
 // ── Main normalizer ────────────────────────────────────────────────────────
@@ -536,7 +826,7 @@ export function normalizePaperGenerationResultToDocumentSchema(
   const blockIdPrefix = options?.blockIdPrefix || 'paper-block'
 
   // Step 1: Build blocks + resources from markdown (includes unmatched-images fallback)
-  const { blocks: rawBlocks, resources } = buildBlocksFromMarkdownWithImages(
+  const { blocks: rawBlocks, resources, placementStats } = buildBlocksFromMarkdownWithImages(
     result.markdown || '',
     result.images || [],
     blockIdPrefix,
@@ -574,6 +864,9 @@ export function normalizePaperGenerationResultToDocumentSchema(
       generatedBy: 'paper-generation',
       citationCount: citations.length,
       imageCount: resources.length,
+      imagePlacementMode: placementStats.imagePlacementMode,
+      unmatchedImageCount: placementStats.unmatchedImageCount,
+      fallbackImageCount: placementStats.fallbackImageCount,
     },
   })
 }

@@ -22,6 +22,7 @@ import {
   insertCitationIntoDocument,
   renderDocumentCitationsForPreview,
   renderDocumentCitationsForExport,
+  renderBibliographyItemLabel,
 } from '../src/utils/documentCitations'
 import type { DocumentCitationMark } from '../src/document/schema/index'
 
@@ -694,7 +695,7 @@ function resolveInsertedCitationNumbers8(
     if (bibItems.length > 0) {
       result.push({ type: 'heading', text: '参考文献', paragraphStyle: 'ReferencesHeading' })
       for (const item of bibItems) {
-        result.push({ type: 'paragraph', text: item.label, paragraphStyle: 'Reference' })
+        result.push({ type: 'paragraph', text: renderBibliographyItemLabel(item), paragraphStyle: 'Reference' })
       }
     }
     return result
@@ -777,7 +778,7 @@ function resolveInsertedCitationNumbers8(
     const bibItems = (schema.bibliography?.items || []).slice().sort((a, b) => a.citationNumber - b.citationNumber)
     if (bibItems.length > 0) {
       result.push({ type: 'heading', text: '参考文献' })
-      for (const item of bibItems) result.push({ type: 'paragraph', text: item.label })
+      for (const item of bibItems) result.push({ type: 'paragraph', text: renderBibliographyItemLabel(item) })
     }
     return result
   }
@@ -796,6 +797,34 @@ function resolveInsertedCitationNumbers8(
   const nums8f = resolveInsertedCitationNumbers8(emptyBefore, emptyAfter, [{ number: 0, citation: 'X', abstract: '', doi: null }])
   assert(Array.isArray(nums8f), 'Case8f: empty docs returns array')
   assert(nums8f.length === 0, 'Case8f: empty docs returns empty array')
+}
+
+console.log()
+
+// ── Case 9: bibliography label rendering uses citationNumber, not stale label ──
+
+console.log('Case 9: bibliography label rendering strips stale leading numbers')
+
+{
+  const stale = { id: 'citation-3', citationNumber: 3, label: '[7] Some Paper', uri: '' }
+  assertEq(renderBibliographyItemLabel(stale), '[3] Some Paper', 'stale [7] label renders as [3]')
+
+  const staleFullWidth = { id: 'citation-2', citationNumber: 2, label: '［12］ Another Paper', uri: '' }
+  assertEq(renderBibliographyItemLabel(staleFullWidth), '[2] Another Paper', 'fullwidth stale label renders as [2]')
+
+  const staleDot = { id: 'citation-4', citationNumber: 4, label: '7. Dot Paper', uri: '' }
+  assertEq(renderBibliographyItemLabel(staleDot), '[4] Dot Paper', 'dot-prefixed stale label renders as [4]')
+
+  const doc9 = createDocumentSchema({ id: 'doc9', profile: 'paper' as const, title: 'Doc9', text: '', sourceType: 'compat' as const })
+  doc9.blocks = [createParagraphBlock('Body [1].', 'doc9-p1')]
+  doc9.bibliography = {
+    items: [{ id: 'citation-1', citationNumber: 1, label: '[7] Some Paper', uri: '' }],
+    generatedAt: '',
+  }
+  const exported9 = renderDocumentCitationsForExport(doc9)
+  const ref9 = exported9.blocks.find((block) => block.metadata?.role === 'references-section' && block.type === 'paragraph') as { text?: string } | undefined
+  assertEq(ref9?.text, '[1] Some Paper', 'export renders bibliography with continuous citationNumber')
+  assertEq(renderDocumentCitationsForPreview(doc9), '[1] Some Paper', 'preview renders bibliography with continuous citationNumber')
 }
 
 console.log()

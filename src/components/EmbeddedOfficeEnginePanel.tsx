@@ -20,8 +20,8 @@ import { continueWriting } from '../modules/writing/services/ContinueWritingServ
 import { isDirectMode, directContinueWriting } from '../services/AIClientFactory'
 import { generateSelectionImage, getDefaultInsertedGeneratedImageWidthPx } from '../modules/image/services/ImageService'
 import { buildCitationRenumberPlan, CitationReferenceItem, formatCitationNumbers, insertCitationMarkerAtSelection, parseLeadingCitationNumber, stripLeadingCitationPrefix, updateCitationNumbersInText } from '../utils/citationGroups'
-import { insertCitationIntoDocument, renumberDocumentCitations } from '../utils/documentCitations'
-import type { DocumentSchema, DocumentResource } from '../document/schema/index'
+import { insertCitationIntoDocument, renumberDocumentCitations, renderBibliographyItemLabel } from '../utils/documentCitations'
+import type { DocumentSchema, DocumentResource, DocumentBibliographyItem } from '../document/schema/index'
 import { normalizeContinueDeltaAtStart, normalizeContinueLeadingText } from '../utils/continueStreamText'
 import type { KnowledgeTaskConstraints, PreviewKnowledgeTaskContextResult } from '../types/knowledge'
 import { buildKnowledgeTaskConstraints, resolveKnowledgeTaskPreview } from '../shared/knowledge/knowledgeTaskHelper'
@@ -2420,12 +2420,14 @@ function documentSchemaToEditorBlocksWithBibliography(schema: DocumentSchema): E
     if (block.type === 'image') {
       const resource = resourceMap.get(block.resourceRef)
       const previewSrc = resource?.path || (resource?.metadata?.url as string | undefined)
+      const displaySrc = previewSrc && /^(?:[a-z]+:|data:)/i.test(previewSrc) ? previewSrc : (previewSrc ? toFileUrl(previewSrc) : undefined)
+      const caption = String(block.value?.caption || block.metadata?.caption || resource?.metadata?.caption || '')
       result.push({
         id: block.id,
         type: 'image',
-        alt: String(block.metadata?.alt || block.metadata?.caption || ''),
-        title: String(block.metadata?.caption || ''),
-        previewSrc: previewSrc || undefined,
+        alt: String(block.value?.alt || block.metadata?.alt || resource?.metadata?.alt || caption || ''),
+        title: caption,
+        previewSrc: displaySrc,
         mediaPath: resource?.path || undefined,
       } satisfies EmbeddedImageBlock)
       continue
@@ -2458,12 +2460,27 @@ function documentSchemaToEditorBlocksWithBibliography(schema: DocumentSchema): E
   }
 
   // Append live bibliography section derived from document.bibliography
-  const bibItems = (schema.bibliography?.items || []).slice().sort((a, b) => a.citationNumber - b.citationNumber)
+  const bibItems: DocumentBibliographyItem[] = (schema.bibliography?.items?.length
+    ? schema.bibliography.items
+    : (schema.citations || schema.sourceRefs || [])
+      .filter((item) => item.kind === 'citation')
+      .map((item, index) => ({
+        id: item.id || `citation-${index + 1}`,
+        citationNumber: Number((item.metadata as Record<string, unknown> | undefined)?.citationNumber || index + 1),
+        label: item.label || String((item.metadata as Record<string, unknown> | undefined)?.title || ''),
+        uri: item.uri,
+        metadata: item.metadata,
+      }))).slice().sort((a, b) => a.citationNumber - b.citationNumber)
   if (bibItems.length > 0) {
+    const bodyText = schema.blocks
+      .filter((block) => block.metadata?.role !== 'references-section' && (block.type === 'heading' || block.type === 'paragraph'))
+      .map((block) => String((block as { text?: string }).text || ''))
+      .join('\n')
+    const referencesHeading = /[\u4e00-\u9fff]/.test(bodyText) ? '参考文献' : 'References'
     result.push({
       id: createBlockId('references-heading'),
       type: 'heading',
-      text: '参考文献',
+      text: referencesHeading,
       level: 1,
       paragraphStyle: 'ReferencesHeading',
       alignment: 'left',
@@ -2472,7 +2489,7 @@ function documentSchemaToEditorBlocksWithBibliography(schema: DocumentSchema): E
       result.push({
         id: createBlockId('reference'),
         type: 'paragraph',
-        text: item.label,
+        text: renderBibliographyItemLabel(item),
         paragraphStyle: 'Reference',
         alignment: 'left',
       } satisfies EmbeddedTextBlock)
@@ -3170,15 +3187,17 @@ export default function EmbeddedOfficeEnginePanel() {
   useEffect(() => {
     const onWorkspaceDocumentLoaded = (event: Event) => {
       const detail = (event as CustomEvent<any>).detail || {}
-      if (detail.documentSchema && Array.isArray(detail.documentSchema.blocks)) {
-        currentDocumentSchemaRef.current = detail.documentSchema as DocumentSchema
+      const documentSchema = detail.documentSchema as DocumentSchema | undefined
+      if (documentSchema && Array.isArray(documentSchema.blocks) && (documentSchema.profile === 'paper' || documentSchema.document?.metadata?.generatedBy === 'paper-generation')) {
+        currentDocumentSchemaRef.current = documentSchema
       }
     }
     const onAiEvent = (event: Event) => {
       const detail = (event as CustomEvent<any>).detail || {}
       // paper generation done event carries documentSchema
-      if (detail.documentSchema && Array.isArray(detail.documentSchema.blocks)) {
-        currentDocumentSchemaRef.current = detail.documentSchema as DocumentSchema
+      const documentSchema = detail.documentSchema as DocumentSchema | undefined
+      if (documentSchema && Array.isArray(documentSchema.blocks) && (documentSchema.profile === 'paper' || documentSchema.document?.metadata?.generatedBy === 'paper-generation')) {
+        currentDocumentSchemaRef.current = documentSchema
       }
     }
     window.addEventListener('workspace-document-loaded', onWorkspaceDocumentLoaded as EventListener)
@@ -3195,11 +3214,39 @@ export default function EmbeddedOfficeEnginePanel() {
     void window.electronAPI.readWorkspaceDocumentSchema(activeWorkspacePath)
       .then((result: any) => {
         if (result?.document && Array.isArray(result.document.blocks)) {
-          currentDocumentSchemaRef.current = result.document as DocumentSchema
+          const loadedDocument = result.document as DocumentSchema
+          if (loadedDocument.profile === 'paper' || loadedDocument.document?.metadata?.generatedBy === 'paper-generation') {
+            currentDocumentSchemaRef.current = loadedDocument
+            commitBlocks(documentSchemaToEditorBlocksWithBibliography(loadedDocument))
+          }
         }
       })
       .catch(() => undefined)
-  }, [activeWorkspacePath])
+  }, [activeWorkspacePath, commitBlocks])
+
+  useEffect(() => {
+    const onPaperPreviewSync = (event: Event) => {
+      const detail = (event as CustomEvent<any>).detail || {}
+      if (detail.tabId && detail.tabId !== activeTabId) return
+      const documentSchema = detail.documentSchema as DocumentSchema | undefined
+      if (!documentSchema || !Array.isArray(documentSchema.blocks)) return
+      if (documentSchema.profile !== 'paper' && documentSchema.document?.metadata?.generatedBy !== 'paper-generation') return
+      currentDocumentSchemaRef.current = documentSchema
+      const nextBlocks = documentSchemaToEditorBlocksWithBibliography(documentSchema)
+      commitBlocks(nextBlocks)
+      const hasBibliography = (documentSchema.bibliography?.items?.length || 0) > 0
+      const hasReferenceSection = nextBlocks.some((block) => block.type === 'heading' && block.paragraphStyle === 'ReferencesHeading')
+      if (hasBibliography && !hasReferenceSection) {
+        console.warn('[paper-generation] bibliography exists but editor references-section was not rendered')
+      }
+      const fallbackImageCount = Number(documentSchema.document?.metadata?.fallbackImageCount || 0)
+      if (fallbackImageCount > 0) {
+        setStatusMessage('部分图片未匹配到章节，已放入文末')
+      }
+    }
+    window.addEventListener('ai-writer-paper-preview-sync', onPaperPreviewSync as EventListener)
+    return () => window.removeEventListener('ai-writer-paper-preview-sync', onPaperPreviewSync as EventListener)
+  }, [activeTabId, commitBlocks, setStatusMessage])
 
   const getSelection = useCallback((): DocumentEngineSelection | null => {
     const activeBlockId = activeTextBlockIdRef.current
@@ -3903,8 +3950,13 @@ export default function EmbeddedOfficeEnginePanel() {
       return
     }
 
+    if (currentSchema && !schemaBlockId) {
+      setStatusMessage('插入引用失败：未能将当前选区映射到 DocumentSchema block，未进入 legacy 模式')
+      return
+    }
+
     // --- Legacy fallback ---
-    // Triggered when: no DocumentSchema, schema has no blocks, or block id cannot be resolved
+    // Triggered only when no paper DocumentSchema is available.
     const updated = upsertMultipleCitationsIntoEmbeddedBlocks(blocksRef.current, inlineRef.range, normalizedCitations)
     if (!updated) {
       setStatusMessage('插入引用失败')

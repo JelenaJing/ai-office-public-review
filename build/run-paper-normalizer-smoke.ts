@@ -275,9 +275,9 @@ function buildCompatFigures(images: CompatImageItem[]) {
     url: item.url || item.path,
     image_url: item.url || item.path,
     path: item.path,
-    caption: item.caption || item.section || '',
+    caption: item.caption || '',
     markdown: item.markdown || (item.url || item.path
-      ? `![${item.caption || item.section || 'figure'}](${item.url || item.path})`
+      ? `![${item.caption || 'figure'}](${item.url || item.path})`
       : ''),
     filename: String(item.path || item.url || '').split(/[\\/]/).pop(),
   }))
@@ -297,19 +297,87 @@ assertEq(img1.url, 'file:///workspace/images/fig-1-1.png', 'url uses item.url fi
 assert(img1.markdown.includes('file:///workspace'), 'markdown uses item.markdown directly')
 assertEq(img1.filename, 'fig-1-1.png', 'filename extracted from path')
 
-// Falls back: no caption → uses section
+// Falls back: no caption → empty caption (section is placement metadata, not caption)
 const img2 = buildCompatFigures([{
   path: '/workspace/images/fig-2-1.png',
   section: '实验方法',
 }])[0]
 
-assertEq(img2.caption, '实验方法', 'caption falls back to item.section when no caption')
+assertEq(img2.caption, '', 'caption does not fall back to item.section')
 assertEq(img2.url, '/workspace/images/fig-2-1.png', 'url falls back to path when no url')
 assert(img2.markdown.includes('/workspace/images/fig-2-1.png'), 'markdown built from path when no explicit markdown')
 
 // No path, no url
 const img3 = buildCompatFigures([{ caption: 'Orphan' }])[0]
 assertEq(img3.markdown, '', 'empty markdown when no path/url')
+
+console.log()
+
+// ── Case 7: section-anchored unmatched paper images + caption dedupe ───────────
+
+console.log('Case 7: section-anchored images and caption dedupe')
+
+const sectionImageResult = normalizePaperGenerationResultToDocumentSchema({
+  title: '三章节论文',
+  markdown: `# 三章节论文
+
+## 第一章 绪论
+
+第一章正文 [1]。
+
+## 第二章 方法
+
+第二章第一段。
+
+第二章第二段。
+
+## 第三章 结果
+
+第三章正文。
+
+## 参考文献
+
+[1] Ref One`,
+  references: [{ id: 'r1', title: 'Ref One', year: 2024, journal: '', doi: '', authors: [], abstract: '', url: '' }],
+  images: [
+    { section: '1', sectionTitle: '绪论', path: '/tmp/paper/fig-1.png', caption: 'Figure 1.1 Intro.' },
+    { section: '2', sectionTitle: '方法', path: '/tmp/paper/fig-2.png', caption: 'Figure 2.1 Method.' },
+    { section: '3', sectionTitle: '结果', path: '/tmp/paper/fig-3.png', caption: 'Figure 3.1 Result.' },
+  ],
+}, { documentId: 'section-images', blockIdPrefix: 'section-img' })
+
+const sectionImageBlocks = sectionImageResult.blocks.filter((block) => block.type === 'image')
+assertEq(sectionImageBlocks.length, 3, 'three unmatched images are still represented as image blocks')
+assert(sectionImageBlocks.every((block) => block.metadata?.placementFallback !== true), 'all section images placed by section anchors, not fallback')
+assertEq(sectionImageResult.document.metadata?.imagePlacementMode as string, 'section-anchor', 'imagePlacementMode = section-anchor')
+assertEq(sectionImageResult.document.metadata?.unmatchedImageCount as number, 3, 'unmatchedImageCount = 3')
+assertEq(sectionImageResult.document.metadata?.fallbackImageCount as number, 0, 'fallbackImageCount = 0')
+
+const firstRefsIndex = sectionImageResult.blocks.findIndex((block) => block.metadata?.role === 'references-section')
+const lastImageIndex = Math.max(...sectionImageResult.blocks.map((block, index) => block.type === 'image' ? index : -1))
+assert(firstRefsIndex < 0 || lastImageIndex < firstRefsIndex, 'section images are not appended after references section')
+
+const captionDeduped = normalizePaperGenerationResultToDocumentSchema({
+  title: 'Caption Dedupe',
+  markdown: `# Caption Dedupe
+
+## 方法
+
+正文。
+
+![Figure 5.1](/tmp/paper/fig-5.png)
+
+**Figure 5.1 Repeated caption.**
+
+**Figure 5.1 Repeated caption.**`,
+  references: [],
+  images: [{ section: '5', sectionTitle: '方法', path: '/tmp/paper/fig-5.png', caption: 'Figure 5.1 Repeated caption.' }],
+}, { documentId: 'caption-dedupe', blockIdPrefix: 'caption-dedupe' })
+
+const captionParagraphs = captionDeduped.blocks.filter((block) => block.type === 'paragraph' && block.metadata?.role === 'figure-caption')
+assertEq(captionParagraphs.length, 0, 'markdown Figure caption after image is merged into image block, not duplicated as paragraph')
+const captionImage = captionDeduped.blocks.find((block) => block.type === 'image') as any
+assertEq(captionImage?.value?.caption, 'Figure 5.1 Repeated caption.', 'image block keeps the single authoritative caption')
 
 console.log()
 

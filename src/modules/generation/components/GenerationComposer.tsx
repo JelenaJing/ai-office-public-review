@@ -2588,11 +2588,19 @@ const GenerationComposer: React.FC<Props> = ({
 
     let targetTab = resolveTargetTab()
     let targetContent = getEditorTabResolvedContent(tabs.find((tab) => tab.id === targetTab) || null)
-    if (!dailyReportTemplateActive && !essayTemplateActive) {
+    let sourceText = htmlToPlainText(targetContent)
+    let routeDecision = resolveDocumentFlow(sourceText, normalizedInstruction)
+    let documentFlow = routeDecision.flow
+    if (!dailyReportTemplateActive && !essayTemplateActive && documentFlow !== 'paper-generation') {
       const resolvedDocumentTarget = await resolveDocumentTargetTab()
       if (!resolvedDocumentTarget) return
       targetTab = resolvedDocumentTarget.id
       targetContent = getEditorTabResolvedContent(resolvedDocumentTarget)
+      sourceText = htmlToPlainText(targetContent)
+      routeDecision = resolveDocumentFlow(sourceText, normalizedInstruction)
+      documentFlow = routeDecision.flow
+    } else if (documentFlow === 'paper-generation') {
+      console.info('[paper:duplicate_tab_prevented]', { targetTab, reason: 'reuse-active-paper-generation-tab' })
     }
     if (!canStartWritingTask(targetTab, running)) {
       const limitMessage = `当前最多并行 ${MAX_CONCURRENT_WRITING_TASKS} 个写作任务，请先停止其他标签页任务`
@@ -2601,9 +2609,6 @@ const GenerationComposer: React.FC<Props> = ({
       return
     }
     resetManualEditGuard(targetTab)
-    const sourceText = htmlToPlainText(targetContent)
-    const routeDecision = resolveDocumentFlow(sourceText, normalizedInstruction)
-    const documentFlow = routeDecision.flow
     if (typeof process !== 'undefined' && process.env?.NODE_ENV !== 'production') {
       console.debug(`[flow-route] assistant -> ${documentFlow} (${routeDecision.reason})`)
     }
@@ -2924,6 +2929,7 @@ const GenerationComposer: React.FC<Props> = ({
         stopPolling()
         stopPaperEventStream()
         stopTypewriter(false)
+        console.info('[paper:tab_update]', { tabId: targetTab, phase: 'stream-start' })
         setTabShellContent(targetTab, '')
         onPaperStreamStart?.(targetTab)
 
@@ -3094,7 +3100,7 @@ const GenerationComposer: React.FC<Props> = ({
                           }
                           onPaperStreamComplete?.({ tabId: targetTab, markdown: finalMarkdown || normalizedResponseMarkdown, backendUrl })
                           window.dispatchEvent(new CustomEvent('ai-writer-paper-preview-sync', {
-                            detail: { tabId: targetTab, html: schemaHtml, markdown: finalMarkdown || normalizedResponseMarkdown, backendUrl },
+                            detail: { tabId: targetTab, html: schemaHtml, markdown: finalMarkdown || normalizedResponseMarkdown, backendUrl, documentSchema: completionDocumentSchema },
                           }))
                         }
                       } else if (finalMarkdown.trim()) {
@@ -3121,28 +3127,25 @@ const GenerationComposer: React.FC<Props> = ({
                           }))
                         }
                       }
-                      void saveKnowledgeGenerationTaskRecord({ taskId, title: normalizedInstruction, status: 'completed', generationTrace: knowledgeTrace }).catch(() => undefined)
+                      // Paper-generation persistence is handled by document.json/docx artifacts;
+                      // do not depend on a knowledge department such as paper_kb.
                       const completedStatus = '全文内容已生成完成'
-                      const completedMessage = knowledgeSnippetCount > 0
+                      const imageFallbackCount = Number((completionDocumentSchema?.document?.metadata as Record<string, any> | undefined)?.fallbackImageCount || 0)
+                      const savedArtifacts = Array.isArray((normalizedResponse as any).savedArtifacts) ? (normalizedResponse as any).savedArtifacts : []
+                      const savedDocx = String((normalizedResponse as any).docxPath || savedArtifacts.find((item: any) => item?.type === 'docx' && item?.success)?.path || '').trim()
+                      const pdfArtifact = savedArtifacts.find((item: any) => item?.type === 'pdf')
+                      const saveMessage = savedDocx
+                        ? `已保存到工作区：document.json / ${savedDocx.split(/[\\/]/).pop()}${pdfArtifact?.path ? ` / ${String(pdfArtifact.path).split(/[\\/]/).pop()}` : pdfArtifact?.skippedReason ? `；PDF 导出暂不可用：${pdfArtifact.skippedReason}` : ''}`
+                        : ''
+                      const placementMessage = imageFallbackCount > 0 ? '部分图片未匹配到章节，已放入文末。' : ''
+                      const completedMessageBase = knowledgeSnippetCount > 0
                         ? '已参考知识库内容生成文稿。'
                         : (shouldUseKnowledgeForCurrentTask ? '未找到高度相关的知识库内容，已按当前指令生成文稿。' : '论文生成已完成')
+                      const completedMessage = [completedMessageBase, saveMessage, placementMessage].filter(Boolean).join(' ')
                       setStatus(completedStatus)
                       setStatusMessage(completedMessage)
-                      await appendGeneratedDocumentIllustration({
-                        targetTab,
-                        generatedText: finalMarkdown || normalizedResponseMarkdown,
-                        completedStatus,
-                        completedMessage,
-                        signal: controller.signal,
-                      })
                     } else {
-                      void saveKnowledgeGenerationTaskRecord({
-                        taskId,
-                        title: normalizedInstruction,
-                        status: 'failed',
-                        errorMessage: String((result as any)?.error || '未知错误'),
-                        generationTrace: knowledgeTrace,
-                      }).catch(() => undefined)
+                      // Paper-generation task-record failures must not affect document saving.
                       setStatus('处理失败')
                       setStatusMessage(`论文生成失败: ${String((result as any)?.error || '未知错误')}`)
                     }
@@ -3153,7 +3156,7 @@ const GenerationComposer: React.FC<Props> = ({
                       syncPreview(fallbackMarkdown, true, undefined, taskStructuredBlocks, taskOoxmlSnapshot)
                       onPaperStreamComplete?.({ tabId: targetTab, markdown: fallbackMarkdown, backendUrl })
                     }
-                    void saveKnowledgeGenerationTaskRecord({ taskId, title: normalizedInstruction, status: 'completed', generationTrace: knowledgeTrace }).catch(() => undefined)
+                    // Paper-generation task-record failures must not affect document saving.
                     setStatus('全文内容已生成完成')
                     setStatusMessage(`论文已完成，但读取结果时出现异常: ${message}`)
                   }
@@ -3164,13 +3167,7 @@ const GenerationComposer: React.FC<Props> = ({
                 if (task.status === 'failed' || task.status === 'interrupted') {
                   setPaused(false)
                   const message = String(task.error || task.status_message || '任务失败')
-                  void saveKnowledgeGenerationTaskRecord({
-                    taskId,
-                    title: normalizedInstruction,
-                    status: task.status === 'interrupted' ? 'stopped' : 'failed',
-                    errorMessage: message,
-                    generationTrace: knowledgeTrace,
-                  }).catch(() => undefined)
+                  // Paper-generation task-record failures must not affect document saving.
                   setStatus(`处理失败: ${message}`)
                   setStatusMessage(`论文生成失败: ${message}`)
                   finish()
@@ -3196,7 +3193,7 @@ const GenerationComposer: React.FC<Props> = ({
             const currentTaskId = taskIdRef.current
             if (currentTaskId) {
               void stopTask(currentTaskId).catch(() => undefined)
-              void saveKnowledgeGenerationTaskRecord({ taskId: currentTaskId, title: normalizedInstruction, status: 'stopped', generationTrace: knowledgeTrace }).catch(() => undefined)
+              // Paper-generation task-record failures must not affect document saving.
             }
             const preserved = preservePaperPreviewOnStop(targetTab)
             if (preserved) {
@@ -3235,7 +3232,7 @@ const GenerationComposer: React.FC<Props> = ({
             window.dispatchEvent(new CustomEvent('ai-writer-task-submitted', { detail: { taskId: tid } }))
             setStatus(`任务已提交: ${tid}`)
             setStatusMessage(`任务已提交: ${tid}`)
-            void saveKnowledgeGenerationTaskRecord({ taskId: tid, title: normalizedInstruction, status: 'submitted', generationTrace: knowledgeTrace }).catch(() => undefined)
+            // Paper-generation task-record failures must not affect document saving.
 
             stopPaperEventStream()
             const electronApi = window.electronAPI
@@ -3271,7 +3268,8 @@ const GenerationComposer: React.FC<Props> = ({
               )
               const hasStreamPayload = Boolean(
                 hasCumulativePreview
-                || (typeof event.content === 'string' && event.content.trim()),
+                || (typeof event.content === 'string' && event.content.trim())
+                || (typeof event.updatedParagraph === 'string' && event.updatedParagraph.trim())
               )
               if (event.type === 'content' && (isBodyContent || hasCumulativePreview || (!contentTypeNorm && hasStreamPayload))) {
                 const contentStatusMessage = String(event.message || '').trim()
@@ -3289,7 +3287,17 @@ const GenerationComposer: React.FC<Props> = ({
                   : Array.isArray(event.structured_blocks)
                     ? event.structured_blocks as EmbeddedPayloadBlock[]
                     : undefined
-                const cumulative = resolveStreamingPreviewMarkdown(event, latestPaperMarkdownRef.current)
+                let cumulative = resolveStreamingPreviewMarkdown(event, latestPaperMarkdownRef.current)
+                if (!cumulative.trim() && typeof event.updatedParagraph === 'string' && event.updatedParagraph.trim()) {
+                  const paragraphIndex = typeof event.paragraphIndex === 'number' ? event.paragraphIndex : -1
+                  const paragraphs = String(latestPaperMarkdownRef.current || '').split(/\n{2,}/)
+                  if (paragraphIndex >= 0 && paragraphIndex < paragraphs.length) {
+                    paragraphs[paragraphIndex] = event.updatedParagraph
+                    cumulative = paragraphs.join('\n\n')
+                  } else {
+                    cumulative = [latestPaperMarkdownRef.current, event.updatedParagraph].filter(Boolean).join('\n\n')
+                  }
+                }
                 if (!cumulative.trim()) return
                 syncPreview(cumulative, false, String(event.eventType || event.event_type || ''), eventStructuredBlocks)
                 latestPaperMarkdownRef.current = cumulative
@@ -3332,7 +3340,16 @@ const GenerationComposer: React.FC<Props> = ({
               }
 
               if (event.type === 'document_saved') {
-                setStatusMessage('已保存到工作区')
+                const artifacts = Array.isArray(event.savedArtifacts) ? event.savedArtifacts : []
+                const docx = String(event.docxPath || artifacts.find((item: any) => item?.type === 'docx' && item?.success)?.path || '').trim()
+                const pdfArtifact = artifacts.find((item: any) => item?.type === 'pdf')
+                const pdfMessage = pdfArtifact?.path
+                  ? ` / ${String(pdfArtifact.path).split(/[\\/]/).pop()}`
+                  : pdfArtifact?.skippedReason
+                    ? `；PDF 导出暂不可用：${pdfArtifact.skippedReason}`
+                    : ''
+                const docxName = docx ? ` / ${docx.split(/[\\/]/).pop()}` : ''
+                setStatusMessage(`已保存到工作区：document.json${docxName}${pdfMessage}`)
                 return
               }
 

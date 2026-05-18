@@ -291,11 +291,11 @@ function normalizeTaskResultPayload(rawResult: Record<string, any> | null | unde
       ? rawResult.figures
       : Array.isArray(rawResult.images)
       ? rawResult.images.map((item: Record<string, any>) => ({
-          url: item.path,
-          image_url: item.path,
+          url: item.url || item.path,
+          image_url: item.url || item.path,
           path: item.path,
-          caption: item.section || '',
-          markdown: item.path ? `![${item.section || 'figure'}](${item.path})` : '',
+          caption: item.caption || '',
+          markdown: item.markdown || (item.url || item.path ? `![${item.caption || 'figure'}](${item.url || item.path})` : ''),
           filename: String(item.path || '').split(/[\\/]/).pop(),
         }))
       : [],
@@ -619,6 +619,10 @@ export async function generatePaper(
         bibliography: documentSchema?.bibliography,
         citations: documentSchema?.citations,
         resources: documentSchema?.resources,
+        documentJsonPath: event.result?.documentJsonPath,
+        docxPath: event.result?.docxPath,
+        pdfPath: event.result?.pdfPath,
+        savedArtifacts: event.result?.savedArtifacts,
       })
     }
   })

@@ -20,6 +20,27 @@ import type {
 import { createHeadingBlock, createParagraphBlock } from '../document/schema/index'
 import { collectCitationOrder, updateCitationNumbersInText } from './citationGroups'
 
+const LEADING_BIBLIOGRAPHY_NUMBER_PATTERN = /^\s*(?:\[\s*\d+\s*\]|［\s*\d+\s*］|\(\s*\d+\s*\)|（\s*\d+\s*）|\d+\s*[.)．、])\s*/
+
+/**
+ * Render a bibliography label from the canonical citationNumber.
+ *
+ * Paper-generation bibliography items can carry stale labels copied from
+ * markdown (for example "[7] Some Paper") while citationNumber has already
+ * been renumbered to 3.  Always strip any old leading number and re-prefix
+ * from citationNumber so editor/export references stay continuous.
+ */
+export function renderBibliographyItemLabel(item: DocumentBibliographyItem): string {
+  const cleanLabel = String(item.label || '')
+    .replace(LEADING_BIBLIOGRAPHY_NUMBER_PATTERN, '')
+    .trim()
+  return `[${item.citationNumber}] ${cleanLabel}`.trim()
+}
+
+function isPaperCitationDocument(document: DocumentSchema): boolean {
+  return document.profile === 'paper' || document.document?.metadata?.generatedBy === 'paper-generation'
+}
+
 // ── collectCitationOrderFromDocument ──────────────────────────────────────
 
 /**
@@ -64,6 +85,7 @@ export function collectCitationOrderFromDocument(document: DocumentSchema): numb
  * Idempotent: calling twice in a row returns the same document.
  */
 export function renumberDocumentCitations(document: DocumentSchema): DocumentSchema {
+  if (!isPaperCitationDocument(document)) return document
   const bib = document.bibliography
   if (!bib) return document
 
@@ -93,7 +115,7 @@ export function renumberDocumentCitations(document: DocumentSchema): DocumentSch
         ...oldItem,
         id: `citation-${newNum}`,
         citationNumber: newNum,
-        label: oldItem.label.replace(/^\[\d+\]/, `[${newNum}]`),
+        label: renderBibliographyItemLabel({ ...oldItem, citationNumber: newNum }),
         metadata: {
           ...(oldItem.metadata || {}),
           originalCitationNumber: oldNum,
@@ -172,6 +194,7 @@ export function insertCitationIntoDocument(
   document: DocumentSchema,
   options: InsertCitationOptions,
 ): DocumentSchema {
+  if (!isPaperCitationDocument(document)) return document
   const bib: DocumentBibliography = document.bibliography || { items: [] }
 
   // Find the target block index
@@ -204,7 +227,7 @@ export function insertCitationIntoDocument(
       ...item,
       citationNumber: shifted,
       id: `citation-${shifted}`,
-      label: item.label.replace(/^\[\d+\]/, `[${shifted}]`),
+      label: renderBibliographyItemLabel({ ...item, citationNumber: shifted }),
     }
   })
 
@@ -273,12 +296,13 @@ export function insertCitationIntoDocument(
  * Returns one entry per line, ordered by citation number.
  */
 export function renderDocumentCitationsForPreview(document: DocumentSchema): string {
+  if (!isPaperCitationDocument(document)) return ''
   const bib = document.bibliography
   if (!bib || !bib.items.length) return ''
   return bib.items
     .slice()
     .sort((a, b) => a.citationNumber - b.citationNumber)
-    .map((item) => item.label)
+    .map((item) => renderBibliographyItemLabel(item))
     .join('\n')
 }
 
@@ -362,6 +386,8 @@ function renderInlineCitationTextFromMarks(block: DocumentBlock): DocumentBlock 
  * still removed (so a stale section doesn't leak into the export).
  */
 export function renderDocumentCitationsForExport(document: DocumentSchema): DocumentSchema {
+  if (!isPaperCitationDocument(document)) return document
+
   const bib = document.bibliography
 
   // 1. Sync inline citation numbers from citationMarks metadata, then strip references-section
@@ -376,18 +402,22 @@ export function renderDocumentCitationsForExport(document: DocumentSchema): Docu
 
   // Sort bibliography items by citation number for the rendered section
   const sortedItems = bib.items.slice().sort((a, b) => a.citationNumber - b.citationNumber)
+  const bodyText = bodyBlocks
+    .filter((block) => block.type === 'heading' || block.type === 'paragraph')
+    .map((block) => String((block as { text?: string }).text || ''))
+    .join('\n')
 
   const headingBlock = createHeadingBlock({
     id: 'refs-export-heading',
     level: 1,
-    text: '参考文献',
+    text: /[\u4e00-\u9fff]/.test(bodyText) ? '参考文献' : 'References',
     metadata: { role: 'references-section' },
   })
 
   const refParagraphs: DocumentBlock[] = sortedItems.map((item) =>
     createParagraphBlock({
       id: `refs-export-item-${item.citationNumber}`,
-      text: item.label,
+      text: renderBibliographyItemLabel(item),
       metadata: { role: 'references-section' },
     }),
   )

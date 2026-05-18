@@ -107,9 +107,9 @@ export class LocalTaskService {
             url: item.url || item.path,
             image_url: item.url || item.path,
             path: item.path,
-            caption: item.caption || (item as { section?: string }).section || '',
+            caption: item.caption || '',
             markdown: item.markdown || (item.url || item.path
-              ? `![${item.caption || (item as { section?: string }).section || 'figure'}](${item.url || item.path})`
+              ? `![${item.caption || 'figure'}](${item.url || item.path})`
               : ''),
             filename: String(item.path || item.url || '').split(/[\\/]/).pop(),
           }))
@@ -262,8 +262,30 @@ export class LocalTaskService {
       ).trim()
       if (completedWorkspacePath && this.workspaceService && result.documentSchema) {
         try {
-          await this.workspaceService.saveWorkspaceDocumentSchema(completedWorkspacePath, result.documentSchema)
-          this.emitAiEvent?.({ scope: 'paper', type: 'document_saved', taskId, workspacePath: completedWorkspacePath, source: 'documentSchema' })
+          const finalized = await this.workspaceService.finalizeGeneratedPaperDocument({
+            workspacePath: completedWorkspacePath,
+            documentSchema: result.documentSchema,
+            title: result.title,
+            exportDocx: true,
+            exportPdf: true,
+          })
+          Object.assign(result as PaperGenerationResult & Record<string, unknown>, {
+            documentJsonPath: finalized.documentJsonPath,
+            docxPath: finalized.docxPath,
+            pdfPath: finalized.pdfPath,
+            savedArtifacts: finalized.savedArtifacts,
+          })
+          this.emitAiEvent?.({
+            scope: 'paper',
+            type: 'document_saved',
+            taskId,
+            workspacePath: completedWorkspacePath,
+            source: 'documentSchema',
+            documentJsonPath: finalized.documentJsonPath,
+            docxPath: finalized.docxPath,
+            pdfPath: finalized.pdfPath,
+            savedArtifacts: finalized.savedArtifacts,
+          })
         } catch (saveError) {
           this.emitAiEvent?.({
             scope: 'paper',

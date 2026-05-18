@@ -12,6 +12,14 @@ import type { AppSettings } from './settingsStore'
 import { completeText } from './llmClient'
 import { generateImage } from './imageClient'
 
+const MOJIBAKE_PROMPT_PATTERN = /(璇风敓|鎴|涓婚|銆|鈥)/
+
+function assertPaperImagePromptEncoding(prompt: string): void {
+  if (MOJIBAKE_PROMPT_PATTERN.test(String(prompt || ''))) {
+    throw new Error('图片 prompt 编码异常')
+  }
+}
+
 /**
  * 图片信息
  */
@@ -232,6 +240,7 @@ export async function generateSectionFigures(
 
     try {
       const figureProfile = resolveFigurePromptProfile(topic, sectionTitle, sectionText, language)
+      assertPaperImagePromptEncoding(figureProfile.prompt)
 
       // 生成图片
       const imageResult = await generateImage(settings, outputDir, {
