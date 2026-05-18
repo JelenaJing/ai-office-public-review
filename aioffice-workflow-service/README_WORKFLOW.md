@@ -22,7 +22,7 @@ mvn spring-boot:run
 服务启动后监听：**http://localhost:4080**
 
 H2 控制台（开发用）：**http://localhost:4080/h2-console**
-- JDBC URL: `jdbc:h2:file:./aioffice_workflow`
+- JDBC URL: `jdbc:h2:file:./data/aioffice_workflow`
 - 用户名: `sa`，密码: 空
 
 ---
@@ -59,7 +59,7 @@ Content-Type: application/json
   "sender": "sender@example.com",
   "requesterId": "user-001",
   "assignee": "approver-001",
-  "priority": "high",
+  "priority": "urgent",
   "category": "approval",
   "aiSummary": "AI 摘要内容",
   "attachmentIds": ["att-001", "att-002"],
@@ -67,10 +67,12 @@ Content-Type: application/json
 }
 ```
 
+必填字段说明：
+- `sourceType`: 固定为 `"email"`
+- `emailId` / `subject` / `requesterId` / `assignee`: 必填
+- `priority`: 必须是 `urgent` / `important` / `normal`
+
 响应：
-```json
-{ "processInstanceId": "...", "status": "started" }
-```
 
 ---
 
@@ -91,7 +93,7 @@ GET /api/workflows/tasks/my?assignee={userId}
     "assignee": "approver-001",
     "subject": "关于项目预算审批",
     "sender": "sender@example.com",
-    "priority": "high",
+    "priority": "urgent",
     "category": "approval",
     "aiSummary": "AI 摘要内容",
     "createTime": "..."

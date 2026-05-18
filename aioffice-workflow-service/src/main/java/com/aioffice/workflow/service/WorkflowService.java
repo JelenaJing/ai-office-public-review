@@ -12,6 +12,7 @@ import org.flowable.engine.runtime.ProcessInstance;
 import org.flowable.task.api.Task;
 import org.springframework.stereotype.Service;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -27,7 +28,33 @@ public class WorkflowService {
     private final TaskService taskService;
     private final HistoryService historyService;
 
+    private static final List<String> VALID_PRIORITIES = Arrays.asList("urgent", "important", "normal");
+    private static final List<String> VALID_DECISIONS = Arrays.asList("approve", "reject");
+
+    private void validateStartRequest(StartWorkflowRequest req) {
+        if (!"email".equals(req.getSourceType()))
+            throw new IllegalArgumentException("sourceType must be 'email'");
+        if (req.getEmailId() == null || req.getEmailId().isBlank())
+            throw new IllegalArgumentException("emailId is required");
+        if (req.getSubject() == null || req.getSubject().isBlank())
+            throw new IllegalArgumentException("subject is required");
+        if (req.getRequesterId() == null || req.getRequesterId().isBlank())
+            throw new IllegalArgumentException("requesterId is required");
+        if (req.getAssignee() == null || req.getAssignee().isBlank())
+            throw new IllegalArgumentException("assignee is required");
+        if (!VALID_PRIORITIES.contains(req.getPriority()))
+            throw new IllegalArgumentException("priority must be one of: urgent, important, normal");
+    }
+
+    private void validateCompleteRequest(CompleteTaskRequest req) {
+        if (!VALID_DECISIONS.contains(req.getDecision()))
+            throw new IllegalArgumentException("decision must be 'approve' or 'reject'");
+        if (req.getOperatorId() == null || req.getOperatorId().isBlank())
+            throw new IllegalArgumentException("operatorId is required");
+    }
+
     public String startEmailWorkflow(StartWorkflowRequest req) {
+        validateStartRequest(req);
         Map<String, Object> variables = new HashMap<>();
         variables.put("assignee", req.getAssignee());
         variables.put("subject", req.getSubject());
@@ -53,6 +80,7 @@ public class WorkflowService {
         List<Task> tasks = taskService.createTaskQuery()
                 .processDefinitionKey(PROCESS_KEY)
                 .taskAssignee(assignee)
+                .active()
                 .orderByTaskCreateTime().desc()
                 .list();
 
@@ -82,6 +110,7 @@ public class WorkflowService {
     }
 
     public void completeTask(String taskId, CompleteTaskRequest req) {
+        validateCompleteRequest(req);
         Map<String, Object> variables = new HashMap<>();
         variables.put("decision", req.getDecision());
         variables.put("comment", req.getComment());
