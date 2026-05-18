@@ -52,7 +52,7 @@ import { normalizeDocumentResultMarkdown } from '../../../utils/documentResultNo
 import { getEditorTabResolvedContent } from '../../../document/editorTabs'
 import type { DocumentRewriteTargetResolution } from '../../../document/rewriteTargeting'
 import { createDocumentArtifact } from '../../../document/core'
-import { buildDocumentSchemaFromHtml, normalizeDocumentSchema } from '../../../document/schema'
+import { buildDocumentSchemaFromHtml, normalizeDocumentSchema, serializeDocumentSchemaToHtml, type DocumentSchema } from '../../../document/schema'
 import { markdownToHtml } from '../../../utils/markdownToHtml'
 import {
   fixRelativeImageUrls,
@@ -3078,7 +3078,27 @@ const GenerationComposer: React.FC<Props> = ({
                       if (knowledgeRefSection) {
                         finalMarkdown = finalMarkdown.trimEnd() + '\n' + knowledgeRefSection
                       }
-                      if (finalMarkdown.trim()) {
+                      // DocumentSchema-first: when a structured schema is available, use it
+                      // to drive the final editor state instead of the markdown string.
+                      const completionDocumentSchema = (response.documentSchema ?? response.document_schema) as DocumentSchema | undefined
+                      if (completionDocumentSchema) {
+                        const schemaHtml = serializeDocumentSchemaToHtml(completionDocumentSchema)
+                        if (schemaHtml.trim()) {
+                          setDocumentContentIfAllowed(targetTab, schemaHtml)
+                          if (savedManuscriptPath) {
+                            markTabShellSaved(targetTab, {
+                              filePath: savedManuscriptPath,
+                              fileName: savedManuscriptPath.split(/[\\/]/).pop() || '论文.aidoc.json',
+                              content: schemaHtml,
+                            })
+                          }
+                          onPaperStreamComplete?.({ tabId: targetTab, markdown: finalMarkdown || normalizedResponseMarkdown, backendUrl })
+                          window.dispatchEvent(new CustomEvent('ai-writer-paper-preview-sync', {
+                            detail: { tabId: targetTab, html: schemaHtml, markdown: finalMarkdown || normalizedResponseMarkdown, backendUrl },
+                          }))
+                        }
+                      } else if (finalMarkdown.trim()) {
+                        // Fallback: markdown-based editor sync when no documentSchema
                         finalMarkdown = replaceImageUrls(finalMarkdown, finalUrlMap)
                         finalMarkdown = fixRelativeImageUrls(finalMarkdown, backendUrl)
                         syncPreview(finalMarkdown, true, undefined, responseStructuredBlocks, responseOoxmlSnapshot)

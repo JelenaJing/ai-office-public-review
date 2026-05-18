@@ -255,7 +255,98 @@ assertEq(refParas5.length, 2, 'exported schema has 2 ref paras matching bibliogr
 
 console.log()
 
-// ── Summary ───────────────────────────────────────────────────────────────────
+// ── Case 6: renderDocumentCitationsForExport syncs inline [N] from citationMarks ──
+
+console.log('Case 6: renderDocumentCitationsForExport syncs inline [N] markers with citationMarks.citationNumber')
+
+// Build a paragraph where text has [2] but citationMark says citationNumber=1
+const mismatchBlock = createParagraphBlock({
+  id: 'para-mismatch',
+  text: 'See [2] for details and [2] again.',
+  metadata: {
+    citationMarks: [
+      { citationId: 'citation-1', citationNumber: 1, rawMark: '[2]', offset: 4 } as DocumentCitationMark,
+    ],
+  },
+})
+
+// Image resource should be preserved unchanged
+const imageBlock = {
+  id: 'img-1',
+  type: 'image' as const,
+  src: '/images/fig1.png',
+  alt: 'Figure 1',
+  caption: 'A figure',
+  metadata: {},
+}
+
+const docMismatch = {
+  ...createDocumentSchema({ id: 'mismatch-doc', profile: 'paper' as const, title: 'Mismatch', text: '', sourceType: 'compat' as const }),
+  blocks: [mismatchBlock, imageBlock as unknown as ReturnType<typeof createParagraphBlock>],
+  bibliography: {
+    items: [{ id: 'citation-1', citationNumber: 1, label: '[1] Smith et al., 2023.' }],
+    generatedAt: new Date().toISOString(),
+  },
+}
+
+const exported6 = renderDocumentCitationsForExport(docMismatch)
+
+// Paragraph text should now have [1] not [2]
+const para6 = exported6.blocks.find((b) => b.id === 'para-mismatch')
+assert(para6 !== undefined, 'mismatch paragraph preserved in output')
+assert(String((para6 as any)?.text || '').includes('[1]'), 'inline citation synced: [2] → [1]')
+assert(!String((para6 as any)?.text || '').includes('[2]'), 'original [2] replaced in text after sync')
+
+// Image block unchanged
+const img6 = exported6.blocks.find((b) => b.id === 'img-1')
+assert(img6 !== undefined, 'image block preserved through renderDocumentCitationsForExport')
+assert((img6 as any).src === '/images/fig1.png', 'image src unchanged')
+
+// References section built from bibliography
+const refParas6 = exported6.blocks.filter((b) => b.type === 'paragraph' && b.metadata?.role === 'references-section')
+assertEq(refParas6.length, 1, 'one reference paragraph for one bibliography item')
+assert(String((refParas6[0] as any).text || '').includes('[1]'), 'reference paragraph text contains [1]')
+
+console.log()
+
+// ── Case 7: buildPaperArtifact uses documentSchema when present ───────────────
+
+console.log('Case 7: buildPaperArtifact prefers documentSchema over plain-text fallback')
+
+// We test the contract at the documentSchema level without importing React components.
+// The schema produced by renderDocumentCitationsForExport should survive round-trip
+// through serializeDocumentSchemaToHtml and still contain citation content.
+
+import { serializeDocumentSchemaToHtml } from '../src/document/schema/index'
+
+const schemaForHtml = {
+  ...createDocumentSchema({ id: 'html-test', profile: 'paper' as const, title: 'HTML Test', text: '', sourceType: 'compat' as const }),
+  blocks: [
+    createParagraphBlock({ id: 'p1', text: 'Body text with [1] citation.' }),
+    createHeadingBlock({ id: 'refs-h', level: 1, text: '参考文献', metadata: { role: 'references-section' } }),
+    createParagraphBlock({ id: 'refs-p1', text: '[1] Example Reference.', metadata: { role: 'references-section' } }),
+  ],
+  bibliography: {
+    items: [{ id: 'ref-1', citationNumber: 1, label: '[1] Example Reference.' }],
+    generatedAt: new Date().toISOString(),
+  },
+}
+
+const html7 = serializeDocumentSchemaToHtml(schemaForHtml)
+assert(typeof html7 === 'string' && html7.trim().length > 0, 'serializeDocumentSchemaToHtml returns non-empty HTML from schema')
+assert(html7.includes('Body text'), 'HTML contains body paragraph text')
+assert(html7.includes('[1]'), 'HTML contains inline citation marker')
+assert(html7.includes('参考文献'), 'HTML contains references section heading')
+
+// Idempotency of renderDocumentCitationsForExport (already tested in Case 1) means
+// calling it twice before serialisation produces the same output
+const exportedTwice = renderDocumentCitationsForExport(renderDocumentCitationsForExport(schemaForHtml))
+const htmlTwice = serializeDocumentSchemaToHtml(exportedTwice)
+const refHeadings7 = exportedTwice.blocks.filter((b) => b.type === 'heading' && b.metadata?.role === 'references-section')
+assertEq(refHeadings7.length, 1, 'double-export still produces exactly one references heading')
+assert(htmlTwice.trim().length > 0, 'HTML is non-empty after double-export + serialisation')
+
+console.log()
 
 console.log(`[smoke:paper-export] ${passed} passed, ${failed} failed`)
 if (failed > 0) process.exit(1)

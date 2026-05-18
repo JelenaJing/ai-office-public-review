@@ -282,12 +282,76 @@ export function renderDocumentCitationsForPreview(document: DocumentSchema): str
     .join('\n')
 }
 
+// ── renderInlineCitationTextFromMarks ────────────────────────────────────
+
+/**
+ * Re-sync the inline `[N]` markers in a paragraph block's text so they match
+ * the `citationNumber` values stored in `metadata.citationMarks`.
+ *
+ * Use case: after citation renumbering, the block's `text` may still contain
+ * the original numbers (e.g., `[2]`) while `citationMarks[0].citationNumber`
+ * records the correct new number (e.g., `1`).  This function rebuilds the text
+ * so that `[2]` → `[1]`.
+ *
+ * Rules:
+ *  - Only operates on `paragraph` blocks.
+ *  - Skips blocks with `metadata.role === 'references-section'`.
+ *  - Uses `rawMark` on each citation mark to identify which `[N]` to replace.
+ *  - Falls back to `offset` when `rawMark` is absent.
+ *  - Returns the original block unchanged if no remap is needed.
+ */
+function renderInlineCitationTextFromMarks(block: DocumentBlock): DocumentBlock {
+  if (block.type !== 'paragraph') return block
+  if (block.metadata?.role === 'references-section') return block
+
+  const marks = block.metadata?.citationMarks as DocumentCitationMark[] | undefined
+  if (!Array.isArray(marks) || !marks.length) return block
+
+  const text = String((block as unknown as { text?: string }).text || '')
+  if (!text) return block
+
+  // Build remap: original number in text → desired citationNumber
+  const remap = new Map<number, number>()
+
+  for (const mark of marks) {
+    if (mark.rawMark) {
+      // Extract the first digit run from rawMark, e.g., "[2]" → 2, "[1,2]" → 1
+      const m = /\d+/.exec(mark.rawMark)
+      if (m) {
+        const originalNum = Number.parseInt(m[0], 10)
+        if (!Number.isNaN(originalNum) && !remap.has(originalNum)) {
+          remap.set(originalNum, mark.citationNumber)
+        }
+      }
+    } else if (mark.offset !== undefined) {
+      // No rawMark: inspect the text at the recorded offset
+      const fragment = text.slice(mark.offset)
+      const m2 = /^\[(\d+)/.exec(fragment)
+      if (m2) {
+        const numInText = Number.parseInt(m2[1], 10)
+        if (!Number.isNaN(numInText) && !remap.has(numInText)) {
+          remap.set(numInText, mark.citationNumber)
+        }
+      }
+    }
+  }
+
+  if (!remap.size) return block
+
+  const newText = updateCitationNumbersInText(text, remap as Map<number, number | null | undefined>)
+  if (newText === text) return block
+
+  return { ...block, text: newText }
+}
+
 // ── renderDocumentCitationsForExport ──────────────────────────────────────
 
 /**
  * Prepare a DocumentSchema for export by:
- *   1. Removing all blocks with `metadata.role === 'references-section'`.
- *   2. Generating a fresh references section (heading + one paragraph per
+ *   1. Syncing inline `[N]` markers in each body paragraph with the
+ *      `citationNumber` stored in `metadata.citationMarks` (if present).
+ *   2. Removing all blocks with `metadata.role === 'references-section'`.
+ *   3. Generating a fresh references section (heading + one paragraph per
  *      bibliography item) and appending it at the end of the block list.
  *
  * This guarantees that the exported docx references section always matches the
@@ -300,10 +364,10 @@ export function renderDocumentCitationsForPreview(document: DocumentSchema): str
 export function renderDocumentCitationsForExport(document: DocumentSchema): DocumentSchema {
   const bib = document.bibliography
 
-  // Strip any pre-existing references-section blocks
-  const bodyBlocks = document.blocks.filter(
-    (block) => block.metadata?.role !== 'references-section',
-  )
+  // 1. Sync inline citation numbers from citationMarks metadata, then strip references-section
+  const bodyBlocks = document.blocks
+    .map((block) => renderInlineCitationTextFromMarks(block))
+    .filter((block) => block.metadata?.role !== 'references-section')
 
   // No bibliography — return document with references-section stripped
   if (!bib || !bib.items.length) {
