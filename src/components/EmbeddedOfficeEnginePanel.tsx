@@ -20,6 +20,8 @@ import { continueWriting } from '../modules/writing/services/ContinueWritingServ
 import { isDirectMode, directContinueWriting } from '../services/AIClientFactory'
 import { generateSelectionImage, getDefaultInsertedGeneratedImageWidthPx } from '../modules/image/services/ImageService'
 import { buildCitationRenumberPlan, CitationReferenceItem, formatCitationNumbers, insertCitationMarkerAtSelection, parseLeadingCitationNumber, stripLeadingCitationPrefix, updateCitationNumbersInText } from '../utils/citationGroups'
+import { insertCitationIntoDocument, renumberDocumentCitations } from '../utils/documentCitations'
+import type { DocumentSchema } from '../document/schema/index'
 import { normalizeContinueDeltaAtStart, normalizeContinueLeadingText } from '../utils/continueStreamText'
 import type { KnowledgeTaskConstraints, PreviewKnowledgeTaskContextResult } from '../types/knowledge'
 import { buildKnowledgeTaskConstraints, resolveKnowledgeTaskPreview } from '../shared/knowledge/knowledgeTaskHelper'
@@ -2868,6 +2870,8 @@ export default function EmbeddedOfficeEnginePanel() {
   const activeTextBlockIdRef = useRef<string | null>(null)
   const continueAbortRef = useRef<AbortController | null>(null)
   const rewriteAbortRef = useRef<AbortController | null>(null)
+  // DocumentSchema authority: updated when workspace document.json is loaded or paper generation completes
+  const currentDocumentSchemaRef = useRef<DocumentSchema | null>(null)
   const syncSnapshot = useCallback(async (targetPath: string | null) => {
     if (!targetPath || !targetPath.toLowerCase().endsWith('.docx')) {
       setPackageSummary(null)
@@ -2954,6 +2958,42 @@ export default function EmbeddedOfficeEnginePanel() {
   useEffect(() => {
     void syncSnapshot(filePath)
   }, [filePath, syncSnapshot])
+
+  // Keep currentDocumentSchemaRef up-to-date whenever a workspace document is loaded
+  // (workspace-document-loaded) or saved (ai-event with document_saved/documentSchema).
+  useEffect(() => {
+    const onWorkspaceDocumentLoaded = (event: Event) => {
+      const detail = (event as CustomEvent<any>).detail || {}
+      if (detail.documentSchema && Array.isArray(detail.documentSchema.blocks)) {
+        currentDocumentSchemaRef.current = detail.documentSchema as DocumentSchema
+      }
+    }
+    const onAiEvent = (event: Event) => {
+      const detail = (event as CustomEvent<any>).detail || {}
+      // paper generation done event carries documentSchema
+      if (detail.documentSchema && Array.isArray(detail.documentSchema.blocks)) {
+        currentDocumentSchemaRef.current = detail.documentSchema as DocumentSchema
+      }
+    }
+    window.addEventListener('workspace-document-loaded', onWorkspaceDocumentLoaded as EventListener)
+    window.addEventListener('ai-event', onAiEvent as EventListener)
+    return () => {
+      window.removeEventListener('workspace-document-loaded', onWorkspaceDocumentLoaded as EventListener)
+      window.removeEventListener('ai-event', onAiEvent as EventListener)
+    }
+  }, [])
+
+  // Eagerly load DocumentSchema from workspace when workspace path changes
+  useEffect(() => {
+    if (!activeWorkspacePath || !window.electronAPI?.readWorkspaceDocumentSchema) return
+    void window.electronAPI.readWorkspaceDocumentSchema(activeWorkspacePath)
+      .then((result: any) => {
+        if (result?.document && Array.isArray(result.document.blocks)) {
+          currentDocumentSchemaRef.current = result.document as DocumentSchema
+        }
+      })
+      .catch(() => undefined)
+  }, [activeWorkspacePath])
 
   const getSelection = useCallback((): DocumentEngineSelection | null => {
     const activeBlockId = activeTextBlockIdRef.current
@@ -3602,6 +3642,63 @@ export default function EmbeddedOfficeEnginePanel() {
       setStatusMessage('请至少勾选一篇文献')
       return
     }
+
+    // --- DocumentSchema-first path ---
+    const currentSchema = currentDocumentSchemaRef.current
+    const blockId = inlineRef.range.anchorId
+    if (currentSchema && Array.isArray(currentSchema.blocks) && currentSchema.blocks.length > 0 && blockId) {
+      const offset = inlineRef.range.from ?? 0
+      let nextDoc = currentSchema
+      for (const citation of normalizedCitations) {
+        nextDoc = insertCitationIntoDocument(nextDoc, {
+          blockId,
+          offset,
+          reference: {
+            title: citation.citation || '',
+            doi: citation.doi || undefined,
+            abstract: citation.abstract || undefined,
+          },
+        })
+      }
+      nextDoc = renumberDocumentCitations(nextDoc)
+      currentDocumentSchemaRef.current = nextDoc
+
+      // Also insert visible citation markers into the embedded editor blocks (for UI feedback)
+      const citationNumbers: number[] = nextDoc.bibliography?.items
+        .filter((item) => normalizedCitations.some((c) =>
+          item.label.includes(c.citation || '')
+        ))
+        .map((item) => item.citationNumber) ?? []
+      if (citationNumbers.length) {
+        const marker = formatCitationMarker(citationNumbers)
+        const blocksWithMarker = insertCitationMarkerIntoEmbeddedBlocks(blocksRef.current, inlineRef.range, marker)
+        if (blocksWithMarker) {
+          const renumbered = renumberEmbeddedCitationBlocks(blocksWithMarker)
+          commitBlocks(renumbered.blocks)
+        }
+      }
+
+      // Save to workspace
+      setInlineRef(null)
+      if (activeWorkspacePath && window.electronAPI?.saveWorkspaceDocumentSchema) {
+        void window.electronAPI.saveWorkspaceDocumentSchema(activeWorkspacePath, nextDoc)
+          .then((res: any) => {
+            if (res?.success) {
+              setStatusMessage('已插入引用，并自动更新参考文献列表（已保存到工作区）')
+            } else {
+              setStatusMessage('引用已插入，但保存到 document.json 失败')
+            }
+          })
+          .catch((err: unknown) => {
+            setStatusMessage(`引用已插入，保存失败: ${err instanceof Error ? err.message : String(err)}`)
+          })
+      } else {
+        setStatusMessage('已插入引用，并自动更新参考文献列表')
+      }
+      return
+    }
+
+    // --- Legacy fallback (no DocumentSchema) ---
     const updated = upsertMultipleCitationsIntoEmbeddedBlocks(blocksRef.current, inlineRef.range, normalizedCitations)
     if (!updated) {
       setStatusMessage('插入引用失败')
@@ -3611,8 +3708,8 @@ export default function EmbeddedOfficeEnginePanel() {
     commitBlocks(updated.blocks)
     void persistReferenceSectionToWorkspace(updated.orderedItems).catch(() => undefined)
     setInlineRef(null)
-    setStatusMessage(`已插入引用 ${formatCitationMarker(updated.citationNumbers)}，并自动更新引用域与参考文献`)
-  }, [commitBlocks, inlineRef, persistReferenceSectionToWorkspace, setStatusMessage])
+    setStatusMessage(`已插入引用 ${formatCitationMarker(updated.citationNumbers)}（legacy 模式，未关联 DocumentSchema）`)
+  }, [activeWorkspacePath, commitBlocks, inlineRef, persistReferenceSectionToWorkspace, setStatusMessage])
 
   const toggleInlineCitationSelection = useCallback((citation: CitationItem) => {
     const citationKey = buildCitationSelectionKey(citation)

@@ -442,6 +442,73 @@ assert(rtMarks6a!.every((m) => typeof m.citationNumber === 'number'), 'citationM
 
 console.log()
 
+// ── Case 7: EmbeddedOfficeEnginePanel DocumentSchema routing ──────────────────
+
+console.log('Case 7: EmbeddedOfficeEnginePanel DocumentSchema routing')
+
+// Simulate what happens when handleInsertCitations uses DocumentSchema path:
+// currentDocumentSchemaRef.current → insertCitationIntoDocument → renumberDocumentCitations → save
+
+const baseDoc7 = createDocumentSchema({ id: 'doc7', profile: 'paper' as const, title: 'Doc7', text: '', sourceType: 'compat' as const })
+
+const para7a = createParagraphBlock({
+  id: 'p7a',
+  text: 'Text citing [1] and [2].',
+  metadata: {
+    citationMarks: [
+      { citationId: 'citation-1', citationNumber: 1, rawMark: '[1]', offset: 12 },
+      { citationId: 'citation-2', citationNumber: 2, rawMark: '[2]', offset: 19 },
+    ],
+  },
+})
+const doc7 = {
+  ...baseDoc7,
+  blocks: [para7a],
+  bibliography: {
+    items: [
+      { id: 'citation-1', citationNumber: 1, label: '[1] Alpha Paper.' },
+      { id: 'citation-2', citationNumber: 2, label: '[2] Beta Paper.' },
+    ],
+    generatedAt: new Date().toISOString(),
+  },
+}
+
+// Insert a new citation at p7a, offset=0 (beginning of first block → becomes [1])
+let nextDoc7 = insertCitationIntoDocument(doc7, {
+  blockId: 'p7a',
+  offset: 0,
+  reference: { title: 'New Paper', doi: '10.99/new' },
+})
+nextDoc7 = renumberDocumentCitations(nextDoc7)
+
+assertEq(nextDoc7.bibliography?.items.length, 3, 'Case7: bibliography has 3 items after insert')
+const bib7 = (nextDoc7.bibliography?.items || []).slice().sort((a, b) => a.citationNumber - b.citationNumber)
+assert(bib7[0].label.includes('New Paper'), 'Case7: new reference is [1]')
+assertEq(bib7[0].citationNumber, 1, 'Case7: new ref citationNumber=1')
+assertEq(bib7[1].citationNumber, 2, 'Case7: old [1] shifted to 2')
+assertEq(bib7[2].citationNumber, 3, 'Case7: old [2] shifted to 3')
+
+// Verify that both the DocumentSchema path and the legacy embedded path yield
+// consistent citationNumbers (the test just confirms the schema utility is correct)
+const citationNumbers7 = nextDoc7.bibliography?.items
+  .filter((item) => item.label.includes('New Paper'))
+  .map((item) => item.citationNumber) ?? []
+assertEq(citationNumbers7.length, 1, 'Case7: exactly one new item found in bibliography')
+assertEq(citationNumbers7[0], 1, 'Case7: new citation number is 1')
+
+// renderDocumentCitationsForExport produces correct references-section
+const exported7 = renderDocumentCitationsForExport(nextDoc7)
+const refParas7 = exported7.blocks.filter((b) => b.type === 'paragraph' && b.metadata?.role === 'references-section')
+assertEq(refParas7.length, 3, 'Case7: export has 3 reference paragraphs')
+
+// JSON round-trip (simulates save→readWorkspaceDocumentSchema)
+const rt7 = JSON.parse(JSON.stringify(nextDoc7))
+assertEq((rt7.bibliography?.items || []).length, 3, 'Case7: bibliography survives JSON roundtrip')
+const rt7para = rt7.blocks.find((b: { id: string }) => b.id === 'p7a')
+assert(Array.isArray((rt7para as any)?.metadata?.citationMarks), 'Case7: citationMarks survive JSON roundtrip')
+
+console.log()
+
 // ── Summary ───────────────────────────────────────────────────────────────────
 
 console.log(`[smoke:citations] ${passed} passed, ${failed} failed`)
