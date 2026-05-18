@@ -60,6 +60,20 @@ const AiPreprocessNotice = styled.div`
   background: #f0f0ff; border-radius: 4px;
 `
 
+const LinearHandoffBadge = styled.span`
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: 10px; font-weight: 600; padding: 1px 7px;
+  border-radius: 8px; background: #ebf8ff; color: #2b6cb0;
+  border: 1px solid #bee3f8;
+`
+
+const LinearHandoffInfo = styled.div`
+  font-size: 11px; color: #2d3748; margin-bottom: 8px;
+  padding: 8px 10px; background: #f7fafc;
+  border-left: 3px solid #4299e1; border-radius: 0 6px 6px 0;
+  line-height: 1.6;
+`
+
 const TaskActions = styled.div`display: flex; gap: 6px;`
 
 const ActionBtn = styled.button<{ $variant: 'approve' | 'reject' | 'neutral' }>`
@@ -153,7 +167,9 @@ export default function WorkflowTasksPanel({
           {!loading && !error && tasks.length === 0 && (
             <StatusMsg>暂无待办任务</StatusMsg>
           )}
-          {tasks.map((task) => (
+          {tasks.map((task) => {
+            const isResearch = task.category === 'research_progress_submission'
+            return (
             <TaskItem key={task.taskId}>
               <TaskSubject>{task.subject || '（无主题）'}</TaskSubject>
               <TaskMeta>
@@ -161,31 +177,52 @@ export default function WorkflowTasksPanel({
                 {task.priority && (
                   <PriorityBadge $p={task.priority}>{priorityLabel(task.priority)}</PriorityBadge>
                 )}
-                {task.category && <span>{task.category}</span>}
+                {task.category && (
+                  isResearch
+                    ? <LinearHandoffBadge>🔗 Research Progress 顺序交接</LinearHandoffBadge>
+                    : <span>{task.category}</span>
+                )}
                 {task.createTime && <span>{formatCreateTime(task.createTime)}</span>}
               </TaskMeta>
+              {isResearch && (
+                <LinearHandoffInfo>
+                  <div>📋 <strong>事项类型：</strong>Research Progress 提交与导师审批</div>
+                  <div>🔗 <strong>流程模式：</strong>点对点顺序交接（学生 → 导师 → 归档）</div>
+                  <div>🎓 <strong>当前阶段：</strong>学生准备并提交材料</div>
+                  <div>👨‍🏫 <strong>下一处理人：</strong>导师确认签字</div>
+                </LinearHandoffInfo>
+              )}
               {task.aiSummary && (
                 <TaskSummary>{task.aiSummary}</TaskSummary>
               )}
-              <AiPreprocessNotice>AI 已完成预处理，请你做最终确认。</AiPreprocessNotice>
+              <AiPreprocessNotice>
+                {isResearch
+                  ? 'AI 已拆解顺序流程，请按当前阶段完成后再交由下一处理人确认。'
+                  : 'AI 已完成预处理，请你做最终确认。'}
+              </AiPreprocessNotice>
               <TaskActions>
                 <ActionBtn
                   $variant="approve"
                   disabled={completingTaskId === task.taskId}
                   onClick={() => onApprove(task.taskId)}
                 >
-                  {completingTaskId === task.taskId ? '处理中…' : '✅ 确认签字'}
+                  {completingTaskId === task.taskId
+                    ? '处理中…'
+                    : isResearch ? '✅ 确认已准备/提交' : '✅ 确认签字'}
                 </ActionBtn>
                 <ActionBtn
                   $variant="reject"
                   disabled={completingTaskId === task.taskId}
                   onClick={() => onReject(task.taskId)}
                 >
-                  {completingTaskId === task.taskId ? '处理中…' : '↩ 驳回/要求补充'}
+                  {completingTaskId === task.taskId
+                    ? '处理中…'
+                    : isResearch ? '↩ 要求补充材料' : '↩ 驳回/要求补充'}
                 </ActionBtn>
               </TaskActions>
             </TaskItem>
-          ))}
+            )
+          })}
         </Body>
       </Card>
     </Overlay>

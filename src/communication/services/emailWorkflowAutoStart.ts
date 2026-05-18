@@ -10,6 +10,8 @@
 
 import type { AiMailTriageResult } from '../../types/mailTriage'
 import type { StartEmailWorkflowInput } from '../../services/workflowClient'
+import type { WorkflowMatter } from '../types/workflowMatter'
+import { serializeMatterToSummary } from './emailMatterBuilder'
 
 // ── Skip / Trigger rules ──────────────────────────────────────────────────────
 
@@ -78,11 +80,20 @@ export function buildAutoWorkflowInput(
   sender: string,
   requesterId: string,
   workspaceId: string,
+  matter?: WorkflowMatter | null,
 ): StartEmailWorkflowInput {
   const priority: 'urgent' | 'important' | 'normal' =
     triage.urgency === 'urgent' ? 'urgent'
     : (triage.urgency === 'soon' || triage.priority === 'high') ? 'important'
     : 'normal'
+
+  const category = matter
+    ? matter.scenarioType
+    : (triage.emailCategory || triage.category || 'email_approval')
+
+  const aiSummary = matter
+    ? serializeMatterToSummary(matter)
+    : (triage.summary || '')
 
   return {
     sourceType: 'email',
@@ -93,8 +104,8 @@ export function buildAutoWorkflowInput(
     requesterId: requesterId || 'demo-user',
     assignee: 'approver-001',
     priority,
-    category: triage.emailCategory || triage.category || 'email_approval',
-    aiSummary: triage.summary || '',
+    category,
+    aiSummary,
     attachmentIds: [],
     workspaceId: workspaceId || 'default',
   }

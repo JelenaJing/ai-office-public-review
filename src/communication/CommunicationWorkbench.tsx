@@ -40,6 +40,7 @@ import {
 } from '../services/workflowClient'
 import WorkflowTasksPanel from './components/WorkflowTasksPanel'
 import { shouldAutoStartWorkflow, buildAutoWorkflowInput } from './services/emailWorkflowAutoStart'
+import { detectMatterScenario, buildEmailMatter, serializeMatterToSummary } from './services/emailMatterBuilder'
 
 type ImportedDeckSlide = {
   index?: number
@@ -3676,6 +3677,15 @@ function CommunicationWorkbenchInner() {
       }
 
       const msg = thread?.messages?.find((m) => m.isIncoming) ?? thread?.lastMessage
+      const scenario = detectMatterScenario(triage, thread?.subject ?? '', '')
+      const matter = buildEmailMatter(
+        mailId,
+        thread?.id ?? mailId,
+        triage,
+        thread?.subject ?? '',
+        msg?.from ?? msg?.fromName ?? 'unknown',
+        scenario,
+      )
       const input = buildAutoWorkflowInput(
         mailId,
         thread?.id ?? mailId,
@@ -3684,6 +3694,7 @@ function CommunicationWorkbenchInner() {
         msg?.from ?? msg?.fromName ?? 'unknown',
         currentUserId ?? 'demo-user',
         activeWorkspacePath ?? 'default',
+        matter,
       )
 
       setWorkflowStartStates((prev) => ({ ...prev, [mailId]: 'loading' }))
@@ -3716,6 +3727,13 @@ function CommunicationWorkbenchInner() {
       : (triage?.urgency === 'soon' || triage?.priority === 'high') ? 'important'
       : 'normal'
 
+    const scenario = triage
+      ? detectMatterScenario(triage, selectedThread.subject || '', msg?.body?.slice(0, 300) ?? '')
+      : 'unknown' as const
+    const matter = triage
+      ? buildEmailMatter(selectedMailId, selectedThread.id, triage, selectedThread.subject || '', msg?.from || msg?.fromName || 'unknown', scenario)
+      : null
+
     const input = {
       sourceType: 'email' as const,
       emailId: selectedMailId,
@@ -3725,8 +3743,8 @@ function CommunicationWorkbenchInner() {
       requesterId: currentUserId || 'demo-user',
       assignee: 'approver-001',
       priority,
-      category: triage?.emailCategory || triage?.category || 'email_approval',
-      aiSummary: triage?.summary || (msg?.body?.slice(0, 200) ?? ''),
+      category: matter ? matter.scenarioType : (triage?.emailCategory || triage?.category || 'email_approval'),
+      aiSummary: matter ? serializeMatterToSummary(matter) : (triage?.summary || (msg?.body?.slice(0, 200) ?? '')),
       attachmentIds: (msg?.attachments ?? []).map((a) => a.id),
       workspaceId: activeWorkspacePath || 'default',
     }
