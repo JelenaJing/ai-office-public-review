@@ -10,6 +10,7 @@
 
 /** Describes the structural shape of how work flows between people. */
 export type WorkflowPattern =
+  | 'agent_autonomous'  // AI agent handles autonomously (with possible escalation)
   | 'linear_handoff'   // Point-to-point sequential handoff (e.g. student → advisor)
   | 'fan_out'          // One initiator → multiple parallel assignees
   | 'many_to_one'      // Multiple contributors → single approver
@@ -19,6 +20,7 @@ export type WorkflowPattern =
 // ── Scenario types ────────────────────────────────────────────────────────────
 
 export type MatterScenarioType =
+  | 'campus_card_replacement'
   | 'approval_request'
   | 'meeting_invitation'
   | 'material_collection'
@@ -91,4 +93,46 @@ export interface WorkflowMatter {
   suggestedNextAction: string
   workItems: WorkflowWorkItem[]
   createdAt: string
+  // Agent-autonomous fields
+  agentId?: string
+  agentName?: string
+  autoCompletionEligible?: boolean
+  autoCompletionResult?: {
+    status: 'passed' | 'missing_material' | 'risk_detected' | 'failed'
+    reason: string
+    missingItems?: string[]
+    checkedAt: string
+  }
+}
+
+// ── Matter evaluation ─────────────────────────────────────────────────────────
+
+export interface MatterEvaluation {
+  matterId: string
+  scenarioType: MatterScenarioType
+  decision:
+    | 'auto_complete'
+    | 'request_missing_material'
+    | 'human_review_required'
+    | 'start_handoff'
+    | 'start_approval'
+    | 'reject'
+  confidence: number
+  policyChecks: {
+    matchedPolicyIds: string[]
+    requiredMaterials: string[]
+    providedMaterials: string[]
+    missingMaterials: string[]
+  }
+  systemChecks: {
+    studentIdentity?: 'passed' | 'failed' | 'not_available'
+    authMatch?: 'passed' | 'failed' | 'not_available'
+    cardStatus?: 'passed' | 'failed' | 'not_available'
+    lossReport?: 'passed' | 'failed' | 'not_available'
+    paymentStatus?: 'passed' | 'failed' | 'not_available'
+    duplicateTicket?: 'passed' | 'failed' | 'not_available'
+  }
+  riskFlags: string[]
+  explanation: string
+  nextAction: string
 }

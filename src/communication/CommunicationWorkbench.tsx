@@ -41,6 +41,7 @@ import {
 import WorkflowTasksPanel from './components/WorkflowTasksPanel'
 import { shouldAutoStartWorkflow, buildAutoWorkflowInput } from './services/emailWorkflowAutoStart'
 import { detectMatterScenario, buildEmailMatter, serializeMatterToSummary } from './services/emailMatterBuilder'
+import { handleCampusCardReplacementMatter, type AgentWorkflowResult } from './services/cuhkszAgentWorkflow'
 
 type ImportedDeckSlide = {
   index?: number
@@ -3130,6 +3131,8 @@ function CommunicationWorkbenchInner() {
   const [completingTaskId, setCompletingTaskId] = useState<string | null>(null)
   // Tracks which mailIds were auto-started by AI (vs manually triggered) for UI display
   const [autoStartedByAi, setAutoStartedByAi] = useState<Record<string, boolean>>({})
+  // Tracks agent workflow results for agent_autonomous pattern (campus card etc.)
+  const [agentResults, setAgentResults] = useState<Record<string, AgentWorkflowResult>>({})
   // Ref used as synchronous guard to prevent duplicate auto-start calls between renders
   const autoStartInitiatedRef = useRef<Set<string>>(new Set())
 
@@ -3686,6 +3689,59 @@ function CommunicationWorkbenchInner() {
         msg?.from ?? msg?.fromName ?? 'unknown',
         scenario,
       )
+
+      // ── Agent-autonomous path (e.g. campus card replacement) ─────────────────
+      if (matter?.workflowPattern === 'agent_autonomous') {
+        const senderEmail = msg?.from ?? msg?.fromName ?? ''
+        handleCampusCardReplacementMatter({
+          matter,
+          senderEmail,
+          emailBody: thread?.messages?.map((m) => m.text ?? '').join(' ') ?? '',
+          attachmentNames: [],
+        })
+          .then((agentResult) => {
+            setAgentResults((prev) => ({ ...prev, [mailId]: agentResult }))
+            setAutoStartedByAi((prev) => ({ ...prev, [mailId]: true }))
+            // Only escalate to Flowable when agent says human review is needed
+            if (agentResult.status === 'human_review_required') {
+              const input = buildAutoWorkflowInput(
+                mailId,
+                thread?.id ?? mailId,
+                triage,
+                thread?.subject ?? '(无主题)',
+                senderEmail || 'unknown',
+                currentUserId ?? 'demo-user',
+                activeWorkspacePath ?? 'default',
+                matter,
+              )
+              setWorkflowStartStates((prev) => ({ ...prev, [mailId]: 'loading' }))
+              startEmailWorkflow(input)
+                .then((result) => {
+                  setWorkflowProcessIds((prev) => ({ ...prev, [mailId]: result.processInstanceId }))
+                  setWorkflowStartStates((prev) => ({ ...prev, [mailId]: 'done' }))
+                })
+                .catch((err) => {
+                  setWorkflowStartStates((prev) => ({ ...prev, [mailId]: 'error' }))
+                  setWorkflowStartErrors((prev) => ({
+                    ...prev,
+                    [mailId]: err instanceof Error ? err.message : String(err),
+                  }))
+                })
+            }
+          })
+          .catch((err) => {
+            setAgentResults((prev) => ({
+              ...prev,
+              [mailId]: {
+                status: 'human_review_required',
+                message: `Agent 异常：${err instanceof Error ? err.message : String(err)}，转人工复核。`,
+              },
+            }))
+          })
+        continue
+      }
+
+      // ── Standard Flowable path ────────────────────────────────────────────────
       const input = buildAutoWorkflowInput(
         mailId,
         thread?.id ?? mailId,
@@ -4043,13 +4099,51 @@ function CommunicationWorkbenchInner() {
                         移入可恢复区域
                       </Btn>
                     )}
-                    {/* ── 发起流程 / AI 自动发起状态 ── */}
+                    {/* ── 发起流程 / AI 自动发起状态 / Agent 自动办理状态 ── */}
                     {selectedMailId && (() => {
                       const wfState = workflowStartStates[selectedMailId] ?? 'idle'
                       const wfError = workflowStartErrors[selectedMailId]
                       const processId = workflowProcessIds[selectedMailId]
                       const isAutoStarted = autoStartedByAi[selectedMailId]
                       const autoInitiated = autoStartInitiatedRef.current.has(selectedMailId)
+                      const agentResult = agentResults[selectedMailId]
+
+                      // Agent-autonomous result display
+                      if (agentResult) {
+                        return (
+                          <div style={{ marginTop: 10 }}>
+                            {agentResult.status === 'auto_completed' && (
+                              <WorkflowStatusMsg $variant="success">
+                                🤖 {agentResult.message}
+                              </WorkflowStatusMsg>
+                            )}
+                            {agentResult.status === 'waiting_material' && (
+                              <WorkflowStatusMsg $variant="error">
+                                📋 {agentResult.message}
+                              </WorkflowStatusMsg>
+                            )}
+                            {agentResult.status === 'human_review_required' && (
+                              <>
+                                <WorkflowStatusMsg $variant="error">
+                                  ⚠ {agentResult.message}
+                                </WorkflowStatusMsg>
+                                {/* Flowable status for escalated human review */}
+                                {wfState === 'loading' && (
+                                  <WorkflowStatusMsg $variant="success" style={{ marginTop: 4 }}>
+                                    ⏳ 已提交人工复核流程…
+                                  </WorkflowStatusMsg>
+                                )}
+                                {wfState === 'done' && processId && (
+                                  <WorkflowStatusMsg $variant="success" style={{ marginTop: 4 }}>
+                                    🔄 人工复核流程已创建：{processId}
+                                  </WorkflowStatusMsg>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        )
+                      }
+
                       return (
                         <div style={{ marginTop: 10 }}>
                           {/* Loading: AI auto-start in progress */}

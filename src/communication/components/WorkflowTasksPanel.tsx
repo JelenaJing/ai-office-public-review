@@ -74,6 +74,20 @@ const LinearHandoffInfo = styled.div`
   line-height: 1.6;
 `
 
+const AgentBadge = styled.span`
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: 10px; font-weight: 600; padding: 1px 7px;
+  border-radius: 8px; background: #faf5ff; color: #6b21a8;
+  border: 1px solid #d8b4fe;
+`
+
+const AgentInfo = styled.div`
+  font-size: 11px; color: #2d3748; margin-bottom: 8px;
+  padding: 8px 10px; background: #fdf4ff;
+  border-left: 3px solid #a855f7; border-radius: 0 6px 6px 0;
+  line-height: 1.6;
+`
+
 const TaskActions = styled.div`display: flex; gap: 6px;`
 
 const ActionBtn = styled.button<{ $variant: 'approve' | 'reject' | 'neutral' }>`
@@ -169,6 +183,7 @@ export default function WorkflowTasksPanel({
           )}
           {tasks.map((task) => {
             const isResearch = task.category === 'research_progress_submission'
+            const isCampusCard = task.category === 'campus_card_replacement'
             return (
             <TaskItem key={task.taskId}>
               <TaskSubject>{task.subject || '（无主题）'}</TaskSubject>
@@ -178,12 +193,22 @@ export default function WorkflowTasksPanel({
                   <PriorityBadge $p={task.priority}>{priorityLabel(task.priority)}</PriorityBadge>
                 )}
                 {task.category && (
-                  isResearch
-                    ? <LinearHandoffBadge>🔗 Research Progress 顺序交接</LinearHandoffBadge>
-                    : <span>{task.category}</span>
+                  isCampusCard
+                    ? <AgentBadge>🤖 校园卡补办 · 智能体办理</AgentBadge>
+                    : isResearch
+                      ? <LinearHandoffBadge>🔗 Research Progress 顺序交接</LinearHandoffBadge>
+                      : <span>{task.category}</span>
                 )}
                 {task.createTime && <span>{formatCreateTime(task.createTime)}</span>}
               </TaskMeta>
+              {isCampusCard && (
+                <AgentInfo>
+                  <div>🤖 <strong>事项类型：</strong>校园卡补办</div>
+                  <div>⚙️ <strong>流程模式：</strong>智能体自助办理</div>
+                  <div>🏫 <strong>执行智能体：</strong>CUHKSZ Agent</div>
+                  <div>⚠ <strong>当前状态：</strong>智能体发现异常，需要人工复核。</div>
+                </AgentInfo>
+              )}
               {isResearch && (
                 <LinearHandoffInfo>
                   <div>📋 <strong>事项类型：</strong>Research Progress 提交与导师审批</div>
@@ -196,9 +221,11 @@ export default function WorkflowTasksPanel({
                 <TaskSummary>{task.aiSummary}</TaskSummary>
               )}
               <AiPreprocessNotice>
-                {isResearch
-                  ? 'AI 已拆解顺序流程，请按当前阶段完成后再交由下一处理人确认。'
-                  : 'AI 已完成预处理，请你做最终确认。'}
+                {isCampusCard
+                  ? 'CUHKSZ Agent 发现异常，已转人工复核。请确认后操作。'
+                  : isResearch
+                    ? 'AI 已拆解顺序流程，请按当前阶段完成后再交由下一处理人确认。'
+                    : 'AI 已完成预处理，请你做最终确认。'}
               </AiPreprocessNotice>
               <TaskActions>
                 <ActionBtn
@@ -208,7 +235,7 @@ export default function WorkflowTasksPanel({
                 >
                   {completingTaskId === task.taskId
                     ? '处理中…'
-                    : isResearch ? '✅ 确认已准备/提交' : '✅ 确认签字'}
+                    : isCampusCard ? '✅ 人工确认通过' : isResearch ? '✅ 确认已准备/提交' : '✅ 确认签字'}
                 </ActionBtn>
                 <ActionBtn
                   $variant="reject"
@@ -217,7 +244,7 @@ export default function WorkflowTasksPanel({
                 >
                   {completingTaskId === task.taskId
                     ? '处理中…'
-                    : isResearch ? '↩ 要求补充材料' : '↩ 驳回/要求补充'}
+                    : isCampusCard ? '↩ 要求学生补充材料' : isResearch ? '↩ 要求补充材料' : '↩ 驳回/要求补充'}
                 </ActionBtn>
               </TaskActions>
             </TaskItem>

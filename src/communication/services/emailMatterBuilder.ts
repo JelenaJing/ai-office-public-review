@@ -2,8 +2,8 @@
  * emailMatterBuilder.ts
  *
  * Builds structured WorkflowMatter objects from AI triage results.
- * Handles scenario detection (with research_progress_submission taking priority)
- * and WorkItem generation for each scenario type.
+ * Handles scenario detection (campus_card_replacement takes highest priority,
+ * research_progress_submission next) and WorkItem generation for each scenario type.
  */
 
 import type { AiMailTriageResult } from '../../types/mailTriage'
@@ -13,7 +13,42 @@ import type {
   MatterScenarioType,
 } from '../types/workflowMatter'
 
-// ── Keyword detection ─────────────────────────────────────────────────────────
+// ── Keyword detection: campus card ────────────────────────────────────────────
+
+const CAMPUS_CARD_ZH = [
+  '校园卡',
+  '校园卡补办',
+  '补办校园卡',
+  '学生卡',
+  '学生证补办',
+  '卡丢了',
+  '卡遗失',
+  '挂失校园卡',
+  '重新办理校园卡',
+  '学生卡补办',
+  '补办学生卡',
+]
+
+const CAMPUS_CARD_EN = [
+  'campus card',
+  'student card',
+  'card replacement',
+  'lost card',
+  'replace my card',
+  'reissue card',
+  'replace student card',
+  'campus card replacement',
+]
+
+function matchesCampusCard(text: string): boolean {
+  const lower = text.toLowerCase()
+  return (
+    CAMPUS_CARD_EN.some((k) => lower.includes(k)) ||
+    CAMPUS_CARD_ZH.some((k) => text.includes(k))
+  )
+}
+
+// ── Keyword detection: research progress ─────────────────────────────────────
 
 const RESEARCH_PROGRESS_EN = [
   'research progress',
@@ -71,6 +106,8 @@ export function detectMatterScenario(
   ].join(' ')
 
   // Higher-priority specific scenarios first
+  // campus_card_replacement is checked first (highest priority)
+  if (matchesCampusCard(combined)) return 'campus_card_replacement'
   if (matchesResearchProgress(combined)) return 'research_progress_submission'
 
   const intentType = triage.actionPlan?.intentType
@@ -163,7 +200,7 @@ function buildResearchProgressWorkItems(): WorkflowWorkItem[] {
 
 /**
  * Build a WorkflowMatter for an email.
- * Currently only produces a full matter for research_progress_submission;
+ * Returns a full matter for campus_card_replacement and research_progress_submission;
  * returns null for all other scenarios so existing behaviour is unchanged.
  */
 export function buildEmailMatter(
@@ -174,10 +211,72 @@ export function buildEmailMatter(
   sender: string,
   scenario: MatterScenarioType,
 ): WorkflowMatter | null {
+  if (scenario === 'campus_card_replacement') {
+    return buildCampusCardMatter(mailId, threadId, triage, subject, sender)
+  }
   if (scenario === 'research_progress_submission') {
     return buildResearchProgressMatter(mailId, threadId, triage, subject, sender)
   }
   return null
+}
+
+function buildCampusCardMatter(
+  mailId: string,
+  threadId: string,
+  triage: AiMailTriageResult,
+  subject: string,
+  sender: string,
+): WorkflowMatter {
+  return {
+    matterId: `matter-${mailId}-campus-card`,
+    title: '校园卡补办',
+    summary: [
+      `发件人（${sender}）申请补办校园卡。`,
+      '智能体将自动校验学生身份、材料完整性，并自动提交补办申请（如符合条件）。',
+      triage.summary ? `AI 摘要：${triage.summary}` : '',
+    ]
+      .filter(Boolean)
+      .join(' '),
+    scenarioType: 'campus_card_replacement',
+    workflowPattern: 'agent_autonomous',
+    source: 'email',
+    emailId: mailId,
+    threadId: threadId || mailId,
+    subject: subject || '(无主题)',
+    sender,
+    riskLevel: 'low',
+    status: 'in_progress',
+    currentAssigneeRole: 'cuhksz_agent',
+    agentId: 'cuhksz-agent',
+    agentName: 'CUHKSZ Agent',
+    autoCompletionEligible: true,
+    suggestedNextAction:
+      '智能体将自动校验材料并提交补办申请，如发现异常将转交人工复核。',
+    workItems: [
+      {
+        id: 'step-1-agent-verify',
+        title: '智能体验证学生身份与材料',
+        description: 'CUHKSZ Agent 自动校验学生身份、材料完整性和风险词',
+        actionType: 'confirm',
+        assigneeRole: 'cuhksz_agent',
+        outputType: 'none',
+        requiredHumanSignature: false,
+        status: 'in_progress',
+      },
+      {
+        id: 'step-2-agent-submit',
+        title: '智能体自动提交补办申请',
+        description: '校验通过后自动提交至校园卡管理系统',
+        actionType: 'submit_form',
+        assigneeRole: 'cuhksz_agent',
+        outputType: 'form_submission',
+        requiredHumanSignature: false,
+        status: 'pending',
+        dependsOn: ['step-1-agent-verify'],
+      },
+    ],
+    createdAt: new Date().toISOString(),
+  }
 }
 
 function buildResearchProgressMatter(
