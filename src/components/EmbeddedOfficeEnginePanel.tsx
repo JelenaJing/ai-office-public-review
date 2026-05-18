@@ -2309,43 +2309,109 @@ function resolveDocumentSchemaBlockId(
 }
 
 /**
- * Convert DocumentSchema blocks to EmbeddedEditorBlock[] for display in the
- * embedded editor.  Used after a DocumentSchema-first citation insertion so the
- * editor state stays in sync with the schema.
+ * Identify which bibliography items were newly inserted by comparing before/after
+ * snapshots of the document.  Returns their `citationNumber` values sorted ascending.
  *
- * Notes:
- * - references-section blocks are rendered as paragraph/heading with the
- *   appropriate paragraphStyle so the editor shows the updated ref list.
- * - ImageBlock is converted to EmbeddedImageBlock using resources for preview.
- * - TableBlock is converted to a minimal EmbeddedTableBlock (best-effort).
- * - SlotBlock and unknown types are silently skipped.
+ * Matching strategy (in order of reliability):
+ *   1. DOI match: `item.uri` contains the inserted citation's doi.
+ *   2. Title match: `item.label` contains the inserted citation's title text.
+ *   3. Size-diff fallback: if neither matches, return all items whose
+ *      citationNumber is ≤ the number of insertedCitations that were added
+ *      (these will be the lowest-numbered fresh items after renumber).
+ *
+ * This function avoids the id-collision problem: after shifting, a new item
+ * may receive the same `citation-N` id that an old item had, so id-diff is
+ * not reliable.
  */
-function documentSchemaBlocksToEmbeddedEditorBlocks(schema: DocumentSchema): EmbeddedEditorBlock[] {
+function resolveInsertedCitationNumbers(
+  beforeDoc: DocumentSchema,
+  afterDoc: DocumentSchema,
+  insertedCitations: CitationItem[],
+): number[] {
+  const beforeIds = new Set((beforeDoc.bibliography?.items || []).map((item) => item.id))
+  const afterItems = afterDoc.bibliography?.items || []
+  const insertedCount = insertedCitations.length
+
+  // Build lookup keys for inserted citations
+  const insertedDois = new Set(insertedCitations.map((c) => (c.doi || '').trim().toLowerCase()).filter(Boolean))
+  const insertedTitles = insertedCitations.map((c) => (c.citation || '').trim().toLowerCase()).filter(Boolean)
+
+  // Attempt doi/title matching first
+  const matched = afterItems.filter((item) => {
+    // DOI match
+    if (insertedDois.size > 0) {
+      const itemUri = (item.uri || '').toLowerCase()
+      const itemDoi = (item.metadata?.doi as string || '').toLowerCase()
+      if ([...insertedDois].some((doi) => itemUri.includes(doi) || itemDoi.includes(doi))) return true
+    }
+    // Title match
+    if (insertedTitles.length > 0) {
+      const itemLabel = item.label.toLowerCase()
+      if (insertedTitles.some((title) => title.length > 4 && itemLabel.includes(title))) return true
+    }
+    return false
+  })
+
+  if (matched.length > 0) {
+    return matched.map((item) => item.citationNumber).sort((a, b) => a - b)
+  }
+
+  // Fallback: the newly inserted items appear as the N items with ids not present before
+  // (After renumbering the ids are reassigned, so we use a count-based heuristic:
+  //  the bibliography grew by `insertedCount` items; pick the lowest `insertedCount`
+  //  citationNumbers among items that didn't exist before — which would be the
+  //  freshly-created ones that were pushed to the front.)
+  const sizeGrowth = afterItems.length - (beforeDoc.bibliography?.items || []).length
+  if (sizeGrowth > 0) {
+    const growth = Math.min(sizeGrowth, insertedCount)
+    // After renumbering, the anchor block's new citations are the lowest numbered ones
+    // in the target block.  Simply return the `growth` smallest citation numbers as
+    // a best-effort hint for the status message.
+    const sorted = afterItems.slice().sort((a, b) => a.citationNumber - b.citationNumber)
+    return sorted.slice(0, growth).map((item) => item.citationNumber)
+  }
+
+  // No reliable signal — return empty (status message will omit the number)
+  return []
+}
+
+/**
+ * Convert a DocumentSchema to EmbeddedEditorBlock[] for live editor display,
+ * always rebuilding the bottom references-section from `document.bibliography`.
+ *
+ * Differences from `documentSchemaBlocksToEmbeddedEditorBlocks`:
+ * - Old `references-section` blocks in `document.blocks` are stripped.
+ * - A fresh heading + paragraph list is appended from `bibliography.items`
+ *   so the editor immediately reflects the latest citation state.
+ */
+function documentSchemaToEditorBlocksWithBibliography(schema: DocumentSchema): EmbeddedEditorBlock[] {
   const resourceMap = new Map<string, DocumentResource>()
   for (const res of (schema.resources || [])) resourceMap.set(res.id, res)
 
   const result: EmbeddedEditorBlock[] = []
 
   for (const block of schema.blocks) {
+    // Strip old references-section blocks — will be rebuilt from bibliography
+    if (block.metadata?.role === 'references-section') continue
+
     if (block.type === 'heading') {
       result.push({
         id: block.id,
         type: 'heading',
         text: block.text,
         level: (block.level as 1 | 2 | 3 | 4 | 5 | 6 | undefined) ?? 1,
-        paragraphStyle: block.metadata?.role === 'references-section' ? 'ReferencesHeading' : `Heading${block.level ?? 1}`,
+        paragraphStyle: `Heading${block.level ?? 1}`,
         alignment: 'left',
       } satisfies EmbeddedTextBlock)
       continue
     }
 
     if (block.type === 'paragraph') {
-      const isRef = block.metadata?.role === 'references-section'
       result.push({
         id: block.id,
         type: 'paragraph',
         text: block.text,
-        paragraphStyle: isRef ? 'Reference' : (block.styleRef || 'Normal'),
+        paragraphStyle: block.styleRef || 'Normal',
         alignment: 'left',
       } satisfies EmbeddedTextBlock)
       continue
@@ -2388,8 +2454,29 @@ function documentSchemaBlocksToEmbeddedEditorBlocks(schema: DocumentSchema): Emb
       }
       continue
     }
-
     // slot / unknown — skip
+  }
+
+  // Append live bibliography section derived from document.bibliography
+  const bibItems = (schema.bibliography?.items || []).slice().sort((a, b) => a.citationNumber - b.citationNumber)
+  if (bibItems.length > 0) {
+    result.push({
+      id: createBlockId('references-heading'),
+      type: 'heading',
+      text: '参考文献',
+      level: 1,
+      paragraphStyle: 'ReferencesHeading',
+      alignment: 'left',
+    } satisfies EmbeddedTextBlock)
+    for (const item of bibItems) {
+      result.push({
+        id: createBlockId('reference'),
+        type: 'paragraph',
+        text: item.label,
+        paragraphStyle: 'Reference',
+        alignment: 'left',
+      } satisfies EmbeddedTextBlock)
+    }
   }
 
   return result.length > 0 ? result : [{ id: createBlockId('paragraph'), type: 'paragraph', text: '' } satisfies EmbeddedTextBlock]
@@ -3786,15 +3873,12 @@ export default function EmbeddedOfficeEnginePanel() {
       nextDoc = renumberDocumentCitations(nextDoc)
       currentDocumentSchemaRef.current = nextDoc
 
-      // Determine newly inserted citation numbers by matching reference text
-      // (id-diff is unreliable because the schema reuses citation-N ids after shift)
-      const newItems = (nextDoc.bibliography?.items || []).filter((item) =>
-        normalizedCitations.some((c) => c.citation && item.label.includes(c.citation)),
-      )
-      const newCitationNumbers = newItems.map((item) => item.citationNumber).sort((a, b) => a - b)
+      // Reliable citation number lookup via before/after snapshot diff
+      const newCitationNumbers = resolveInsertedCitationNumbers(currentSchema, nextDoc, normalizedCitations)
 
-      // Sync editor blocks directly from DocumentSchema (no dual-write)
-      const nextEmbeddedBlocks = documentSchemaBlocksToEmbeddedEditorBlocks(nextDoc)
+      // Sync editor blocks from DocumentSchema + rebuild bibliography section
+      // (no dual-write — no upsertMultipleCitations / renumberEmbedded / persistReferenceSection)
+      const nextEmbeddedBlocks = documentSchemaToEditorBlocksWithBibliography(nextDoc)
       commitBlocks(nextEmbeddedBlocks)
 
       setInlineRef(null)

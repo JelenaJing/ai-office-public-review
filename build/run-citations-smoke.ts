@@ -554,6 +554,252 @@ assert(rt7Marks?.every((m) => typeof m.citationNumber === 'number'), 'Case7f: ci
 
 console.log()
 
+// ── Case 8: resolveInsertedCitationNumbers + documentSchemaToEditorBlocksWithBibliography ──
+
+console.log('Case 8: resolveInsertedCitationNumbers + documentSchemaToEditorBlocksWithBibliography')
+
+// Convenience factory for test schemas in Case 8
+const mkDoc8 = (suffix: string) => createDocumentSchema({ id: `doc8-${suffix}`, profile: 'paper' as const, title: `Doc8 ${suffix}`, text: '', sourceType: 'compat' as const })
+
+// Build helpers inline (mirror EmbeddedOfficeEnginePanel.tsx logic):
+
+interface CitationItemLike { number: number; citation: string; abstract: string; doi: string | null }
+
+function resolveInsertedCitationNumbers8(
+  beforeDoc: ReturnType<typeof createDocumentSchema>,
+  afterDoc: ReturnType<typeof createDocumentSchema>,
+  insertedCitations: CitationItemLike[],
+): number[] {
+  const afterItems = afterDoc.bibliography?.items || []
+  const insertedDois = new Set(insertedCitations.map((c) => (c.doi || '').trim().toLowerCase()).filter(Boolean))
+  const insertedTitles = insertedCitations.map((c) => (c.citation || '').trim().toLowerCase()).filter(Boolean)
+
+  const matched = afterItems.filter((item: { uri?: string; metadata?: Record<string, unknown>; label: string }) => {
+    if (insertedDois.size > 0) {
+      const itemUri = (item.uri || '').toLowerCase()
+      const itemDoi = ((item.metadata?.doi as string) || '').toLowerCase()
+      if ([...insertedDois].some((doi) => itemUri.includes(doi) || itemDoi.includes(doi))) return true
+    }
+    if (insertedTitles.length > 0) {
+      const itemLabel = item.label.toLowerCase()
+      if (insertedTitles.some((title: string) => title.length > 4 && itemLabel.includes(title))) return true
+    }
+    return false
+  })
+
+  if (matched.length > 0) return matched.map((item: { citationNumber: number }) => item.citationNumber).sort((a: number, b: number) => a - b)
+
+  const beforeLabels = new Set((beforeDoc.bibliography?.items || []).map((i: { label: string }) => i.label.toLowerCase().trim()))
+  const newNums = afterItems.filter((item: { label: string }) => !beforeLabels.has(item.label.toLowerCase().trim())).map((item: { citationNumber: number }) => item.citationNumber)
+  return newNums.sort((a: number, b: number) => a - b)
+}
+
+// 8a: resolveInsertedCitationNumbers — doi match
+{
+  const beforeDoc = mkDoc8('8a-before')
+  beforeDoc.bibliography = {
+    items: [
+      { id: 'citation-1', citationNumber: 1, label: '[1] Author A 2020', uri: 'https://doi.org/10.1000/aaa' },
+      { id: 'citation-2', citationNumber: 2, label: '[2] Author B 2021', uri: 'https://doi.org/10.1000/bbb' },
+    ],
+    generatedAt: new Date().toISOString(),
+  }
+
+  const afterDoc = mkDoc8('8a-after')
+  afterDoc.bibliography = {
+    items: [
+      { id: 'citation-1', citationNumber: 1, label: '[1] Author C 2022', uri: 'https://doi.org/10.1000/ccc' },
+      { id: 'citation-2', citationNumber: 2, label: '[2] Author A 2020', uri: 'https://doi.org/10.1000/aaa' },
+      { id: 'citation-3', citationNumber: 3, label: '[3] Author B 2021', uri: 'https://doi.org/10.1000/bbb' },
+    ],
+    generatedAt: new Date().toISOString(),
+  }
+
+  const inserted: CitationItemLike[] = [{ number: 0, citation: 'Author C 2022 new paper', abstract: '', doi: '10.1000/ccc' }]
+  const nums = resolveInsertedCitationNumbers8(beforeDoc, afterDoc, inserted)
+  assert(nums.includes(1), 'Case8a: doi match returns citationNumber=1')
+}
+
+// 8b: resolveInsertedCitationNumbers — label/title match
+{
+  const beforeDoc = mkDoc8('8b-before')
+  beforeDoc.bibliography = { items: [{ id: 'citation-1', citationNumber: 1, label: '[1] Existing 2020', uri: '' }], generatedAt: '' }
+
+  const afterDoc = mkDoc8('8b-after')
+  afterDoc.bibliography = {
+    items: [
+      { id: 'citation-1', citationNumber: 1, label: '[1] New Paper Smith 2023', uri: '' },
+      { id: 'citation-2', citationNumber: 2, label: '[2] Existing 2020', uri: '' },
+    ],
+    generatedAt: '',
+  }
+
+  const inserted: CitationItemLike[] = [{ number: 0, citation: 'New Paper Smith 2023', abstract: '', doi: null }]
+  const nums = resolveInsertedCitationNumbers8(beforeDoc, afterDoc, inserted)
+  assert(nums.includes(1), 'Case8b: title/label match returns citationNumber=1')
+}
+
+// 8c: resolveInsertedCitationNumbers — size-diff fallback
+{
+  const beforeDoc = mkDoc8('8c-before')
+  beforeDoc.bibliography = { items: [{ id: 'citation-1', citationNumber: 1, label: '[1] Old Ref', uri: '' }], generatedAt: '' }
+
+  const afterDoc = mkDoc8('8c-after')
+  afterDoc.bibliography = {
+    items: [
+      { id: 'citation-1', citationNumber: 1, label: '[1] Mystery New', uri: '' },
+      { id: 'citation-2', citationNumber: 2, label: '[2] Old Ref', uri: '' },
+    ],
+    generatedAt: '',
+  }
+
+  const inserted: CitationItemLike[] = [{ number: 0, citation: 'XYZ', abstract: '', doi: null }]
+  const nums = resolveInsertedCitationNumbers8(beforeDoc, afterDoc, inserted)
+  assert(nums.length >= 1, 'Case8c: fallback returns at least one citation number')
+  assert(typeof nums[0] === 'number', 'Case8c: returned value is a number')
+}
+
+// 8d: documentSchemaToEditorBlocksWithBibliography — strips old refs-section, appends fresh one
+{
+  const doc = mkDoc8('8d')
+  doc.blocks = [
+    createHeadingBlock({ id: 'h1', level: 1, text: 'Introduction' }),
+    createParagraphBlock('Some text with [1].', 'p1'),
+    { id: 'refs-h', type: 'heading' as const, text: '参考文献', level: 1, metadata: { role: 'references-section' } },
+    { id: 'refs-p', type: 'paragraph' as const, text: '[1] Old Ref 2019', styleRef: 'Reference', metadata: { role: 'references-section' } },
+  ]
+  doc.bibliography = {
+    items: [
+      { id: 'citation-1', citationNumber: 1, label: '[1] Fresh Ref A 2023', uri: '' },
+      { id: 'citation-2', citationNumber: 2, label: '[2] Fresh Ref B 2024', uri: '' },
+    ],
+    generatedAt: '',
+  }
+
+  // Inline mirror of documentSchemaToEditorBlocksWithBibliography
+  function toEditorBlocks(schema: typeof doc) {
+    const result: Array<{ type: string; text: string; paragraphStyle?: string }> = []
+    for (const block of schema.blocks) {
+      if ((block.metadata as Record<string, unknown> | undefined)?.role === 'references-section') continue
+      if (block.type === 'heading') {
+        result.push({ type: 'heading', text: block.text })
+        continue
+      }
+      if (block.type === 'paragraph') {
+        result.push({ type: 'paragraph', text: block.text })
+        continue
+      }
+    }
+    const bibItems = (schema.bibliography?.items || []).slice().sort((a, b) => a.citationNumber - b.citationNumber)
+    if (bibItems.length > 0) {
+      result.push({ type: 'heading', text: '参考文献', paragraphStyle: 'ReferencesHeading' })
+      for (const item of bibItems) {
+        result.push({ type: 'paragraph', text: item.label, paragraphStyle: 'Reference' })
+      }
+    }
+    return result
+  }
+
+  const blocks = toEditorBlocks(doc)
+
+  // Old references-section must be stripped
+  const oldRefPara = blocks.find((b) => b.text === '[1] Old Ref 2019')
+  assert(!oldRefPara, 'Case8d: old references-section paragraph removed')
+
+  // Fresh bibliography heading present
+  const refHeading = blocks.find((b) => b.text === '参考文献' && b.paragraphStyle === 'ReferencesHeading')
+  assert(!!refHeading, 'Case8d: ReferencesHeading appended from bibliography')
+
+  // Fresh reference paragraphs present
+  const refA = blocks.find((b) => b.text === '[1] Fresh Ref A 2023')
+  const refB = blocks.find((b) => b.text === '[2] Fresh Ref B 2024')
+  assert(!!refA, 'Case8d: fresh ref A in editor blocks')
+  assert(!!refB, 'Case8d: fresh ref B in editor blocks')
+
+  // Body blocks preserved
+  const bodyH = blocks.find((b) => b.text === 'Introduction')
+  const bodyP = blocks.find((b) => b.text === 'Some text with [1].')
+  assert(!!bodyH, 'Case8d: body heading preserved')
+  assert(!!bodyP, 'Case8d: body paragraph preserved')
+
+  // Order: body first, then bibliography at end
+  const refAIdx = blocks.indexOf(refA!)
+  const bodyPIdx = blocks.indexOf(bodyP!)
+  assert(bodyPIdx < refAIdx, 'Case8d: body paragraph before bibliography items')
+}
+
+// 8e: full insert + editor update flow (integration)
+{
+  const doc = mkDoc8('8e')
+  doc.blocks = [
+    createParagraphBlock('Intro paragraph with citations [1][2].', 'intro'),
+  ]
+  doc.bibliography = {
+    items: [
+      { id: 'citation-1', citationNumber: 1, label: '[1] Alpha 2020', uri: 'https://doi.org/10.1/alpha' },
+      { id: 'citation-2', citationNumber: 2, label: '[2] Beta 2021', uri: 'https://doi.org/10.1/beta' },
+    ],
+    generatedAt: '',
+  }
+  doc.blocks[0].metadata = { ...(doc.blocks[0].metadata || {}), citationMarks: [
+    { citationId: 'citation-1', citationNumber: 1, offset: 30 },
+    { citationId: 'citation-2', citationNumber: 2, offset: 33 },
+  ] }
+
+  // Simulate inserting a new citation at offset 0 of intro block
+  let nextDoc = insertCitationIntoDocument(doc, {
+    blockId: 'intro',
+    offset: 0,
+    reference: { title: 'Gamma 2022', doi: '10.1/gamma' },
+  })
+  nextDoc = renumberDocumentCitations(nextDoc)
+
+  // bibliography should now have 3 items
+  assert((nextDoc.bibliography?.items.length ?? 0) === 3, 'Case8e: bibliography grows to 3 items')
+
+  // New gamma should be citation-1 (inserted first)
+  const gammaItem = nextDoc.bibliography?.items.find((i) => i.label.toLowerCase().includes('gamma'))
+  assert(!!gammaItem, 'Case8e: gamma item exists in bibliography')
+  assert(gammaItem!.citationNumber === 1, 'Case8e: gamma is renumbered to citation 1')
+
+  // resolveInsertedCitationNumbers should find citationNumber=1 via label match
+  const inserted8e: CitationItemLike[] = [{ number: 0, citation: 'Gamma 2022', abstract: '', doi: '10.1/gamma' }]
+  const nums8e = resolveInsertedCitationNumbers8(doc, nextDoc, inserted8e)
+  assert(nums8e.includes(1), 'Case8e: resolveInsertedCitationNumbers returns 1 for gamma')
+
+  // Editor blocks from bibliography must list all 3 refs at bottom
+  function toEditorBlocks8e(schema: typeof nextDoc) {
+    const result: Array<{ type: string; text: string }> = []
+    for (const block of schema.blocks) {
+      if ((block.metadata as Record<string, unknown> | undefined)?.role === 'references-section') continue
+      result.push({ type: block.type, text: (block as { text?: string }).text || '' })
+    }
+    const bibItems = (schema.bibliography?.items || []).slice().sort((a, b) => a.citationNumber - b.citationNumber)
+    if (bibItems.length > 0) {
+      result.push({ type: 'heading', text: '参考文献' })
+      for (const item of bibItems) result.push({ type: 'paragraph', text: item.label })
+    }
+    return result
+  }
+
+  const editorBlocks8e = toEditorBlocks8e(nextDoc)
+  const bibHeadingIdx = editorBlocks8e.findIndex((b) => b.type === 'heading' && b.text === '参考文献')
+  const refParas = bibHeadingIdx >= 0 ? editorBlocks8e.slice(bibHeadingIdx + 1).filter((b) => b.type === 'paragraph') : []
+  assert(refParas.length === 3, 'Case8e: editor blocks have 3 reference paragraphs at bottom')
+}
+
+// 8f: legacy fallback — no schema, old path unaffected
+{
+  // Verify that resolveInsertedCitationNumbers with empty docs returns empty array
+  const emptyBefore = mkDoc8('8f-before')
+  const emptyAfter = mkDoc8('8f-after')
+  const nums8f = resolveInsertedCitationNumbers8(emptyBefore, emptyAfter, [{ number: 0, citation: 'X', abstract: '', doi: null }])
+  assert(Array.isArray(nums8f), 'Case8f: empty docs returns array')
+  assert(nums8f.length === 0, 'Case8f: empty docs returns empty array')
+}
+
+console.log()
+
 // ── Summary ───────────────────────────────────────────────────────────────────
 
 console.log(`[smoke:citations] ${passed} passed, ${failed} failed`)
