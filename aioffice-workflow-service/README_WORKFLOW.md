@@ -166,7 +166,7 @@ curl http://localhost:4080/api/workflows/health
 # 2. 启动审批流程
 curl -X POST http://localhost:4080/api/workflows/email/start \
   -H "Content-Type: application/json" \
-  -d '{"emailId":"e001","threadId":"t001","subject":"测试审批","sender":"a@b.com","requesterId":"u001","assignee":"approver1","priority":"high","category":"approval","aiSummary":"测试摘要","workspaceId":"ws1","sourceType":"email"}'
+  -d '{"emailId":"e001","threadId":"t001","subject":"测试审批","sender":"a@b.com","requesterId":"u001","assignee":"approver1","priority":"urgent","category":"approval","aiSummary":"测试摘要","workspaceId":"ws1","sourceType":"email"}'
 
 # 3. 查询待办（替换 assignee 为实际值）
 curl "http://localhost:4080/api/workflows/tasks/my?assignee=approver1"
