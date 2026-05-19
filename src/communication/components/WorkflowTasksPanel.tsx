@@ -207,6 +207,9 @@ export default function WorkflowTasksPanel({
                   <div>⚙️ <strong>流程模式：</strong>智能体自助办理</div>
                   <div>🏫 <strong>执行智能体：</strong>CUHKSZ Agent</div>
                   <div>⚠ <strong>当前状态：</strong>智能体发现异常，需要人工复核。</div>
+                  <div style={{ marginTop: 6, fontSize: 10, color: '#6b21a8', fontStyle: 'italic' }}>
+                    该事项只有在智能体发现异常时才进入人工复核。正常情况下由 CUHKSZ Agent 自动完成。
+                  </div>
                 </AgentInfo>
               )}
               {isResearch && (

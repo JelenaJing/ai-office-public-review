@@ -1,10 +1,3 @@
-/**
- * cuhkszAgentWorkflow.ts
- *
- * Orchestrates the full campus-card-replacement agent flow using mock connectors
- * and the matter evaluator/router.
- */
-
 import { getMockStudentByEmail } from './connectors/mockStudentInfoConnector'
 import {
   getMockCampusCardStatus,
@@ -18,7 +11,7 @@ import {
 import { retrieveMatterPolicy } from './matterPolicyRetriever'
 import { evaluateMatter } from './matterEvaluator'
 import { routeMatter } from './workflowRouter'
-import type { WorkflowMatter } from '../types/workflowMatter'
+import type { WorkflowMatter, MatterEvaluation } from '../types/workflowMatter'
 
 export interface AgentHandleInput {
   matter: WorkflowMatter
@@ -38,6 +31,7 @@ export interface AgentWorkflowResult {
   missingItems?: string[]
   ticketId?: string
   explanation?: string
+  evaluation?: MatterEvaluation
 }
 
 export async function handleCampusCardReplacementMatter(
@@ -101,18 +95,21 @@ export async function handleCampusCardReplacementMatter(
     })
     return {
       status: 'auto_completed',
-      message: `CUHKSZ Agent 已完成校园卡补办材料校验，并自动提交办理流程（工单号：${ticket.ticketId}）。预计 5 个工作日内可领取。`,
+      message: `CUHKSZ Agent 已完成材料校验、身份检查、重复工单检查，并已自动提交校园卡补办流程（工单号：${ticket.ticketId}）。预计 5 个工作日内可领取。`,
       ticketId: ticket.ticketId,
       explanation: evaluation.explanation,
+      evaluation,
     }
   }
 
   if (route === 'request_missing_material') {
+    const missing = evaluation.policyChecks.missingMaterials
     return {
       status: 'waiting_material',
-      message: `CUHKSZ Agent 需要学生补充材料：${evaluation.policyChecks.missingMaterials.join('、')}`,
-      missingItems: evaluation.policyChecks.missingMaterials,
+      message: `CUHKSZ Agent 检查发现申请缺少必要材料：${missing.join('、')}。请补充后重新提交。`,
+      missingItems: missing,
       explanation: evaluation.explanation,
+      evaluation,
     }
   }
 
@@ -121,5 +118,6 @@ export async function handleCampusCardReplacementMatter(
     status: 'human_review_required',
     message: `智能体发现异常（${evaluation.explanation}），已转交人工复核。`,
     explanation: evaluation.explanation,
+    evaluation,
   }
 }

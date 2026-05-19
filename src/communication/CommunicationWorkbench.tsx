@@ -4110,6 +4110,17 @@ function CommunicationWorkbenchInner() {
 
                       // Agent-autonomous result display
                       if (agentResult) {
+                        const ev = agentResult.evaluation
+                        const decisionLabel = ev?.decision === 'auto_complete'
+                          ? '✅ 自动办理'
+                          : ev?.decision === 'request_missing_material'
+                            ? '📋 需要补材料'
+                            : '⚠ 需要人工复核'
+                        const decisionColor = ev?.decision === 'auto_complete'
+                          ? '#276749'
+                          : ev?.decision === 'request_missing_material'
+                            ? '#c05621'
+                            : '#c53030'
                         return (
                           <div style={{ marginTop: 10 }}>
                             {agentResult.status === 'auto_completed' && (
@@ -4139,6 +4150,76 @@ function CommunicationWorkbenchInner() {
                                   </WorkflowStatusMsg>
                                 )}
                               </>
+                            )}
+                            {/* ── CUHKSZ Agent 判断报告 ── */}
+                            {ev && (
+                              <div style={{
+                                marginTop: 10,
+                                border: '1px solid #e2e8f0',
+                                borderRadius: 8,
+                                padding: '10px 14px',
+                                background: '#fafafa',
+                                fontSize: 12,
+                              }}>
+                                <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8, color: '#1a202c' }}>
+                                  🏫 CUHKSZ Agent 判断报告
+                                </div>
+                                {/* Decision + confidence */}
+                                <div style={{ display: 'flex', gap: 10, marginBottom: 8, flexWrap: 'wrap' }}>
+                                  <span style={{ fontWeight: 700, color: decisionColor }}>{decisionLabel}</span>
+                                  <span style={{ color: '#718096' }}>置信度：{Math.round((ev.confidence ?? 0) * 100)}%</span>
+                                </div>
+                                {/* Extracted fields */}
+                                {ev.extractedFields && (
+                                  <div style={{ marginBottom: 8 }}>
+                                    <div style={{ fontWeight: 600, color: '#4a5568', marginBottom: 3 }}>已识别信息</div>
+                                    <div style={{ paddingLeft: 10, color: '#4a5568', lineHeight: 1.7 }}>
+                                      <div>姓名：{ev.extractedFields.applicantName ?? <span style={{ color: '#a0aec0' }}>未识别</span>}</div>
+                                      <div>学号：{ev.extractedFields.studentId ?? <span style={{ color: '#a0aec0' }}>未识别</span>}</div>
+                                      <div>学校邮箱：{ev.extractedFields.schoolEmail ?? <span style={{ color: '#a0aec0' }}>未识别</span>}</div>
+                                      <div>补办原因：{ev.extractedFields.reason ?? <span style={{ color: '#a0aec0' }}>未识别</span>}</div>
+                                    </div>
+                                  </div>
+                                )}
+                                {/* Material check */}
+                                <div style={{ marginBottom: 8 }}>
+                                  <div style={{ fontWeight: 600, color: '#4a5568', marginBottom: 3 }}>材料检查</div>
+                                  <div style={{ paddingLeft: 10, lineHeight: 1.7 }}>
+                                    <div style={{ color: '#276749' }}>
+                                      已提供：{ev.policyChecks.providedMaterials.length > 0 ? ev.policyChecks.providedMaterials.join('、') : <span style={{ color: '#a0aec0' }}>无</span>}
+                                    </div>
+                                    <div style={{ color: ev.policyChecks.missingMaterials.length > 0 ? '#c53030' : '#276749' }}>
+                                      缺失：{ev.policyChecks.missingMaterials.length > 0 ? ev.policyChecks.missingMaterials.join('、') : '无'}
+                                    </div>
+                                  </div>
+                                </div>
+                                {/* System checks */}
+                                {ev.systemCheckDetails && ev.systemCheckDetails.length > 0 && (
+                                  <div style={{ marginBottom: 8 }}>
+                                    <div style={{ fontWeight: 600, color: '#4a5568', marginBottom: 3 }}>系统检查</div>
+                                    <div style={{ paddingLeft: 10 }}>
+                                      {ev.systemCheckDetails.map((chk, i) => (
+                                        <div key={i} style={{ display: 'flex', gap: 6, lineHeight: 1.7, alignItems: 'flex-start' }}>
+                                          <span style={{ color: chk.status === 'passed' ? '#276749' : chk.status === 'failed' ? '#c53030' : '#a0aec0', flexShrink: 0 }}>
+                                            {chk.status === 'passed' ? '✅' : chk.status === 'failed' ? '❌' : '⚪'}
+                                          </span>
+                                          <span style={{ color: '#4a5568' }}><strong>{chk.name}</strong>：{chk.detail}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                                {/* Explanation */}
+                                <div style={{ marginBottom: 6 }}>
+                                  <span style={{ fontWeight: 600, color: '#4a5568' }}>判断依据：</span>
+                                  <span style={{ color: '#4a5568' }}>{ev.explanation}</span>
+                                </div>
+                                {/* Next action */}
+                                <div>
+                                  <span style={{ fontWeight: 600, color: '#4a5568' }}>下一步：</span>
+                                  <span style={{ color: '#2b6cb0' }}>{ev.nextAction}</span>
+                                </div>
+                              </div>
                             )}
                           </div>
                         )
