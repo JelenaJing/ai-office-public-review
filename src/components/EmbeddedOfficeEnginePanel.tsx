@@ -877,6 +877,7 @@ type EmbeddedImageBlock = {
   mediaPath?: string
   mediaContentType?: string
   previewSrc?: string
+  previewError?: string
   drawingLayout?: 'inline' | 'anchor'
   imageWidthPx?: number
   imageHeightPx?: number
@@ -1895,6 +1896,16 @@ function fromFileUrl(value: string): string {
   }
 }
 
+function isAbsoluteOrUrlPath(value: string): boolean {
+  return /^(?:[a-z]+:|data:)/i.test(value) || /^[a-zA-Z]:[\\/]/.test(value) || /^[/\\]/.test(value)
+}
+
+function joinWorkspaceLocalPath(workspacePath: string | null | undefined, relativePath: string): string {
+  const rel = String(relativePath || '').replace(/^[\\/]+/, '')
+  if (!workspacePath || !rel) return rel
+  return `${String(workspacePath).replace(/[\\/]+$/, '')}\\${rel.replace(/\//g, '\\')}`
+}
+
 function parsePaperFigureParts(text: string): { sectionNum?: number; figureIndex?: number } {
   const match = String(text || '').match(/(?:Figure|Fig\.?|图|图表)\s*(\d+)(?:\.(\d+))?/i)
   if (!match) return {}
@@ -2529,7 +2540,7 @@ function bibliographyItemsToReferenceRecordsForPaper(items: DocumentBibliography
  * - A fresh heading + paragraph list is appended from `bibliography.items`
  *   so the editor immediately reflects the latest citation state.
  */
-function documentSchemaToEditorBlocksWithBibliography(schema: DocumentSchema): EmbeddedEditorBlock[] {
+function documentSchemaToEditorBlocksWithBibliography(schema: DocumentSchema, workspacePath?: string | null): EmbeddedEditorBlock[] {
   const resourceMap = new Map<string, DocumentResource>()
   for (const res of (schema.resources || [])) resourceMap.set(res.id, res)
 
@@ -2564,16 +2575,19 @@ function documentSchemaToEditorBlocksWithBibliography(schema: DocumentSchema): E
 
     if (block.type === 'image') {
       const resource = resourceMap.get(block.resourceRef)
-      const previewSrc = resource?.path || (resource?.metadata?.localPath as string | undefined) || (resource?.metadata?.url as string | undefined)
-      const displaySrc = previewSrc && /^(?:[a-z]+:|data:)/i.test(previewSrc) ? previewSrc : (previewSrc ? toFileUrl(previewSrc) : undefined)
+      const rawPreviewPath = String(resource?.path || (resource?.metadata?.localPath as string | undefined) || (resource?.metadata?.url as string | undefined) || '').trim()
+      const localPreviewPath = rawPreviewPath && !isAbsoluteOrUrlPath(rawPreviewPath)
+        ? joinWorkspaceLocalPath(workspacePath, rawPreviewPath)
+        : rawPreviewPath
+      const displaySrc = localPreviewPath && /^(?:[a-z]+:|data:)/i.test(localPreviewPath) ? localPreviewPath : (localPreviewPath ? toFileUrl(localPreviewPath) : undefined)
       const caption = String(block.value?.caption || block.metadata?.caption || resource?.metadata?.caption || '')
       const figureIndex = block.metadata?.figureIndex ?? resource?.metadata?.figureIndex
       const sectionNum = block.metadata?.sectionNum ?? resource?.metadata?.sectionNum
       const figureTitle = sectionNum && figureIndex ? `Figure ${sectionNum}.${figureIndex}` : '图片'
       const paperGenerated = block.metadata?.source === 'paper-generation' || resource?.metadata?.source === 'paper-generation'
-      if (paperGenerated && !displaySrc) {
-        console.warn('[paper:image_error]', { localPath: resource?.path, previewSrc, exists: false })
-        continue
+      const previewError = paperGenerated && !displaySrc ? '图片文件缺失' : undefined
+      if (previewError) {
+        console.warn('[paper:image_error]', { localPath: resource?.path, previewSrc: rawPreviewPath, exists: false })
       }
       result.push({
         id: block.id,
@@ -2583,8 +2597,9 @@ function documentSchemaToEditorBlocksWithBibliography(schema: DocumentSchema): E
         caption,
         paperGenerated,
         previewSrc: displaySrc,
+        previewError,
         mediaPath: resource?.path || undefined,
-        sourceId: resource?.path || undefined,
+        sourceId: localPreviewPath || resource?.path || undefined,
       } satisfies EmbeddedImageBlock)
       continue
     }
@@ -3375,7 +3390,7 @@ export default function EmbeddedOfficeEnginePanel() {
           const loadedDocument = result.document as DocumentSchema
           if (loadedDocument.profile === 'paper' || loadedDocument.document?.metadata?.generatedBy === 'paper-generation') {
             currentDocumentSchemaRef.current = loadedDocument
-            commitBlocks(documentSchemaToEditorBlocksWithBibliography(loadedDocument))
+            commitBlocks(documentSchemaToEditorBlocksWithBibliography(loadedDocument, activeWorkspacePath))
           }
         }
       })
@@ -3398,7 +3413,7 @@ export default function EmbeddedOfficeEnginePanel() {
         finalDocumentSchema = mergeExistingImageBlocksIntoFinalDocument(liveImageSnapshot, finalDocumentSchema)
       }
       currentDocumentSchemaRef.current = finalDocumentSchema
-      const nextBlocks = documentSchemaToEditorBlocksWithBibliography(finalDocumentSchema)
+      const nextBlocks = documentSchemaToEditorBlocksWithBibliography(finalDocumentSchema, activeWorkspacePath)
       commitBlocks(nextBlocks)
       const hasBibliography = (finalDocumentSchema.bibliography?.items?.length || 0) > 0
       const hasReferenceSection = nextBlocks.some((block) => block.type === 'heading' && block.paragraphStyle === 'ReferencesHeading')
@@ -3412,7 +3427,7 @@ export default function EmbeddedOfficeEnginePanel() {
     }
     window.addEventListener('ai-writer-paper-preview-sync', onPaperPreviewSync as EventListener)
     return () => window.removeEventListener('ai-writer-paper-preview-sync', onPaperPreviewSync as EventListener)
-  }, [activeTabId, commitBlocks, setStatusMessage])
+  }, [activeTabId, activeWorkspacePath, commitBlocks, setStatusMessage])
 
   const getSelection = useCallback((): DocumentEngineSelection | null => {
     const activeBlockId = activeTextBlockIdRef.current
@@ -3910,10 +3925,19 @@ export default function EmbeddedOfficeEnginePanel() {
       }
       paperImageSnapshotBeforeStreamRef.current = null
       currentDocumentSchemaRef.current = finalDocumentSchema
-      commitBlocks(documentSchemaToEditorBlocksWithBibliography(finalDocumentSchema))
+      commitBlocks(documentSchemaToEditorBlocksWithBibliography(finalDocumentSchema, activeWorkspacePath))
       if (activeWorkspacePath && window.electronAPI?.saveWorkspaceDocumentSchema) {
         void window.electronAPI.saveWorkspaceDocumentSchema(activeWorkspacePath, finalDocumentSchema)
-          .then(() => refreshTree().catch(() => undefined))
+          .then(async () => {
+            if (window.electronAPI?.saveGeneratedPaperJsonArtifact) {
+              await window.electronAPI.saveGeneratedPaperJsonArtifact({
+                workspacePath: activeWorkspacePath,
+                documentSchema: finalDocumentSchema,
+                title: finalDocumentSchema.meta?.title,
+              })
+            }
+            await refreshTree().catch(() => undefined)
+          })
           .catch((error: unknown) => {
             setStatusMessage(`论文已生成，但图片保留后的 document.json 保存失败：${error instanceof Error ? error.message : String(error)}`)
           })
@@ -4130,7 +4154,7 @@ export default function EmbeddedOfficeEnginePanel() {
 
       // Sync editor blocks from DocumentSchema + rebuild bibliography section
       // (no dual-write — no upsertMultipleCitations / renumberEmbedded / persistReferenceSection)
-      const nextEmbeddedBlocks = documentSchemaToEditorBlocksWithBibliography(nextDoc)
+      const nextEmbeddedBlocks = documentSchemaToEditorBlocksWithBibliography(nextDoc, activeWorkspacePath)
       commitBlocks(nextEmbeddedBlocks)
 
       setInlineRef(null)
@@ -4141,7 +4165,7 @@ export default function EmbeddedOfficeEnginePanel() {
           const res = await window.electronAPI.saveWorkspaceDocumentSchema(activeWorkspacePath, nextDoc)
           if (res?.success) {
             const referenceRecords = bibliographyItemsToReferenceRecordsForPaper(nextDoc.bibliography?.items || [])
-            const referenceDocumentPath = filePath && /\.docx$/i.test(filePath) ? filePath : undefined
+            const referenceDocumentPath = filePath && /\.(?:docx|aidoc\.json)$/i.test(filePath) ? filePath : undefined
             if (window.electronAPI?.saveReferences && referenceRecords.length > 0) {
               try {
                 const refsRes = await window.electronAPI.saveReferences(activeWorkspacePath, referenceRecords, referenceDocumentPath)
@@ -5122,8 +5146,8 @@ export default function EmbeddedOfficeEnginePanel() {
                           <ResizeHandle $position="sw" onPointerDown={(event) => beginImageResize(block, 'sw', event)} />
                           <ResizeHandle $position="se" onPointerDown={(event) => beginImageResize(block, 'se', event)} />
                         </ImageStage>
-                      ) : block.paperGenerated && imagePreviewErrors[block.id] ? (
-                        <PreviewMeta>图片已生成但预览路径异常：{imagePreviewErrors[block.id]}</PreviewMeta>
+                      ) : block.paperGenerated && (imagePreviewErrors[block.id] || block.previewError) ? (
+                        <PreviewMeta>{block.previewError || `图片已生成但预览路径异常：${imagePreviewErrors[block.id]}`}</PreviewMeta>
                       ) : null}
                       {block.paperGenerated && block.caption ? (
                         <PreviewMeta>{block.caption}</PreviewMeta>

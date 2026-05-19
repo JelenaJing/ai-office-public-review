@@ -2973,12 +2973,12 @@ const GenerationComposer: React.FC<Props> = ({
             if (rawMarkdown === lastSyncedContentRef.current && !flush) return
             lastSyncedContentRef.current = rawMarkdown
             stopTypewriter(false)
-            if (onPaperStreamSync) {
-              const handled = onPaperStreamSync({ tabId: targetTab, markdown: rawMarkdown, backendUrl, ...delta })
-              if (handled !== false) return
-            }
             let displayMarkdown = replaceImageUrls(rawMarkdown, imagePathMapRef.current)
             displayMarkdown = fixRelativeImageUrls(displayMarkdown, backendUrl)
+            if (onPaperStreamSync) {
+              const handled = onPaperStreamSync({ tabId: targetTab, markdown: displayMarkdown, backendUrl, ...delta })
+              if (handled !== false) return
+            }
             applyDocumentOnDelta(targetTab, displayMarkdown)
           }
 
@@ -3114,7 +3114,7 @@ const GenerationComposer: React.FC<Props> = ({
                         if (schemaHtml.trim()) {
                           setDocumentContentIfAllowed(targetTab, schemaHtml)
                           const finalPaperTabTitle = sanitizeGeneratedName((completionDocumentSchema as any).title || completionDocumentSchema.meta?.title || normalizedResponse.title || normalizedInstruction, '论文', 80)
-                          const preferredPaperPath = normalizedResponse.docxPath || normalizedResponse.documentJsonPath || savedManuscriptPath || undefined
+                          const preferredPaperPath = normalizedResponse.paperJsonPath || normalizedResponse.documentJsonPath || savedManuscriptPath || undefined
                           markTabShellSaved(targetTab, {
                             filePath: preferredPaperPath,
                             fileName: finalPaperTabTitle,
@@ -3123,17 +3123,25 @@ const GenerationComposer: React.FC<Props> = ({
                           paperGenerationTabIdRef.current = targetTab
                           console.info('[paper:tab_update]', { tabId: targetTab, title: finalPaperTabTitle, phase: 'finalize' })
                           console.info('[paper:tab_renamed]', { tabId: targetTab, title: finalPaperTabTitle, filePath: preferredPaperPath })
+                          if (normalizedResponse.paperJsonPath) {
+                            console.info('[paper:paper_json_saved]', { path: normalizedResponse.paperJsonPath, relativePath: normalizedResponse.paperJsonRelativePath })
+                          }
                           if (Array.isArray(normalizedResponse.savedArtifacts)) {
+                            const paperJsonArtifact = normalizedResponse.savedArtifacts.find((item: any) => item?.type === 'paper-json')
+                            const docxArtifact = normalizedResponse.savedArtifacts.find((item: any) => item?.type === 'docx')
                             const refsArtifact = normalizedResponse.savedArtifacts.find((item: any) => item?.type === 'references-json')
                             const pdfArtifact = normalizedResponse.savedArtifacts.find((item: any) => item?.type === 'pdf')
+                            const paperJsonText = paperJsonArtifact?.success ? `论文已保存到工作区：${String(paperJsonArtifact.path || normalizedResponse.paperJsonPath).split(/[\\/]/).pop()}` : '论文主文稿保存失败'
+                            const docxText = docxArtifact?.success ? ` / Word 已导出：${String(docxArtifact.path).split(/[\\/]/).pop()}` : ''
                             const refsText = refsArtifact?.success
                               ? ` / references 文件已保存，共 ${refsArtifact.total ?? normalizedResponse.referencesCount ?? 0} 条`
                               : refsArtifact
                                 ? ` / references 文件保存失败：${refsArtifact.error || '未知错误'}`
                                 : ''
-                            const pdfText = pdfArtifact?.skippedReason ? ` / PDF ${pdfArtifact.skippedReason}` : ''
-                            setStatusMessage(`document.json 已保存 / Word 已保存${refsText}${pdfText}`)
+                            const pdfText = pdfArtifact?.skippedReason ? ` / PDF 暂未导出：${pdfArtifact.skippedReason}` : ''
+                            setStatusMessage(`${paperJsonText}${docxText}${refsText}${pdfText}`)
                           }
+                          void refreshTree().then(() => console.info('[paper:workspace_tree_refreshed]', { tabId: targetTab })).catch(() => undefined)
                           onPaperStreamComplete?.({ tabId: targetTab, markdown: finalMarkdown || normalizedResponseMarkdown, backendUrl, documentSchema: completionDocumentSchema })
                           window.dispatchEvent(new CustomEvent('ai-writer-paper-preview-sync', {
                             detail: { tabId: targetTab, html: schemaHtml, markdown: finalMarkdown || normalizedResponseMarkdown, backendUrl, documentSchema: completionDocumentSchema },
@@ -3168,10 +3176,11 @@ const GenerationComposer: React.FC<Props> = ({
                       const completedStatus = '全文内容已生成完成'
                       const imageFallbackCount = Number((completionDocumentSchema?.document?.metadata as Record<string, any> | undefined)?.fallbackImageCount || 0)
                       const savedArtifacts = Array.isArray((normalizedResponse as any).savedArtifacts) ? (normalizedResponse as any).savedArtifacts : []
+                      const savedPaperJson = String((normalizedResponse as any).paperJsonPath || savedArtifacts.find((item: any) => item?.type === 'paper-json' && item?.success)?.path || '').trim()
                       const savedDocx = String((normalizedResponse as any).docxPath || savedArtifacts.find((item: any) => item?.type === 'docx' && item?.success)?.path || '').trim()
                       const pdfArtifact = savedArtifacts.find((item: any) => item?.type === 'pdf')
-                      const saveMessage = savedDocx
-                        ? `已保存到工作区：document.json / ${savedDocx.split(/[\\/]/).pop()}${pdfArtifact?.path ? ` / ${String(pdfArtifact.path).split(/[\\/]/).pop()}` : pdfArtifact?.skippedReason ? `；PDF 导出暂不可用：${pdfArtifact.skippedReason}` : ''}`
+                      const saveMessage = savedPaperJson
+                        ? `论文已保存到工作区：${savedPaperJson.split(/[\\/]/).pop()}${savedDocx ? `；Word 已导出：${savedDocx.split(/[\\/]/).pop()}` : ''}${pdfArtifact?.path ? `；PDF 已导出：${String(pdfArtifact.path).split(/[\\/]/).pop()}` : pdfArtifact?.skippedReason ? `；PDF 暂未导出：${pdfArtifact.skippedReason}` : ''}`
                         : ''
                       const placementMessage = imageFallbackCount > 0 ? '部分图片未匹配到章节，已放入文末。' : ''
                       const completedMessageBase = knowledgeSnippetCount > 0
@@ -3349,13 +3358,6 @@ const GenerationComposer: React.FC<Props> = ({
                     cumulative = [latestPaperMarkdownRef.current, event.updatedParagraph].filter(Boolean).join('\n\n')
                   }
                 }
-                if (!cumulative.trim()) return
-                syncPreview(cumulative, false, String(event.eventType || event.event_type || ''), eventStructuredBlocks, undefined, {
-                  paragraphIndex: typeof event.paragraphIndex === 'number' ? event.paragraphIndex : undefined,
-                  updatedParagraph: typeof event.updatedParagraph === 'string' ? event.updatedParagraph : undefined,
-                  citationNumber: typeof event.citationNumber === 'number' ? event.citationNumber : undefined,
-                })
-                latestPaperMarkdownRef.current = cumulative
                 const eventType = String(event.eventType || event.event_type || '').trim()
                 const rawImagePath = String(
                   event?.image?.path
@@ -3363,6 +3365,23 @@ const GenerationComposer: React.FC<Props> = ({
                   || event?.image?.image_url
                   || '',
                 ).trim()
+                const shouldDelayImagePreview = Boolean(
+                  eventType === 'image'
+                  && rawImagePath
+                  && activeWorkspacePath
+                  && !imagePathMapRef.current[rawImagePath],
+                )
+                if (!cumulative.trim()) return
+                latestPaperMarkdownRef.current = cumulative
+                if (!shouldDelayImagePreview) {
+                  syncPreview(cumulative, false, eventType, eventStructuredBlocks, undefined, {
+                    paragraphIndex: typeof event.paragraphIndex === 'number' ? event.paragraphIndex : undefined,
+                    updatedParagraph: typeof event.updatedParagraph === 'string' ? event.updatedParagraph : undefined,
+                    citationNumber: typeof event.citationNumber === 'number' ? event.citationNumber : undefined,
+                  })
+                } else {
+                  setStatusMessage('图片生成中...')
+                }
                 if (eventType === 'image' && rawImagePath && activeWorkspacePath) {
                   const knownMappedPath = imagePathMapRef.current[rawImagePath]
                   if (!knownMappedPath && !pendingImagePersistRef.current.has(rawImagePath)) {
@@ -3396,15 +3415,18 @@ const GenerationComposer: React.FC<Props> = ({
 
               if (event.type === 'document_saved') {
                 const artifacts = Array.isArray(event.savedArtifacts) ? event.savedArtifacts : []
+                const paperJson = String(event.paperJsonPath || artifacts.find((item: any) => item?.type === 'paper-json' && item?.success)?.path || '').trim()
                 const docx = String(event.docxPath || artifacts.find((item: any) => item?.type === 'docx' && item?.success)?.path || '').trim()
                 const pdfArtifact = artifacts.find((item: any) => item?.type === 'pdf')
                 const pdfMessage = pdfArtifact?.path
-                  ? ` / ${String(pdfArtifact.path).split(/[\\/]/).pop()}`
+                  ? `；PDF 已导出：${String(pdfArtifact.path).split(/[\\/]/).pop()}`
                   : pdfArtifact?.skippedReason
-                    ? `；PDF 导出暂不可用：${pdfArtifact.skippedReason}`
+                    ? `；PDF 暂未导出：${pdfArtifact.skippedReason}`
                     : ''
-                const docxName = docx ? ` / ${docx.split(/[\\/]/).pop()}` : ''
-                setStatusMessage(`已保存到工作区：document.json${docxName}${pdfMessage}`)
+                const paperJsonName = paperJson ? paperJson.split(/[\\/]/).pop() : 'document.json'
+                const docxName = docx ? `；Word 已导出：${docx.split(/[\\/]/).pop()}` : ''
+                setStatusMessage(`论文已保存到工作区：${paperJsonName}${docxName}${pdfMessage}`)
+                void refreshTree().then(() => console.info('[paper:workspace_tree_refreshed]', { source: 'document_saved' })).catch(() => undefined)
                 return
               }
 

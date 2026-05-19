@@ -271,6 +271,8 @@ export class LocalTaskService {
           })
           Object.assign(result as PaperGenerationResult & Record<string, unknown>, {
             documentJsonPath: finalized.documentJsonPath,
+            paperJsonPath: finalized.paperJsonPath,
+            paperJsonRelativePath: finalized.paperJsonRelativePath,
             docxPath: finalized.docxPath,
             pdfPath: finalized.pdfPath,
             referencesJsonPath: finalized.referencesJsonPath,
@@ -284,6 +286,8 @@ export class LocalTaskService {
             workspacePath: completedWorkspacePath,
             source: 'documentSchema',
             documentJsonPath: finalized.documentJsonPath,
+            paperJsonPath: finalized.paperJsonPath,
+            paperJsonRelativePath: finalized.paperJsonRelativePath,
             docxPath: finalized.docxPath,
             pdfPath: finalized.pdfPath,
             referencesJsonPath: finalized.referencesJsonPath,

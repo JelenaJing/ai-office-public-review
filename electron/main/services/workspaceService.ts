@@ -70,12 +70,14 @@ export interface WorkspaceDocumentSaveResult {
 
 export interface GeneratedPaperFinalizeResult {
   success: boolean
+  paperJsonPath?: string
+  paperJsonRelativePath?: string
   documentJsonPath?: string
   docxPath?: string
   pdfPath?: string
   referencesJsonPath?: string
   referencesCount?: number
-  savedArtifacts: Array<{ type: 'document-json' | 'docx' | 'pdf' | 'references-json'; path?: string; success: boolean; skippedReason?: string; error?: string; total?: number }>
+  savedArtifacts: Array<{ type: 'document-json' | 'paper-json' | 'docx' | 'pdf' | 'references-json'; path?: string; relativePath?: string; success: boolean; skippedReason?: string; error?: string; total?: number }>
 }
 
 interface WorkspaceServiceOptions {
@@ -140,6 +142,10 @@ function normalizeRelativePath(relativePath: string): string {
 
 function sanitizeGeneratedPaperFilename(title: string): string {
   const cleaned = String(title || '')
+    .replace(/\.paper\.json$/i, '')
+    .replace(/\.aidoc\.json$/i, '')
+    .replace(/\.docx$/i, '')
+    .replace(/\.pdf$/i, '')
     .replace(/[<>:"/\\|?*\u0000-\u001f]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
@@ -149,6 +155,34 @@ function sanitizeGeneratedPaperFilename(title: string): string {
     .trim()
   const safe = withoutCopyNoise || '论文'
   return safe.slice(0, 80).trim() || '论文'
+}
+
+function withPaperMainArtifactMetadata(document: DocumentSchema, workspacePath: string): DocumentSchema {
+  return createDocumentSchema({
+    id: document.id,
+    profile: 'paper',
+    title: document.meta?.title || '论文',
+    createdAt: document.meta?.createdAt,
+    updatedAt: nowIsoString(),
+    sourceType: 'workspace-json',
+    templateId: String(document.meta?.templateId || document.document?.templateId || '').trim() || undefined,
+    metadata: {
+      ...(document.document?.metadata || {}),
+      ...(document.meta || {}),
+      workspacePath,
+      generatedBy: 'paper-generation',
+      mainArtifact: true,
+    },
+    page: document.page,
+    styles: document.styles,
+    blocks: document.blocks,
+    resources: document.resources,
+    citations: document.citations,
+    sourceRefs: document.sourceRefs,
+    bibliography: document.bibliography,
+    exportHints: document.exportHints,
+    templateHints: document.templateHints,
+  })
 }
 
 export function bibliographyItemsToReferenceRecords(items: DocumentBibliographyItem[]): any[] {
@@ -1006,6 +1040,30 @@ export class WorkspaceService {
     }
   }
 
+  async saveGeneratedPaperJsonArtifact(input: {
+    workspacePath: string
+    documentSchema: DocumentSchema
+    title?: string
+  }): Promise<{ success: boolean; jsonPath: string; relativePath: string; document: DocumentSchema }> {
+    const workspacePath = String(input.workspacePath || '').trim()
+    if (!workspacePath) throw new Error('缺少 workspacePath')
+    const document = input.documentSchema
+    const isPaperDocument = document.profile === 'paper' || document.document?.metadata?.generatedBy === 'paper-generation'
+    if (!isPaperDocument) {
+      throw new Error('saveGeneratedPaperJsonArtifact 只允许用于 paper-generation 文档')
+    }
+
+    await this.normalizeWorkspaceLayout(workspacePath)
+    const baseTitle = sanitizeGeneratedPaperFilename(input.title || document.meta?.title || '论文')
+    const relativePath = `${WORKSPACE_DOCUMENTS_DIR}/${baseTitle}.aidoc.json`
+    const jsonPath = resolveWorkspacePath(workspacePath, relativePath)
+    const mainDocument = withPaperMainArtifactMetadata(document, workspacePath)
+    const persistedDocument = await persistWorkspaceDocumentForJson(workspacePath, mainDocument)
+    await ensureDir(path.dirname(jsonPath))
+    await fs.writeFile(jsonPath, JSON.stringify(persistedDocument, null, 2), 'utf-8')
+    return { success: true, jsonPath, relativePath, document: persistedDocument }
+  }
+
   async finalizeGeneratedPaperDocument(input: {
     workspacePath: string
     documentSchema: DocumentSchema
@@ -1026,9 +1084,11 @@ export class WorkspaceService {
     const savedArtifacts: GeneratedPaperFinalizeResult['savedArtifacts'] = []
     const result: GeneratedPaperFinalizeResult = { success: true, savedArtifacts }
     const docxRelativePath = `${WORKSPACE_DOCUMENTS_DIR}/${baseTitle}.docx`
+    const mainDocument = withPaperMainArtifactMetadata(document, workspacePath)
+    let persistedPaperDocument = mainDocument
 
     try {
-      const savedDocument = await this.saveWorkspaceDocumentSchema(workspacePath, document)
+      const savedDocument = await this.saveWorkspaceDocumentSchema(workspacePath, mainDocument)
       result.documentJsonPath = savedDocument.jsonPath
       savedArtifacts.push({ type: 'document-json', path: savedDocument.jsonPath, success: true })
     } catch (error) {
@@ -1040,24 +1100,33 @@ export class WorkspaceService {
       })
     }
 
-    if (input.exportDocx !== false) {
-      try {
-        const savedDocx = await this.saveDocumentSchemaAsManuscript(workspacePath, document, docxRelativePath)
-        result.docxPath = savedDocx.path
-        savedArtifacts.push({ type: 'docx', path: savedDocx.path, success: true })
-      } catch (error) {
-        result.success = false
-        savedArtifacts.push({
-          type: 'docx',
-          success: false,
-          error: error instanceof Error ? error.message : String(error),
-        })
-      }
+    try {
+      const savedPaperJson = await this.saveGeneratedPaperJsonArtifact({
+        workspacePath,
+        documentSchema: mainDocument,
+        title: baseTitle,
+      })
+      persistedPaperDocument = savedPaperJson.document
+      result.paperJsonPath = savedPaperJson.jsonPath
+      result.paperJsonRelativePath = savedPaperJson.relativePath
+      savedArtifacts.push({
+        type: 'paper-json',
+        path: savedPaperJson.jsonPath,
+        relativePath: savedPaperJson.relativePath,
+        success: true,
+      })
+    } catch (error) {
+      result.success = false
+      savedArtifacts.push({
+        type: 'paper-json',
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      })
     }
 
     try {
-      const referenceRecords = bibliographyItemsToReferenceRecords(collectPaperBibliographyItems(document))
-      const documentPathForReferences = result.docxPath || docxRelativePath
+      const referenceRecords = bibliographyItemsToReferenceRecords(collectPaperBibliographyItems(persistedPaperDocument))
+      const documentPathForReferences = result.paperJsonRelativePath || result.paperJsonPath || docxRelativePath
       await this.saveReferences(workspacePath, referenceRecords, documentPathForReferences)
       const referencesJsonPath = resolveReferenceArtifactPaths(workspacePath, documentPathForReferences).jsonPath
       result.referencesJsonPath = referencesJsonPath
@@ -1076,11 +1145,26 @@ export class WorkspaceService {
       })
     }
 
+    if (input.exportDocx !== false) {
+      try {
+        const savedDocx = await this.saveDocumentSchemaAsManuscript(workspacePath, persistedPaperDocument, docxRelativePath)
+        result.docxPath = savedDocx.path
+        savedArtifacts.push({ type: 'docx', path: savedDocx.path, success: true })
+      } catch (error) {
+        result.success = false
+        savedArtifacts.push({
+          type: 'docx',
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        })
+      }
+    }
+
     if (input.exportPdf !== false) {
       savedArtifacts.push({
         type: 'pdf',
         success: false,
-        skippedReason: '当前后端未提供无对话框的稳定 PDF 导出引擎；已完成 document.json 和 Word 保存',
+        skippedReason: '当前后端未提供无对话框的稳定 PDF 导出引擎；已完成 paper-json、document.json 和 Word 导出',
       })
     }
 

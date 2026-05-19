@@ -643,6 +643,8 @@ export async function generatePaper(
         citations: documentSchema?.citations,
         resources: documentSchema?.resources,
         documentJsonPath: event.result?.documentJsonPath,
+        paperJsonPath: event.result?.paperJsonPath,
+        paperJsonRelativePath: event.result?.paperJsonRelativePath,
         docxPath: event.result?.docxPath,
         pdfPath: event.result?.pdfPath,
         referencesJsonPath: event.result?.referencesJsonPath,

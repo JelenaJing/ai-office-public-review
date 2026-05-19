@@ -137,6 +137,7 @@ const api = {
   getWorkspaceTree: (wsPath: string) => ipcRenderer.invoke('workspace:tree', wsPath),
   readWorkspaceDocumentSchema: (wsPath: string) => ipcRenderer.invoke('workspace:readDocumentSchema', wsPath),
   saveWorkspaceDocumentSchema: (wsPath: string, document: Record<string, unknown>) => ipcRenderer.invoke('workspace:saveDocumentSchema', wsPath, document),
+  saveGeneratedPaperJsonArtifact: (input: { workspacePath: string; documentSchema: Record<string, unknown>; title?: string }) => ipcRenderer.invoke('workspace:saveGeneratedPaperJsonArtifact', input),
   deleteWorkspace: (wsPath: string) => ipcRenderer.invoke('workspace:delete', wsPath),
   detectProjectStructure: (wsPath: string) => ipcRenderer.invoke('workspace:detectProjectStructure', wsPath),
   createWorkspaceFolder: (wsPath: string, relativePath: string) => ipcRenderer.invoke('workspace:createFolder', wsPath, relativePath),

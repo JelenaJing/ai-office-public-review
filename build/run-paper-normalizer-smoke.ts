@@ -12,6 +12,15 @@
  */
 
 import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+import {
   normalizePaperGenerationResultToDocumentSchema,
   normalizeFigureToDocumentResource,
   scanMarkdownCitations,
@@ -19,7 +28,7 @@ import {
   type PaperGenerationResultLike,
   type PaperImageEntry,
 } from '../electron/main/services/paperResultNormalizer'
-import { bibliographyItemsToReferenceRecords } from '../electron/main/services/workspaceService'
+import { bibliographyItemsToReferenceRecords, WorkspaceService } from '../electron/main/services/workspaceService'
 import { mergeExistingImageBlocksIntoFinalDocument } from '../src/modules/paper/services/paperImagePreservation'
 import { resolvePaperTypeFromInstruction } from '../src/modules/paper/services/PaperService'
 import { createDocumentSchema } from '../src/document/schema'
@@ -521,10 +530,69 @@ assertEq(repairedImageDoc.resources[0]?.path, 'D:\\tmp\\paper\\figure-2-1.png', 
 
 console.log()
 
-// ── Summary ─────────────────────────────────────────────────────────────────
+// ── Case 10: generated paper main artifact is .aidoc.json ───────────────────
 
-console.log(`\n[smoke:paper-normalizer] ${passed} passed, ${failed} failed`)
+console.log('Case 10: finalize saves paper-json main artifact and relative image resources')
 
-if (failed > 0) {
-  process.exit(1)
+async function runAsyncSmokeCases(): Promise<void> {
+  const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'ai-office-paper-json-'))
+  try {
+    const workspacePath = path.join(tempRoot, 'workspace')
+    const externalImagePath = path.join(tempRoot, 'figure-1-1.png')
+    writeFileSync(externalImagePath, Buffer.from([0x89, 0x50, 0x4e, 0x47]))
+    const service = new WorkspaceService(tempRoot)
+    const paperJsonDoc = createDocumentSchema({
+      id: 'paper-json-doc',
+      profile: 'paper',
+      title: '碳化硅研究论文',
+      sourceType: 'workspace-json',
+      blocks: [
+        { id: 'h-paper-json', type: 'heading', text: '碳化硅研究论文', level: 1 },
+        { id: 'p-paper-json', type: 'paragraph', text: '正文含引用 [1]。', metadata: { citationMarks: [{ citationId: 'citation-1', citationNumber: 1, rawMark: '[1]', offset: 5 }] } },
+        { id: 'img-paper-json', type: 'image', resourceRef: 'external-image', value: { caption: 'Figure 1.1 Device.', text: 'Figure 1.1 Device.' }, metadata: { source: 'paper-generation', caption: 'Figure 1.1 Device.', sectionNum: 1, figureIndex: 1 } },
+      ],
+      resources: [{ id: 'external-image', kind: 'image', path: externalImagePath, metadata: { source: 'paper-generation', caption: 'Figure 1.1 Device.' } }],
+      citations: [{ id: 'citation-1', kind: 'citation', label: '[1] Ref One.', metadata: { citationNumber: 1, title: 'Ref One' } }],
+      bibliography: { items: [{ id: 'citation-1', citationNumber: 1, label: '[1] Ref One.', metadata: { title: 'Ref One' } }] },
+      metadata: { generatedBy: 'paper-generation' },
+    })
+    const finalized = await service.finalizeGeneratedPaperDocument({
+      workspacePath,
+      documentSchema: paperJsonDoc,
+      title: '碳化硅研究论文',
+      exportDocx: false,
+      exportPdf: false,
+    })
+    assert(Boolean(finalized.documentJsonPath && existsSync(finalized.documentJsonPath)), 'workspace/document.json exists after finalize')
+    assert(Boolean(finalized.paperJsonPath && existsSync(finalized.paperJsonPath)), 'documents/<title>.aidoc.json exists after finalize')
+    assert(Boolean(finalized.referencesJsonPath && existsSync(finalized.referencesJsonPath)), 'documents/<title>.references.json exists after finalize')
+    assert(String(finalized.paperJsonPath || '').endsWith('.aidoc.json'), 'paperJsonPath points to .aidoc.json main artifact')
+    const savedPaperJson = JSON.parse(readFileSync(finalized.paperJsonPath || '', 'utf-8'))
+    assert(Array.isArray(savedPaperJson.blocks) && savedPaperJson.blocks.some((block: any) => block.type === 'image'), '.aidoc.json contains image block')
+    assert(Array.isArray(savedPaperJson.resources) && savedPaperJson.resources[0]?.path?.startsWith('images/'), '.aidoc.json stores workspace-relative image resource path')
+    assert(savedPaperJson.bibliography?.items?.length === 1, '.aidoc.json contains bibliography')
+    assert(savedPaperJson.blocks.some((block: any) => Array.isArray(block.metadata?.citationMarks)), '.aidoc.json preserves citationMarks')
+    assert(finalized.savedArtifacts.some((item) => item.type === 'paper-json' && item.success), 'savedArtifacts includes paper-json')
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true })
+  }
 }
+
+void runAsyncSmokeCases()
+  .then(() => {
+    console.log()
+
+    // ── Summary ─────────────────────────────────────────────────────────────────
+
+    console.log(`\n[smoke:paper-normalizer] ${passed} passed, ${failed} failed`)
+
+    if (failed > 0) {
+      process.exit(1)
+    }
+  })
+  .catch((error) => {
+    failed += 1
+    console.error(error)
+    console.log(`\n[smoke:paper-normalizer] ${passed} passed, ${failed} failed`)
+    process.exit(1)
+  })

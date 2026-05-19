@@ -6,6 +6,7 @@ import type { DocumentEngineSaveRequest } from './contracts'
 import { plainTextToHtml } from '../../utils/plainTextToHtml'
 import type { KnowledgeDocumentBlock, KnowledgeDocumentJson } from '../../types/knowledgeDocumentJson'
 import type { MailAttachmentSourceContext } from '../../types/mailAttachment'
+import { normalizeDocumentSchema, serializeDocumentSchemaToHtml, type DocumentSchema } from '../../document/schema'
 
 interface OpenDocumentPathOptions {
   sourceContext?: MailAttachmentSourceContext
@@ -40,6 +41,16 @@ function toFileUrl(filePath: string): string {
   if (encoded.startsWith('/')) return `file://${encoded}`
   if (/^[a-zA-Z]:\//.test(encoded)) return `file:///${encoded}`
   return `file:///${encoded}`
+}
+
+function isPaperDocumentSchemaPayload(payload: unknown): payload is Partial<DocumentSchema> {
+  const candidate = payload as Partial<DocumentSchema> | undefined
+  return Boolean(
+    candidate
+    && Array.isArray(candidate.blocks)
+    && Array.isArray(candidate.resources)
+    && (candidate.profile === 'paper' || candidate.document?.metadata?.generatedBy === 'paper-generation'),
+  )
 }
 
 function joinKnowledgePath(rootPath: string, relativePath: string | null | undefined): string {
@@ -238,13 +249,41 @@ export function DocumentEngineHostCommandsProvider({ children }: { children: Rea
         return
       }
 
-      // .aidoc.json is an AI Office internal auto-save/draft format.
-      // It is NOT a user-facing document format.  When a user opens one (e.g. via
-      // the file tree), we redirect to the corresponding canonical document file
-      // (.docx → .html → .htm → .md → .txt).  Only programmatic internal flows
-      // (blank-doc creation, generation saves, draft restore) may bypass this via
-      // options.isInternalOpen = true.
+      // .aidoc.json is normally an internal draft format. Paper-generation
+      // main artifacts are an exception: they are the user-facing, lossless
+      // reopen format and must open directly from the workspace tree.
       if (fileName.endsWith('.aidoc.json')) {
+        const aidocResult = await window.electronAPI.readFile(targetPath)
+        if (seq !== openSeqRef.current) return
+        let parsedAidoc: any = null
+        try {
+          parsedAidoc = JSON.parse(aidocResult.content || '{}')
+        } catch {
+          parsedAidoc = null
+        }
+
+        if (isPaperDocumentSchemaPayload(parsedAidoc)) {
+          const paperDocument = normalizeDocumentSchema(parsedAidoc)
+          const displayName = paperDocument.meta?.title || fileName.slice(0, -'.aidoc.json'.length)
+          await runtime.loadDocument({
+            filePath: targetPath,
+            fileName: displayName,
+            content: serializeDocumentSchemaToHtml(paperDocument),
+            sourceContext: options?.sourceContext,
+            canonicalDocumentId,
+          })
+          if (seq !== openSeqRef.current) return
+          window.dispatchEvent(new CustomEvent('workspace-document-loaded', {
+            detail: {
+              source: 'paper-json',
+              documentSchema: paperDocument,
+              filePath: targetPath,
+            },
+          }))
+          setStatusMessage(`已打开论文文稿: ${displayName}`)
+          return
+        }
+
         if (!options?.isInternalOpen) {
           // Attempt to redirect to the canonical user document in the same directory.
           const sep = targetPath.includes('\\') ? '\\' : '/'
@@ -281,10 +320,8 @@ export function DocumentEngineHostCommandsProvider({ children }: { children: Rea
         }
 
         // isInternalOpen = true: load the .aidoc.json directly into TipTap.
-        const result = await window.electronAPI.readFile(targetPath)
-        if (seq !== openSeqRef.current) return
         try {
-          const payload = JSON.parse(result.content || '{}')
+          const payload = parsedAidoc || {}
           if (payload.format === 'aidoc') {
             // tiptapJson may be null when saved via saveManuscript (HTML-only path);
             // fall back to html in that case so raw JSON is never shown in the editor.

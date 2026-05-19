@@ -1123,6 +1123,11 @@ app.whenReady().then(async () => {
     } catch { /* never crash main logic */ }
     return result
   })
+  ipcMain.handle('workspace:saveGeneratedPaperJsonArtifact', async (_, input) => workspaceService.saveGeneratedPaperJsonArtifact({
+    workspacePath: String(input?.workspacePath || ''),
+    documentSchema: input?.documentSchema as any,
+    title: typeof input?.title === 'string' ? input.title : undefined,
+  }))
   ipcMain.handle('workspace:delete', async (_, wsPath) => workspaceService.deleteWorkspace(String(wsPath)))
   ipcMain.handle('workspace:detectProjectStructure', async (_, wsPath) => workspaceService.detectProjectStructure(String(wsPath)))
   ipcMain.handle('workspace:createFolder', async (_, wsPath, relativePath) => workspaceService.createWorkspaceFolder(String(wsPath), String(relativePath)))

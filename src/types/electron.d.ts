@@ -129,6 +129,7 @@ declare global {
       getWorkspaceTree: (wsPath: string) => Promise<Array<{ name: string; path: string; relativePath: string; type: 'file' | 'folder'; size?: number; children?: any[] }>>
       readWorkspaceDocumentSchema: (wsPath: string) => Promise<{ success: boolean; source: 'document-json' | 'legacy-workspace' | 'empty'; jsonPath: string; legacySourcePath: string | null; document: DocumentSchema; compatHtml: string; displayName: string }>
       saveWorkspaceDocumentSchema: (wsPath: string, document: DocumentSchema) => Promise<{ success: boolean; jsonPath: string; document: DocumentSchema; compatHtml: string; displayName: string; resourceCount: number }>
+      saveGeneratedPaperJsonArtifact: (input: { workspacePath: string; documentSchema: DocumentSchema; title?: string }) => Promise<{ success: boolean; jsonPath: string; relativePath: string; document: DocumentSchema }>
       deleteWorkspace: (wsPath: string) => Promise<{ success: boolean }>
       detectProjectStructure: (wsPath: string) => Promise<{ isProject: boolean; hasFigures?: boolean }>
       createWorkspaceFolder: (wsPath: string, relativePath: string) => Promise<{ success: boolean; path: string }>
