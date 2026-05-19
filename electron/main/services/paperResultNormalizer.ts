@@ -423,6 +423,12 @@ function isFigureCaptionText(text: string): boolean {
   return /^(?:Figure|Fig\.?|图|图表)\s*\d+(?:\.\d+)*[\s:：.．-]/i.test(normalized)
 }
 
+function figureNumberKey(text: string): string {
+  const normalized = String(text || '').trim().replace(/^\*\*(.+)\*\*$/, '$1').trim()
+  const match = normalized.match(/^(?:Figure|Fig\.?|图|图表)\s*(\d+(?:\.\d+)*)/i)
+  return match ? match[1] : ''
+}
+
 function mergeCaptionIntoImageBlock(block: DocumentBlock, caption: string): DocumentBlock {
   if (block.type !== 'image') return block
   const normalizedCaption = String(caption || '').trim().replace(/^\*\*(.+)\*\*$/, '$1').trim()
@@ -574,28 +580,40 @@ function insertImageBlockNearSection(
 function dedupeFigureCaptions(blocks: DocumentBlock[]): DocumentBlock[] {
   const result: DocumentBlock[] = []
   let lastImageCaption = ''
+  let lastImageFigure = ''
   let lastCaptionParagraph = ''
+  let lastCaptionFigure = ''
   for (const block of blocks) {
     if (block.type === 'image') {
       const caption = getCaptionFromImageBlock(block)
       result.push(block)
       lastImageCaption = normalizeAnchorText(caption)
+      lastImageFigure = figureNumberKey(caption || String(block.value?.alt || block.metadata?.alt || ''))
       lastCaptionParagraph = ''
+      lastCaptionFigure = ''
       continue
     }
 
     if (block.type === 'paragraph' && (block.metadata?.role === 'figure-caption' || isFigureCaptionText(block.text))) {
       const normalized = normalizeAnchorText(block.text)
-      if (normalized && (normalized === lastImageCaption || normalized === lastCaptionParagraph)) {
+      const figure = figureNumberKey(block.text)
+      if (normalized && (
+        normalized === lastImageCaption
+        || normalized === lastCaptionParagraph
+        || (figure && (figure === lastImageFigure || figure === lastCaptionFigure))
+      )) {
         continue
       }
       lastCaptionParagraph = normalized
+      lastCaptionFigure = figure
       result.push(block)
       continue
     }
 
     lastImageCaption = ''
+    lastImageFigure = ''
     lastCaptionParagraph = ''
+    lastCaptionFigure = ''
     result.push(block)
   }
   return result
@@ -660,12 +678,14 @@ function buildBlocksFromMarkdownWithImages(
       return
     }
 
-    // Bold caption line (figure caption pattern: **Figure N.M text**)
     const boldCaptionMatch = text.match(/^\*\*(.+)\*\*$/)
-    if (boldCaptionMatch && isFigureCaptionText(boldCaptionMatch[1]) && lastImageBlockId) {
+    const figureCaptionText = boldCaptionMatch && isFigureCaptionText(boldCaptionMatch[1])
+      ? boldCaptionMatch[1].trim()
+      : (isFigureCaptionText(text) ? text.trim() : '')
+    if (figureCaptionText && lastImageBlockId) {
       const lastIndex = blocks.findIndex((block) => block.id === lastImageBlockId)
       if (lastIndex >= 0) {
-        const caption = boldCaptionMatch[1].trim()
+        const caption = figureCaptionText
         blocks[lastIndex] = mergeCaptionIntoImageBlock(blocks[lastIndex], caption)
         const imageBlock = blocks[lastIndex]
         if (imageBlock.type === 'image') {
@@ -682,12 +702,12 @@ function buildBlocksFromMarkdownWithImages(
       return
     }
 
-    if (boldCaptionMatch && isFigureCaptionText(boldCaptionMatch[1])) {
+    if (figureCaptionText) {
       blocks.push(
         createParagraphBlock({
           id: `${blockIdPrefix}-${++blockIdx}`,
           type: 'paragraph',
-          text: boldCaptionMatch[1].trim(),
+          text: figureCaptionText,
           metadata: { role: 'figure-caption' },
         } as Parameters<typeof createParagraphBlock>[0]),
       )

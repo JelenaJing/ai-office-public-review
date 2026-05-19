@@ -19,6 +19,10 @@ import {
   type PaperGenerationResultLike,
   type PaperImageEntry,
 } from '../electron/main/services/paperResultNormalizer'
+import { bibliographyItemsToReferenceRecords } from '../electron/main/services/workspaceService'
+import { mergeExistingImageBlocksIntoFinalDocument } from '../src/modules/paper/services/paperImagePreservation'
+import { resolvePaperTypeFromInstruction } from '../src/modules/paper/services/PaperService'
+import { createDocumentSchema } from '../src/document/schema'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -378,6 +382,142 @@ const captionParagraphs = captionDeduped.blocks.filter((block) => block.type ===
 assertEq(captionParagraphs.length, 0, 'markdown Figure caption after image is merged into image block, not duplicated as paragraph')
 const captionImage = captionDeduped.blocks.find((block) => block.type === 'image') as any
 assertEq(captionImage?.value?.caption, 'Figure 5.1 Repeated caption.', 'image block keeps the single authoritative caption')
+
+const regularCaptionDeduped = normalizePaperGenerationResultToDocumentSchema({
+  title: 'Regular Caption Dedupe',
+  markdown: `# Regular Caption Dedupe
+
+## 方法
+
+![Figure 2.1](/tmp/paper/fig-2.png)
+
+Figure 2.1 Regular caption.
+
+Figure 2.1 Regular caption.`,
+  references: [],
+  images: [{ section: '2', sectionTitle: '方法', path: '/tmp/paper/fig-2.png', caption: '' }],
+}, { documentId: 'regular-caption-dedupe', blockIdPrefix: 'regular-caption-dedupe' })
+const regularCaptionParagraphs = regularCaptionDeduped.blocks.filter((block) => block.type === 'paragraph' && block.metadata?.role === 'figure-caption')
+assertEq(regularCaptionParagraphs.length, 0, 'regular Figure caption after image is merged, duplicate paragraphs removed')
+const regularCaptionImage = regularCaptionDeduped.blocks.find((block) => block.type === 'image') as any
+assertEq(regularCaptionImage?.value?.caption, 'Figure 2.1 Regular caption.', 'regular caption becomes image block caption')
+
+console.log()
+
+// ── Case 8: paper flow finalization helpers ───────────────────────────────────
+
+console.log('Case 8: paperType resolution and references sidecar records')
+
+const resolvedResearchType = resolvePaperTypeFromInstruction('帮我写一篇碳化硅的研究论文', 'review')
+assertEq(resolvedResearchType, 'research', 'explicit 研究论文 overrides review fallback')
+
+const referenceRecords = bibliographyItemsToReferenceRecords(Array.from({ length: 9 }, (_, index) => ({
+  id: `citation-${index + 1}`,
+  citationNumber: index + 1,
+  label: `[${index + 7}] Sidecar Reference ${index + 1}`,
+  metadata: {
+    title: `Sidecar Reference ${index + 1}`,
+    authors: [`Author ${index + 1}`],
+    year: 2020 + index,
+    journal: `Journal ${index + 1}`,
+    doi: `10.1000/${index + 1}`,
+  },
+})))
+assertEq(referenceRecords.length, 9, 'references sidecar record count = 9')
+assertEq(referenceRecords[0].reference_number, 1, 'references sidecar starts at reference_number 1')
+assertEq(referenceRecords[8].reference_number, 9, 'references sidecar ends at reference_number 9')
+assertEq(referenceRecords[0].label, '[1] Sidecar Reference 1', 'references sidecar strips stale label prefix')
+assert(referenceRecords.every((item, index) => item.label.startsWith(`[${index + 1}] `)), 'references sidecar labels are continuous [1]-[9]')
+
+console.log()
+
+// ── Case 9: finalize image preservation merge ────────────────────────────────
+
+console.log('Case 9: finalize preserves existing/streamed paper images')
+
+const currentImageDoc = createDocumentSchema({
+  id: 'current-images',
+  profile: 'paper',
+  title: 'Image Preserve',
+  sourceType: 'workspace-json',
+  blocks: [
+    { id: 'h-img-1', type: 'heading', text: '2 方法', level: 2 },
+    { id: 'p-img-1', type: 'paragraph', text: '流式阶段已有图片。' },
+    {
+      id: 'img-current-1',
+      type: 'image',
+      resourceRef: 'res-current-1',
+      value: { caption: 'Figure 2.1 Streaming figure caption.', text: 'Figure 2.1 Streaming figure caption.' },
+      metadata: {
+        source: 'paper-generation',
+        caption: 'Figure 2.1 Streaming figure caption.',
+        sectionTitle: '方法',
+        sectionNum: 2,
+        figureIndex: 1,
+        afterBlockId: 'p-next-1',
+      },
+    },
+  ],
+  resources: [
+    {
+      id: 'res-current-1',
+      kind: 'image',
+      path: 'D:\\tmp\\paper\\figure-2-1.png',
+      metadata: {
+        source: 'paper-generation',
+        caption: 'Figure 2.1 Streaming figure caption.',
+        localPath: 'D:\\tmp\\paper\\figure-2-1.png',
+        sectionTitle: '方法',
+        sectionNum: 2,
+        figureIndex: 1,
+      },
+    },
+  ],
+  metadata: { generatedBy: 'paper-generation' },
+})
+
+const finalizedWithoutImage = createDocumentSchema({
+  id: 'final-no-images',
+  profile: 'paper',
+  title: 'Image Preserve',
+  sourceType: 'workspace-json',
+  blocks: [
+    { id: 'h-next-1', type: 'heading', text: '2 方法', level: 2 },
+    { id: 'p-next-1', type: 'paragraph', text: 'finalize 重新生成正文，但没有 image markdown。' },
+  ],
+  resources: [],
+  metadata: { generatedBy: 'paper-generation' },
+})
+
+const mergedImageDoc = mergeExistingImageBlocksIntoFinalDocument(currentImageDoc, finalizedWithoutImage)
+const mergedImageBlocks = mergedImageDoc.blocks.filter((block) => block.type === 'image')
+assertEq(mergedImageBlocks.length, 1, 'finalize merge reinserts missing streamed image block')
+assertEq(mergedImageDoc.resources.length, 1, 'finalize merge preserves missing streamed image resource')
+assertEq(mergedImageDoc.document.metadata?.preservedImageCount as number, 1, 'preservedImageCount = 1')
+assertEq(mergedImageDoc.document.metadata?.droppedImageCount as number, 0, 'droppedImageCount = 0')
+assert(String((mergedImageBlocks[0] as any).value?.caption || '').includes('Figure 2.1'), 'preserved image keeps caption')
+
+const finalizedWithBrokenImage = createDocumentSchema({
+  id: 'final-broken-image',
+  profile: 'paper',
+  title: 'Image Preserve',
+  sourceType: 'workspace-json',
+  blocks: [
+    { id: 'h-broken-1', type: 'heading', text: '2 方法', level: 2 },
+    {
+      id: 'img-broken-1',
+      type: 'image',
+      resourceRef: 'missing-resource',
+      value: { caption: 'Figure 2.1 Streaming figure caption.' },
+      metadata: { source: 'paper-generation', caption: 'Figure 2.1 Streaming figure caption.', sectionNum: 2, figureIndex: 1 },
+    },
+  ],
+  resources: [],
+  metadata: { generatedBy: 'paper-generation' },
+})
+const repairedImageDoc = mergeExistingImageBlocksIntoFinalDocument(currentImageDoc, finalizedWithBrokenImage)
+assertEq(repairedImageDoc.blocks.filter((block) => block.type === 'image').length, 1, 'broken finalize image block is repaired in place, not duplicated')
+assertEq(repairedImageDoc.resources[0]?.path, 'D:\\tmp\\paper\\figure-2-1.png', 'broken finalize image resource path is restored')
 
 console.log()
 

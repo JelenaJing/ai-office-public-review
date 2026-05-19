@@ -18,10 +18,11 @@ import {
   createParagraphBlock,
   normalizeDocumentSchema,
   serializeDocumentSchemaToHtml,
+  type DocumentBibliographyItem,
   type DocumentResource,
   type DocumentSchema,
 } from '../../../src/document/schema'
-import { renderDocumentCitationsForExport } from '../../../src/utils/documentCitations'
+import { renderBibliographyItemLabel, renderDocumentCitationsForExport } from '../../../src/utils/documentCitations'
 
 const docxDocumentEngineService = new DocumentEngineService()
 const WORKSPACE_DOCUMENT_JSON_FILE = 'document.json'
@@ -72,7 +73,9 @@ export interface GeneratedPaperFinalizeResult {
   documentJsonPath?: string
   docxPath?: string
   pdfPath?: string
-  savedArtifacts: Array<{ type: 'document-json' | 'docx' | 'pdf'; path?: string; success: boolean; skippedReason?: string; error?: string }>
+  referencesJsonPath?: string
+  referencesCount?: number
+  savedArtifacts: Array<{ type: 'document-json' | 'docx' | 'pdf' | 'references-json'; path?: string; success: boolean; skippedReason?: string; error?: string; total?: number }>
 }
 
 interface WorkspaceServiceOptions {
@@ -146,6 +149,41 @@ function sanitizeGeneratedPaperFilename(title: string): string {
     .trim()
   const safe = withoutCopyNoise || '论文'
   return safe.slice(0, 80).trim() || '论文'
+}
+
+export function bibliographyItemsToReferenceRecords(items: DocumentBibliographyItem[]): any[] {
+  return (items || [])
+    .slice()
+    .sort((a, b) => a.citationNumber - b.citationNumber)
+    .map((item, index) => {
+      const number = index + 1
+      const metadata = (item.metadata || {}) as Record<string, any>
+      const normalizedItem = { ...item, citationNumber: number }
+      return {
+        reference_number: number,
+        citationNumber: number,
+        title: String(metadata.title || renderBibliographyItemLabel(normalizedItem).replace(/^\[\d+\]\s*/, '') || '').trim(),
+        authors: Array.isArray(metadata.authors) ? metadata.authors : [],
+        year: metadata.year,
+        journal: metadata.journal,
+        doi: metadata.doi,
+        uri: item.uri,
+        label: renderBibliographyItemLabel(normalizedItem),
+        source: 'documentSchema.bibliography',
+      }
+    })
+}
+
+function collectPaperBibliographyItems(document: DocumentSchema): DocumentBibliographyItem[] {
+  if (document.bibliography?.items?.length) return document.bibliography.items
+  const refs = (document.citations || document.sourceRefs || []).filter((item) => item.kind === 'citation')
+  return refs.map((item, index) => ({
+    id: item.id || `citation-${index + 1}`,
+    citationNumber: Number((item.metadata as Record<string, unknown> | undefined)?.citationNumber || index + 1),
+    label: item.label || String((item.metadata as Record<string, unknown> | undefined)?.title || ''),
+    uri: item.uri,
+    metadata: item.metadata,
+  }))
 }
 
 function toWorkspaceDocumentJsonPath(wsPath: string): string {
@@ -987,6 +1025,7 @@ export class WorkspaceService {
     const baseTitle = sanitizeGeneratedPaperFilename(input.title || document.meta?.title || '论文')
     const savedArtifacts: GeneratedPaperFinalizeResult['savedArtifacts'] = []
     const result: GeneratedPaperFinalizeResult = { success: true, savedArtifacts }
+    const docxRelativePath = `${WORKSPACE_DOCUMENTS_DIR}/${baseTitle}.docx`
 
     try {
       const savedDocument = await this.saveWorkspaceDocumentSchema(workspacePath, document)
@@ -1003,7 +1042,6 @@ export class WorkspaceService {
 
     if (input.exportDocx !== false) {
       try {
-        const docxRelativePath = `${WORKSPACE_DOCUMENTS_DIR}/${baseTitle}.docx`
         const savedDocx = await this.saveDocumentSchemaAsManuscript(workspacePath, document, docxRelativePath)
         result.docxPath = savedDocx.path
         savedArtifacts.push({ type: 'docx', path: savedDocx.path, success: true })
@@ -1015,6 +1053,27 @@ export class WorkspaceService {
           error: error instanceof Error ? error.message : String(error),
         })
       }
+    }
+
+    try {
+      const referenceRecords = bibliographyItemsToReferenceRecords(collectPaperBibliographyItems(document))
+      const documentPathForReferences = result.docxPath || docxRelativePath
+      await this.saveReferences(workspacePath, referenceRecords, documentPathForReferences)
+      const referencesJsonPath = resolveReferenceArtifactPaths(workspacePath, documentPathForReferences).jsonPath
+      result.referencesJsonPath = referencesJsonPath
+      result.referencesCount = referenceRecords.length
+      savedArtifacts.push({
+        type: 'references-json',
+        path: referencesJsonPath,
+        success: true,
+        total: referenceRecords.length,
+      })
+    } catch (error) {
+      savedArtifacts.push({
+        type: 'references-json',
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      })
     }
 
     if (input.exportPdf !== false) {

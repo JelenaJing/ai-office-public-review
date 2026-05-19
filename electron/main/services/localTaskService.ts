@@ -273,6 +273,8 @@ export class LocalTaskService {
             documentJsonPath: finalized.documentJsonPath,
             docxPath: finalized.docxPath,
             pdfPath: finalized.pdfPath,
+            referencesJsonPath: finalized.referencesJsonPath,
+            referencesCount: finalized.referencesCount,
             savedArtifacts: finalized.savedArtifacts,
           })
           this.emitAiEvent?.({
@@ -284,6 +286,8 @@ export class LocalTaskService {
             documentJsonPath: finalized.documentJsonPath,
             docxPath: finalized.docxPath,
             pdfPath: finalized.pdfPath,
+            referencesJsonPath: finalized.referencesJsonPath,
+            referencesCount: finalized.referencesCount,
             savedArtifacts: finalized.savedArtifacts,
           })
         } catch (saveError) {

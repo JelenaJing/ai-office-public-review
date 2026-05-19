@@ -357,6 +357,29 @@ export interface PaperGenerationParams {
   workspacePath?: string
 }
 
+export type PaperGenerationPaperType = NonNullable<PaperGenerationParams['paperType']>
+
+export function resolvePaperTypeFromInstruction(
+  instruction: string,
+  fallbackPaperType: string,
+): PaperGenerationPaperType {
+  const text = String(instruction || '').toLowerCase()
+  const fallback = (['research', 'review', 'thesis_research'] as const).includes(fallbackPaperType as PaperGenerationPaperType)
+    ? fallbackPaperType as PaperGenerationPaperType
+    : 'review'
+
+  if (/(实证研究论文|原创研究|研究论文|original\s+research|research\s+article|research\s+paper)/i.test(text)) {
+    return 'research'
+  }
+  if (/(综述论文|文献综述|review\s+paper|literature\s+review|survey\s+paper)/i.test(text)) {
+    return 'review'
+  }
+  if (/(开题报告|学位论文|毕业论文|thesis|dissertation)/i.test(text)) {
+    return 'thesis_research'
+  }
+  return fallback
+}
+
 export interface PaperChunk {
   type: 'status' | 'progress' | 'content' | 'complete' | 'draft_complete' | 'error'
   step?: number
@@ -622,6 +645,8 @@ export async function generatePaper(
         documentJsonPath: event.result?.documentJsonPath,
         docxPath: event.result?.docxPath,
         pdfPath: event.result?.pdfPath,
+        referencesJsonPath: event.result?.referencesJsonPath,
+        referencesCount: event.result?.referencesCount,
         savedArtifacts: event.result?.savedArtifacts,
       })
     }

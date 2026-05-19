@@ -37,6 +37,7 @@ import {
   pauseTask,
   resolvePaperText,
   resumeTask,
+  resolvePaperTypeFromInstruction,
   stopEssayTask,
   stopDailyReportTask,
   stopTask,
@@ -3055,7 +3056,7 @@ const GenerationComposer: React.FC<Props> = ({
                             persistedMarkdown = replaceImageUrls(persistedMarkdown, finalUrlMap)
                             persistedMarkdown = fixRelativeImageUrls(persistedMarkdown, backendUrl)
                           }
-                          if (normalizedResponseMarkdown.trim()) {
+                          if (!response.documentSchema && normalizedResponseMarkdown.trim()) {
                             const finalPaperTitle = extractFinalPaperTitle(persistedMarkdown, normalizedResponse, normalizedInstruction)
                             const savedManuscript = await window.electronAPI.saveManuscript(activeWorkspacePath, persistedMarkdown, buildManuscriptFileName(finalPaperTitle))
                             savedManuscriptPath = savedManuscript.path
@@ -3112,14 +3113,27 @@ const GenerationComposer: React.FC<Props> = ({
                         const schemaHtml = serializeDocumentSchemaToHtml(completionDocumentSchema)
                         if (schemaHtml.trim()) {
                           setDocumentContentIfAllowed(targetTab, schemaHtml)
-                          const finalPaperTabTitle = sanitizeGeneratedName(completionDocumentSchema.meta?.title || normalizedResponse.title || normalizedInstruction, '论文', 80)
+                          const finalPaperTabTitle = sanitizeGeneratedName((completionDocumentSchema as any).title || completionDocumentSchema.meta?.title || normalizedResponse.title || normalizedInstruction, '论文', 80)
+                          const preferredPaperPath = normalizedResponse.docxPath || normalizedResponse.documentJsonPath || savedManuscriptPath || undefined
                           markTabShellSaved(targetTab, {
-                            filePath: savedManuscriptPath || undefined,
-                            fileName: savedManuscriptPath ? (savedManuscriptPath.split(/[\\/]/).pop() || `${finalPaperTabTitle}.docx`) : `${finalPaperTabTitle}.docx`,
+                            filePath: preferredPaperPath,
+                            fileName: finalPaperTabTitle,
                             content: schemaHtml,
                           })
                           paperGenerationTabIdRef.current = targetTab
                           console.info('[paper:tab_update]', { tabId: targetTab, title: finalPaperTabTitle, phase: 'finalize' })
+                          console.info('[paper:tab_renamed]', { tabId: targetTab, title: finalPaperTabTitle, filePath: preferredPaperPath })
+                          if (Array.isArray(normalizedResponse.savedArtifacts)) {
+                            const refsArtifact = normalizedResponse.savedArtifacts.find((item: any) => item?.type === 'references-json')
+                            const pdfArtifact = normalizedResponse.savedArtifacts.find((item: any) => item?.type === 'pdf')
+                            const refsText = refsArtifact?.success
+                              ? ` / references 文件已保存，共 ${refsArtifact.total ?? normalizedResponse.referencesCount ?? 0} 条`
+                              : refsArtifact
+                                ? ` / references 文件保存失败：${refsArtifact.error || '未知错误'}`
+                                : ''
+                            const pdfText = pdfArtifact?.skippedReason ? ` / PDF ${pdfArtifact.skippedReason}` : ''
+                            setStatusMessage(`document.json 已保存 / Word 已保存${refsText}${pdfText}`)
+                          }
                           onPaperStreamComplete?.({ tabId: targetTab, markdown: finalMarkdown || normalizedResponseMarkdown, backendUrl, documentSchema: completionDocumentSchema })
                           window.dispatchEvent(new CustomEvent('ai-writer-paper-preview-sync', {
                             detail: { tabId: targetTab, html: schemaHtml, markdown: finalMarkdown || normalizedResponseMarkdown, backendUrl, documentSchema: completionDocumentSchema },
@@ -3230,12 +3244,27 @@ const GenerationComposer: React.FC<Props> = ({
           }, { once: true })
 
           try {
+            const fallbackPaperType = settings.genPaperType as 'research' | 'review' | 'thesis_research'
+            const resolvedPaperType = resolvePaperTypeFromInstruction(normalizedInstruction, fallbackPaperType)
+            const explicitType = /实证研究论文|原创研究|研究论文|original\s+research|research\s+article|research\s+paper/i.test(normalizedInstruction)
+              ? 'research'
+              : /综述论文|文献综述|review\s+paper|literature\s+review|survey\s+paper/i.test(normalizedInstruction)
+                ? 'review'
+                : /开题报告|学位论文|毕业论文|thesis|dissertation/i.test(normalizedInstruction)
+                  ? 'thesis_research'
+                  : null
+            console.info('[paper:type_resolved]', {
+              instructionPreview: normalizedInstruction.slice(0, 80),
+              explicitType,
+              fallbackType: fallbackPaperType,
+              finalPaperType: resolvedPaperType,
+            })
             const tid = await submitTask({
               topic: normalizedInstruction,
               yearFrom: settings.genYearFrom || undefined,
               yearTo: settings.genYearTo || undefined,
               noImageMode: settings.genNoImageMode,
-              paperType: settings.genPaperType as 'research' | 'review' | 'thesis_research',
+              paperType: resolvedPaperType,
               citationMode: settings.genCitationMode === 'inline' ? 'inline' : 'deferred',
               skipSectionThinking: true,
               incrementalReferencePassMode: 'off',

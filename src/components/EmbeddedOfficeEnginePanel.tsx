@@ -19,9 +19,10 @@ import { findCitationForText, INLINE_CITATION_MAX_RESULTS, type CitationItem } f
 import { continueWriting } from '../modules/writing/services/ContinueWritingService'
 import { isDirectMode, directContinueWriting } from '../services/AIClientFactory'
 import { generateSelectionImage, getDefaultInsertedGeneratedImageWidthPx } from '../modules/image/services/ImageService'
+import { mergeExistingImageBlocksIntoFinalDocument } from '../modules/paper/services/paperImagePreservation'
 import { buildCitationRenumberPlan, CitationReferenceItem, formatCitationNumbers, insertCitationMarkerAtSelection, parseLeadingCitationNumber, stripLeadingCitationPrefix, updateCitationNumbersInText } from '../utils/citationGroups'
 import { insertCitationIntoDocument, renumberDocumentCitations, renderBibliographyItemLabel } from '../utils/documentCitations'
-import type { DocumentSchema, DocumentResource, DocumentBibliographyItem } from '../document/schema/index'
+import { createDocumentSchema, type DocumentBlock, type DocumentSchema, type DocumentResource, type DocumentBibliographyItem } from '../document/schema/index'
 import { normalizeContinueDeltaAtStart, normalizeContinueLeadingText } from '../utils/continueStreamText'
 import type { KnowledgeTaskConstraints, PreviewKnowledgeTaskContextResult } from '../types/knowledge'
 import { buildKnowledgeTaskConstraints, resolveKnowledgeTaskPreview } from '../shared/knowledge/knowledgeTaskHelper'
@@ -1882,6 +1883,109 @@ function toFileUrl(localPath: string): string {
   return `file:///${encoded}`
 }
 
+function fromFileUrl(value: string): string {
+  const raw = String(value || '').trim()
+  if (!raw) return ''
+  if (!/^file:\/\//i.test(raw)) return raw
+  const withoutScheme = raw.replace(/^file:\/\/\/?/i, '')
+  try {
+    return decodeURI(withoutScheme).replace(/\//g, '\\')
+  } catch {
+    return withoutScheme.replace(/\//g, '\\')
+  }
+}
+
+function parsePaperFigureParts(text: string): { sectionNum?: number; figureIndex?: number } {
+  const match = String(text || '').match(/(?:Figure|Fig\.?|图|图表)\s*(\d+)(?:\.(\d+))?/i)
+  if (!match) return {}
+  const sectionNum = Number.parseInt(match[1], 10)
+  const figureIndex = Number.parseInt(match[2] || '1', 10)
+  return {
+    sectionNum: Number.isFinite(sectionNum) ? sectionNum : undefined,
+    figureIndex: Number.isFinite(figureIndex) ? figureIndex : undefined,
+  }
+}
+
+function buildPaperImageSnapshotDocumentFromEditorBlocks(
+  blocks: EmbeddedEditorBlock[],
+  baseDocument?: DocumentSchema | null,
+): DocumentSchema | null {
+  const documentBlocks: DocumentBlock[] = []
+  const resources: DocumentResource[] = []
+  let imageIndex = 0
+  for (const block of blocks) {
+    if (block.type === 'heading') {
+      documentBlocks.push({
+        id: block.id,
+        type: 'heading',
+        text: block.text,
+        level: Math.min(Math.max(block.level || 1, 1), 6) as 1 | 2 | 3 | 4 | 5 | 6,
+      })
+      continue
+    }
+    if (block.type === 'paragraph') {
+      documentBlocks.push({ id: block.id, type: 'paragraph', text: block.text })
+      continue
+    }
+    if (block.type !== 'image') continue
+    const sourcePath = fromFileUrl(block.sourceId || block.mediaPath || block.previewSrc || '')
+    if (!sourcePath || /^data:/i.test(sourcePath)) continue
+    imageIndex += 1
+    const caption = String(block.caption || (isFigureCaptionText(block.title || '') ? block.title : '') || '')
+    const figureParts = parsePaperFigureParts(caption || block.title || block.alt)
+    const resourceId = `editor-preserved-resource-${block.id}`
+    resources.push({
+      id: resourceId,
+      kind: 'image',
+      path: sourcePath,
+      mimeType: block.mediaContentType,
+      width: block.imageWidthPx,
+      height: block.imageHeightPx,
+      metadata: {
+        source: block.paperGenerated ? 'paper-generation' : 'existing-document',
+        caption: caption || undefined,
+        alt: block.alt || block.title || caption || `图片 ${imageIndex}`,
+        localPath: sourcePath,
+        figureIndex: figureParts.figureIndex || imageIndex,
+        sectionNum: figureParts.sectionNum,
+      },
+    })
+    documentBlocks.push({
+      id: block.id,
+      type: 'image',
+      resourceRef: resourceId,
+      width: block.imageWidthPx,
+      height: block.imageHeightPx,
+      value: {
+        caption: caption || undefined,
+        text: caption || undefined,
+        alt: block.alt || block.title || caption || `图片 ${imageIndex}`,
+      },
+      metadata: {
+        source: block.paperGenerated ? 'paper-generation' : 'existing-document',
+        caption: caption || undefined,
+        alt: block.alt || block.title || caption || `图片 ${imageIndex}`,
+        figureIndex: figureParts.figureIndex || imageIndex,
+        sectionNum: figureParts.sectionNum,
+      },
+    })
+  }
+  if (!resources.length && !baseDocument) return null
+  const title = baseDocument?.meta?.title || '论文图片快照'
+  return createDocumentSchema({
+    id: `${baseDocument?.id || baseDocument?.document?.id || 'paper'}-image-snapshot`,
+    profile: 'paper',
+    title,
+    sourceType: 'workspace-json',
+    blocks: documentBlocks,
+    resources,
+    metadata: {
+      generatedBy: 'paper-generation',
+      snapshot: 'paper-images-before-finalize',
+    },
+  })
+}
+
 function isFigureCaptionText(text: string): boolean {
   const normalized = String(text || '').trim()
   return /^(?:Figure|Fig\.?|图|图表)\s*\d+(?:\.\d+)*[\s:：.．-]/i.test(normalized)
@@ -2393,6 +2497,29 @@ function resolveInsertedCitationNumbers(
   return []
 }
 
+function bibliographyItemsToReferenceRecordsForPaper(items: DocumentBibliographyItem[]): unknown[] {
+  return (items || [])
+    .slice()
+    .sort((a, b) => a.citationNumber - b.citationNumber)
+    .map((item, index) => {
+      const citationNumber = index + 1
+      const normalizedItem = { ...item, citationNumber }
+      const metadata = (item.metadata || {}) as Record<string, unknown>
+      return {
+        reference_number: citationNumber,
+        citationNumber,
+        title: String(metadata.title || renderBibliographyItemLabel(normalizedItem).replace(/^\[\d+\]\s*/, '') || ''),
+        authors: Array.isArray(metadata.authors) ? metadata.authors : [],
+        year: metadata.year,
+        journal: metadata.journal,
+        doi: metadata.doi,
+        uri: item.uri,
+        label: renderBibliographyItemLabel(normalizedItem),
+        source: 'documentSchema.bibliography',
+      }
+    })
+}
+
 /**
  * Convert a DocumentSchema to EmbeddedEditorBlock[] for live editor display,
  * always rebuilding the bottom references-section from `document.bibliography`.
@@ -2437,21 +2564,27 @@ function documentSchemaToEditorBlocksWithBibliography(schema: DocumentSchema): E
 
     if (block.type === 'image') {
       const resource = resourceMap.get(block.resourceRef)
-      const previewSrc = resource?.path || (resource?.metadata?.url as string | undefined)
+      const previewSrc = resource?.path || (resource?.metadata?.localPath as string | undefined) || (resource?.metadata?.url as string | undefined)
       const displaySrc = previewSrc && /^(?:[a-z]+:|data:)/i.test(previewSrc) ? previewSrc : (previewSrc ? toFileUrl(previewSrc) : undefined)
       const caption = String(block.value?.caption || block.metadata?.caption || resource?.metadata?.caption || '')
       const figureIndex = block.metadata?.figureIndex ?? resource?.metadata?.figureIndex
       const sectionNum = block.metadata?.sectionNum ?? resource?.metadata?.sectionNum
       const figureTitle = sectionNum && figureIndex ? `Figure ${sectionNum}.${figureIndex}` : '图片'
+      const paperGenerated = block.metadata?.source === 'paper-generation' || resource?.metadata?.source === 'paper-generation'
+      if (paperGenerated && !displaySrc) {
+        console.warn('[paper:image_error]', { localPath: resource?.path, previewSrc, exists: false })
+        continue
+      }
       result.push({
         id: block.id,
         type: 'image',
         alt: figureTitle,
         title: figureTitle,
         caption,
-        paperGenerated: block.metadata?.source === 'paper-generation' || resource?.metadata?.source === 'paper-generation',
+        paperGenerated,
         previewSrc: displaySrc,
         mediaPath: resource?.path || undefined,
+        sourceId: resource?.path || undefined,
       } satisfies EmbeddedImageBlock)
       continue
     }
@@ -3087,6 +3220,7 @@ export default function EmbeddedOfficeEnginePanel() {
   const [blocks, setBlocks] = useState<EmbeddedEditorBlock[]>(() => parseHtmlToBlocks(markdown))
   const [packageSummary, setPackageSummary] = useState<{ paragraphCount: number; entryCount: number } | null>(null)
   const [draggingImageBlockId, setDraggingImageBlockId] = useState<string | null>(null)
+  const [imagePreviewErrors, setImagePreviewErrors] = useState<Record<string, string>>({})
   const [lockedAspectRatios, setLockedAspectRatios] = useState<Record<string, boolean>>({})
   const [tableSelections, setTableSelections] = useState<Record<string, TableSelection | null>>({})
   const [imageResizeState, setImageResizeState] = useState<ImageResizeState | null>(null)
@@ -3112,6 +3246,7 @@ export default function EmbeddedOfficeEnginePanel() {
   const blocksRef = useRef<EmbeddedEditorBlock[]>(parseHtmlToBlocks(markdown))
   const markdownRef = useRef(markdown)
   const serializedHtmlRef = useRef(markdown)
+  const paperImageSnapshotBeforeStreamRef = useRef<DocumentSchema | null>(null)
   const blockEditorRefs = useRef<Record<string, HTMLTextAreaElement | null>>({})
   const activeTextBlockIdRef = useRef<string | null>(null)
   const continueAbortRef = useRef<AbortController | null>(null)
@@ -3254,15 +3389,23 @@ export default function EmbeddedOfficeEnginePanel() {
       const documentSchema = detail.documentSchema as DocumentSchema | undefined
       if (!documentSchema || !Array.isArray(documentSchema.blocks)) return
       if (documentSchema.profile !== 'paper' && documentSchema.document?.metadata?.generatedBy !== 'paper-generation') return
-      currentDocumentSchemaRef.current = documentSchema
-      const nextBlocks = documentSchemaToEditorBlocksWithBibliography(documentSchema)
+      const liveImageSnapshot = buildPaperImageSnapshotDocumentFromEditorBlocks(blocksRef.current, currentDocumentSchemaRef.current)
+      let finalDocumentSchema = documentSchema
+      if (paperImageSnapshotBeforeStreamRef.current) {
+        finalDocumentSchema = mergeExistingImageBlocksIntoFinalDocument(paperImageSnapshotBeforeStreamRef.current, finalDocumentSchema)
+      }
+      if (liveImageSnapshot) {
+        finalDocumentSchema = mergeExistingImageBlocksIntoFinalDocument(liveImageSnapshot, finalDocumentSchema)
+      }
+      currentDocumentSchemaRef.current = finalDocumentSchema
+      const nextBlocks = documentSchemaToEditorBlocksWithBibliography(finalDocumentSchema)
       commitBlocks(nextBlocks)
-      const hasBibliography = (documentSchema.bibliography?.items?.length || 0) > 0
+      const hasBibliography = (finalDocumentSchema.bibliography?.items?.length || 0) > 0
       const hasReferenceSection = nextBlocks.some((block) => block.type === 'heading' && block.paragraphStyle === 'ReferencesHeading')
       if (hasBibliography && !hasReferenceSection) {
         console.warn('[paper-generation] bibliography exists but editor references-section was not rendered')
       }
-      const fallbackImageCount = Number(documentSchema.document?.metadata?.fallbackImageCount || 0)
+      const fallbackImageCount = Number(finalDocumentSchema.document?.metadata?.fallbackImageCount || 0)
       if (fallbackImageCount > 0) {
         setStatusMessage('部分图片未匹配到章节，已放入文末')
       }
@@ -3725,6 +3868,11 @@ export default function EmbeddedOfficeEnginePanel() {
 
   const startPaperStreamIntoEditor = useCallback((tabId: string) => {
     if (tabId !== activeTabId || isReadonlyPreviewTab) return false
+    const schemaSnapshot = currentDocumentSchemaRef.current
+    const editorSnapshot = buildPaperImageSnapshotDocumentFromEditorBlocks(blocksRef.current, schemaSnapshot)
+    paperImageSnapshotBeforeStreamRef.current = schemaSnapshot && editorSnapshot
+      ? mergeExistingImageBlocksIntoFinalDocument(schemaSnapshot, editorSnapshot)
+      : (editorSnapshot || schemaSnapshot || null)
     setDocumentContent('')
     setStatusMessage('正在生成论文，内容将持续写入当前编辑器')
     return true
@@ -3752,8 +3900,24 @@ export default function EmbeddedOfficeEnginePanel() {
   const completePaperStreamIntoEditor = useCallback((payload: { tabId: string; markdown: string; backendUrl: string; documentSchema?: DocumentSchema }) => {
     if (payload.tabId !== activeTabId || isReadonlyPreviewTab) return false
     if (payload.documentSchema && Array.isArray(payload.documentSchema.blocks)) {
-      currentDocumentSchemaRef.current = payload.documentSchema
-      commitBlocks(documentSchemaToEditorBlocksWithBibliography(payload.documentSchema))
+      const liveImageSnapshot = buildPaperImageSnapshotDocumentFromEditorBlocks(blocksRef.current, currentDocumentSchemaRef.current)
+      let finalDocumentSchema = payload.documentSchema
+      if (paperImageSnapshotBeforeStreamRef.current) {
+        finalDocumentSchema = mergeExistingImageBlocksIntoFinalDocument(paperImageSnapshotBeforeStreamRef.current, finalDocumentSchema)
+      }
+      if (liveImageSnapshot) {
+        finalDocumentSchema = mergeExistingImageBlocksIntoFinalDocument(liveImageSnapshot, finalDocumentSchema)
+      }
+      paperImageSnapshotBeforeStreamRef.current = null
+      currentDocumentSchemaRef.current = finalDocumentSchema
+      commitBlocks(documentSchemaToEditorBlocksWithBibliography(finalDocumentSchema))
+      if (activeWorkspacePath && window.electronAPI?.saveWorkspaceDocumentSchema) {
+        void window.electronAPI.saveWorkspaceDocumentSchema(activeWorkspacePath, finalDocumentSchema)
+          .then(() => refreshTree().catch(() => undefined))
+          .catch((error: unknown) => {
+            setStatusMessage(`论文已生成，但图片保留后的 document.json 保存失败：${error instanceof Error ? error.message : String(error)}`)
+          })
+      }
       setStatusMessage('论文已生成并写入编辑器')
       return true
     }
@@ -3762,7 +3926,7 @@ export default function EmbeddedOfficeEnginePanel() {
     setDocumentContent(markdown)
     setStatusMessage('论文已生成并写入编辑器')
     return true
-  }, [activeTabId, isReadonlyPreviewTab, setDocumentContent, setStatusMessage])
+  }, [activeTabId, activeWorkspacePath, commitBlocks, isReadonlyPreviewTab, refreshTree, setDocumentContent, setStatusMessage])
 
   const generationComposerNode = (
     <GenerationComposer
@@ -3942,7 +4106,8 @@ export default function EmbeddedOfficeEnginePanel() {
       ? resolveDocumentSchemaBlockId(currentSchema, blocksRef.current, inlineRef.range)
       : null
 
-    if (currentSchema && schemaBlockId) {
+    const currentSchemaIsPaper = Boolean(currentSchema && (currentSchema.profile === 'paper' || currentSchema.document?.metadata?.generatedBy === 'paper-generation'))
+    if (currentSchema && currentSchemaIsPaper && schemaBlockId) {
       const offset = inlineRef.range.from ?? 0
 
       let nextDoc = currentSchema
@@ -3975,8 +4140,23 @@ export default function EmbeddedOfficeEnginePanel() {
         try {
           const res = await window.electronAPI.saveWorkspaceDocumentSchema(activeWorkspacePath, nextDoc)
           if (res?.success) {
+            const referenceRecords = bibliographyItemsToReferenceRecordsForPaper(nextDoc.bibliography?.items || [])
+            const referenceDocumentPath = filePath && /\.docx$/i.test(filePath) ? filePath : undefined
+            if (window.electronAPI?.saveReferences && referenceRecords.length > 0) {
+              try {
+                const refsRes = await window.electronAPI.saveReferences(activeWorkspacePath, referenceRecords, referenceDocumentPath)
+                if (!refsRes?.success) {
+                  setStatusMessage('引用已插入，但参考文献列表文件保存失败：未知错误')
+                  return
+                }
+                void refreshTree().catch(() => undefined)
+              } catch (refsError) {
+                setStatusMessage(`引用已插入，但参考文献列表文件保存失败：${refsError instanceof Error ? refsError.message : String(refsError)}`)
+                return
+              }
+            }
             const marker = newCitationNumbers.length ? ` ${formatCitationMarker(newCitationNumbers)}` : ''
-            setStatusMessage(`已插入引用${marker}，并自动更新参考文献列表（已保存到工作区）`)
+            setStatusMessage(`已插入引用${marker}，并同步更新参考文献列表文件（已保存到工作区）`)
           } else {
             setStatusMessage('引用已插入，但保存到 document.json 失败')
           }
@@ -3990,7 +4170,7 @@ export default function EmbeddedOfficeEnginePanel() {
       return
     }
 
-    if (currentSchema && !schemaBlockId) {
+    if (currentSchema && currentSchemaIsPaper && !schemaBlockId) {
       setStatusMessage('插入引用失败：未能将当前选区映射到 DocumentSchema block，未进入 legacy 模式')
       return
     }
@@ -4007,7 +4187,7 @@ export default function EmbeddedOfficeEnginePanel() {
     void persistReferenceSectionToWorkspace(updated.orderedItems).catch(() => undefined)
     setInlineRef(null)
     setStatusMessage(`已插入引用 ${formatCitationMarker(updated.citationNumbers)}（legacy 模式，未关联 DocumentSchema）`)
-  }, [activeWorkspacePath, commitBlocks, inlineRef, persistReferenceSectionToWorkspace, setStatusMessage])
+  }, [activeWorkspacePath, commitBlocks, filePath, inlineRef, persistReferenceSectionToWorkspace, refreshTree, setStatusMessage])
 
   const toggleInlineCitationSelection = useCallback((citation: CitationItem) => {
     const citationKey = buildCitationSelectionKey(citation)
@@ -4900,14 +5080,53 @@ export default function EmbeddedOfficeEnginePanel() {
                         {block.wrapType ? ` · ${block.wrapType}` : ''}
                         {block.anchorHorizontal || block.anchorVertical ? ` · anchor(${block.anchorHorizontal || '-'}, ${block.anchorVertical || '-'})` : ''}
                       </PreviewMeta>
-                      {block.previewSrc ? (
+                      {block.previewSrc && !imagePreviewErrors[block.id] ? (
                         <ImageStage style={{ width: `${previewWidth}px`, height: `${previewHeight}px` }}>
-                          <PreviewImage src={block.previewSrc} alt={block.alt || block.title || `图片 ${index + 1}`} />
+                          <PreviewImage
+                            src={block.previewSrc}
+                            alt={block.alt || block.title || `图片 ${index + 1}`}
+                            onError={() => {
+                              if (!block.paperGenerated) return
+                              const localPath = block.sourceId || block.mediaPath || block.previewSrc || ''
+                              console.warn('[paper:image_error]', {
+                                localPath,
+                                previewSrc: block.previewSrc,
+                                mediaPath: block.mediaPath,
+                                exists: undefined,
+                              })
+                              if (window.electronAPI?.readImageAsDataUrl && localPath && !/^data:/i.test(localPath)) {
+                                void window.electronAPI.readImageAsDataUrl(localPath).then((loaded) => {
+                                  updateBlock(block.id, (current) => current.type === 'image'
+                                    ? { ...current, previewSrc: loaded.dataUrl, mediaContentType: loaded.contentType || current.mediaContentType }
+                                    : current)
+                                  setImagePreviewErrors((current) => {
+                                    const next = { ...current }
+                                    delete next[block.id]
+                                    return next
+                                  })
+                                }).catch((error: unknown) => {
+                                  setImagePreviewErrors((current) => ({
+                                    ...current,
+                                    [block.id]: error instanceof Error ? error.message : String(error),
+                                  }))
+                                  setStatusMessage('图片已生成但预览路径异常')
+                                })
+                                return
+                              }
+                              setImagePreviewErrors((current) => ({ ...current, [block.id]: 'preview path invalid' }))
+                              setStatusMessage('图片已生成但预览路径异常')
+                            }}
+                          />
                           <ResizeHandle $position="nw" onPointerDown={(event) => beginImageResize(block, 'nw', event)} />
                           <ResizeHandle $position="ne" onPointerDown={(event) => beginImageResize(block, 'ne', event)} />
                           <ResizeHandle $position="sw" onPointerDown={(event) => beginImageResize(block, 'sw', event)} />
                           <ResizeHandle $position="se" onPointerDown={(event) => beginImageResize(block, 'se', event)} />
                         </ImageStage>
+                      ) : block.paperGenerated && imagePreviewErrors[block.id] ? (
+                        <PreviewMeta>图片已生成但预览路径异常：{imagePreviewErrors[block.id]}</PreviewMeta>
+                      ) : null}
+                      {block.paperGenerated && block.caption ? (
+                        <PreviewMeta>{block.caption}</PreviewMeta>
                       ) : null}
                       <InspectorSection $active={isActive}>
                         <FlowDivider />
