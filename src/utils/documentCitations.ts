@@ -41,6 +41,48 @@ function isPaperCitationDocument(document: DocumentSchema): boolean {
   return document.profile === 'paper' || document.document?.metadata?.generatedBy === 'paper-generation'
 }
 
+function isFigureCaptionText(text: string): boolean {
+  return /^(?:Figure|Fig\.?|图|图表)\s*\d+(?:\.\d+)*[\s:：.．-]/i.test(String(text || '').trim())
+}
+
+function normalizeCaptionKey(text: string): string {
+  return String(text || '')
+    .trim()
+    .replace(/^\*\*(.+)\*\*$/, '$1')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, '')
+}
+
+function dedupePaperFigureCaptionBlocks(blocks: DocumentBlock[]): DocumentBlock[] {
+  const result: DocumentBlock[] = []
+  let previousImageCaptionKey = ''
+
+  for (const block of blocks) {
+    if (block.type === 'image') {
+      const caption = String(block.value?.caption || block.metadata?.caption || '')
+      previousImageCaptionKey = normalizeCaptionKey(caption)
+      result.push(block)
+      continue
+    }
+
+    if (block.type === 'paragraph') {
+      const text = String(block.text || '')
+      const captionKey = normalizeCaptionKey(text)
+      if (captionKey && isFigureCaptionText(text) && captionKey === previousImageCaptionKey) {
+        continue
+      }
+      previousImageCaptionKey = ''
+      result.push(block)
+      continue
+    }
+
+    previousImageCaptionKey = ''
+    result.push(block)
+  }
+
+  return result
+}
+
 // ── collectCitationOrderFromDocument ──────────────────────────────────────
 
 /**
@@ -391,7 +433,7 @@ export function renderDocumentCitationsForExport(document: DocumentSchema): Docu
   const bib = document.bibliography
 
   // 1. Sync inline citation numbers from citationMarks metadata, then strip references-section
-  const bodyBlocks = document.blocks
+  const bodyBlocks = dedupePaperFigureCaptionBlocks(document.blocks)
     .map((block) => renderInlineCitationTextFromMarks(block))
     .filter((block) => block.metadata?.role !== 'references-section')
 

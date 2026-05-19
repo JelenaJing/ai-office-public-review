@@ -900,6 +900,7 @@ type EmbeddedTextBlock = {
   id: string
   type: 'paragraph' | 'heading'
   text: string
+  metadata?: Record<string, unknown>
   level?: number
   paragraphStyle?: string
   paperStyle?: string
@@ -2002,6 +2003,22 @@ function isFigureCaptionText(text: string): boolean {
   return /^(?:Figure|Fig\.?|图|图表)\s*\d+(?:\.\d+)*[\s:：.．-]/i.test(normalized)
 }
 
+function normalizeFigureCaptionKey(text: string): string {
+  return String(text || '')
+    .trim()
+    .replace(/^\*\*(.+)\*\*$/, '$1')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, '')
+}
+
+function isAllowedImagePreviewSrc(value: string): boolean {
+  return /^(?:data:image\/|file:\/\/\/|https?:\/\/)/i.test(String(value || '').trim())
+}
+
+function isRawWindowsPath(value: string): boolean {
+  return /^[a-zA-Z]:[\\/]/.test(String(value || '').trim())
+}
+
 function derivePaperFigurePreviewTitle(block: EmbeddedImageBlock, index: number): string {
   const title = String(block.title || '').trim()
   const alt = String(block.alt || '').trim()
@@ -2424,21 +2441,60 @@ function resolveDocumentSchemaBlockId(
   selection: DocumentEngineSelection,
 ): string | null {
   const anchorId = selection.anchorId
-  if (!anchorId) return null
+  const selectedTextKey = normalizeFigureCaptionKey(selection.text || '')
+  const schemaTextBlocks = schema.blocks.filter((b) => b.type === 'paragraph' || b.type === 'heading')
+  const embeddedTextBlocks = embeddedBlocks.filter(isEmbeddedTextBlock)
 
   // Strategy 1: direct id match (happy-path when ids are kept in sync)
-  if (schema.blocks.some((b) => b.id === anchorId)) return anchorId
+  if (anchorId && schema.blocks.some((b) => b.id === anchorId)) return anchorId
 
   // Strategy 2: positional index mapping
   // Only text blocks (paragraph/heading) in embeddedBlocks correspond to
   // paragraph/heading blocks in DocumentSchema.
-  const embeddedTextBlocks = embeddedBlocks.filter((b) => b.type === 'paragraph' || b.type === 'heading')
-  const embeddedIndex = embeddedTextBlocks.findIndex((b) => b.id === anchorId)
-  if (embeddedIndex < 0) return null
+  const embeddedIndex = anchorId ? embeddedTextBlocks.findIndex((b) => b.id === anchorId) : -1
+  if (embeddedIndex >= 0) {
+    const schemaBlock = schemaTextBlocks[embeddedIndex]
+    if (schemaBlock?.id) return schemaBlock.id
+  }
 
-  const schemaTextBlocks = schema.blocks.filter((b) => b.type === 'paragraph' || b.type === 'heading')
-  const schemaBlock = schemaTextBlocks[embeddedIndex]
-  return schemaBlock?.id ?? null
+  // Strategy 3: selected text similarity / containment match.
+  if (selectedTextKey.length >= 6) {
+    const textMatch = schemaTextBlocks.find((block) => {
+      const blockKey = normalizeFigureCaptionKey(String(block.text || ''))
+      return blockKey.length >= 6 && (blockKey.includes(selectedTextKey) || selectedTextKey.includes(blockKey))
+    })
+    if (textMatch?.id) return textMatch.id
+  }
+
+  // Strategy 4: anchor block text similarity, then nearest heading/section.
+  const anchorBlock = anchorId ? embeddedTextBlocks.find((block) => block.id === anchorId) : null
+  const anchorKey = normalizeFigureCaptionKey(anchorBlock?.text || '')
+  if (anchorKey.length >= 6) {
+    const anchorTextMatch = schemaTextBlocks.find((block) => {
+      const blockKey = normalizeFigureCaptionKey(String(block.text || ''))
+      return blockKey.length >= 6 && (blockKey.includes(anchorKey) || anchorKey.includes(blockKey))
+    })
+    if (anchorTextMatch?.id) return anchorTextMatch.id
+  }
+
+  if (embeddedIndex >= 0) {
+    for (let i = embeddedIndex; i >= 0; i -= 1) {
+      const candidate = embeddedTextBlocks[i]
+      if (!candidate || candidate.type !== 'heading') continue
+      const headingKey = normalizeFigureCaptionKey(candidate.text)
+      if (!headingKey) continue
+      const headingMatchIndex = schemaTextBlocks.findIndex((block) => block.type === 'heading' && normalizeFigureCaptionKey(String(block.text || '')) === headingKey)
+      if (headingMatchIndex < 0) continue
+      const paragraphInSection = schemaTextBlocks
+        .slice(headingMatchIndex + 1)
+        .find((block) => block.type === 'paragraph')
+      if (paragraphInSection?.id) return paragraphInSection.id
+      const headingMatch = schemaTextBlocks[headingMatchIndex]
+      if (headingMatch?.id) return headingMatch.id
+    }
+  }
+
+  return null
 }
 
 /**
@@ -2545,12 +2601,14 @@ function documentSchemaToEditorBlocksWithBibliography(schema: DocumentSchema, wo
   for (const res of (schema.resources || [])) resourceMap.set(res.id, res)
 
   const result: EmbeddedEditorBlock[] = []
+  let previousImageCaptionKey = ''
 
   for (const block of schema.blocks) {
     // Strip old references-section blocks — will be rebuilt from bibliography
     if (block.metadata?.role === 'references-section') continue
 
     if (block.type === 'heading') {
+      previousImageCaptionKey = ''
       result.push({
         id: block.id,
         type: 'heading',
@@ -2563,12 +2621,19 @@ function documentSchemaToEditorBlocksWithBibliography(schema: DocumentSchema, wo
     }
 
     if (block.type === 'paragraph') {
+      const text = String(block.text || '')
+      const captionKey = normalizeFigureCaptionKey(text)
+      if (captionKey && isFigureCaptionText(text) && captionKey === previousImageCaptionKey) {
+        continue
+      }
+      previousImageCaptionKey = ''
       result.push({
         id: block.id,
         type: 'paragraph',
-        text: block.text,
+        text,
         paragraphStyle: block.styleRef || 'Normal',
         alignment: 'left',
+        metadata: block.metadata,
       } satisfies EmbeddedTextBlock)
       continue
     }
@@ -2601,6 +2666,7 @@ function documentSchemaToEditorBlocksWithBibliography(schema: DocumentSchema, wo
         mediaPath: resource?.path || undefined,
         sourceId: localPreviewPath || resource?.path || undefined,
       } satisfies EmbeddedImageBlock)
+      previousImageCaptionKey = normalizeFigureCaptionKey(caption)
       continue
     }
 
@@ -3632,6 +3698,9 @@ export default function EmbeddedOfficeEnginePanel() {
     mediaPath?: string
     mediaContentType?: string
     previewSrc?: string
+    source?: string
+    flowType?: string
+    metadata?: Record<string, unknown>
     widthPx?: number
     heightPx?: number
     drawingLayout?: 'inline' | 'anchor'
@@ -3646,11 +3715,29 @@ export default function EmbeddedOfficeEnginePanel() {
     let mediaContentType = payload.mediaContentType
     let sourceId = payload.sourceId
     let title = payload.title
+    const paperGeneratedImage = payload.source === 'paper-generation'
+      || payload.flowType === 'paper-generation'
+      || payload.metadata?.source === 'paper-generation'
+      || isFigureCaptionText(payload.altText || '')
+      || isFigureCaptionText(payload.title || '')
     const stableSource = ((!previewSrc || /^data:/i.test(previewSrc)) && sourceId && !/^data:/i.test(sourceId)) ? sourceId : previewSrc
+    const insertPaperImageErrorBlock = (message: string, detail: Record<string, unknown>) => {
+      insertBlockAfterSelection({
+        id: createBlockId('paper-image-error'),
+        type: 'paragraph',
+        text: message,
+        paragraphStyle: 'Caption',
+        metadata: {
+          role: 'paper-image-placeholder',
+          source: 'paper-generation',
+          ...detail,
+        },
+      })
+    }
 
     if (stableSource && !/^data:/i.test(stableSource) && window.electronAPI?.readImageAsDataUrl) {
+      let stablePath = stableSource
       try {
-        let stablePath = stableSource
         if (activeWorkspacePath) {
           if (!isWorkspaceLocalImage(stablePath, activeWorkspacePath)) {
             const structure = await window.electronAPI.detectProjectStructure(activeWorkspacePath)
@@ -3669,9 +3756,47 @@ export default function EmbeddedOfficeEnginePanel() {
         mediaContentType = imported.contentType || mediaContentType
         title = title || imported.fileName.replace(/\.[^.]+$/, '')
         mediaPath = mediaPath || buildImportedMediaPath(imported.fileName, imported.contentType, blockId)
-      } catch {
+      } catch (error) {
+        if (paperGeneratedImage) {
+          console.warn('[paper:image_error]', {
+            localPath: sourceId,
+            previewSrc: payload.previewSrc,
+            stablePath,
+            exists: false,
+            reason: error instanceof Error ? error.message : String(error),
+          })
+          insertPaperImageErrorBlock('图片生成成功但预览路径异常', {
+            localPath: sourceId,
+            previewSrc: payload.previewSrc,
+            stablePath,
+            exists: false,
+            reason: error instanceof Error ? error.message : String(error),
+          })
+          return
+        }
         previewSrc = payload.previewSrc
       }
+    }
+
+    if (paperGeneratedImage && previewSrc && !isAllowedImagePreviewSrc(previewSrc)) {
+      if (isRawWindowsPath(previewSrc)) {
+        console.warn('[paper:image_error]', {
+          localPath: sourceId || previewSrc,
+          previewSrc,
+          stablePath: stableSource,
+          exists: false,
+          reason: 'raw Windows path is not allowed as img src',
+        })
+        insertPaperImageErrorBlock('图片生成成功但预览路径异常', {
+          localPath: sourceId || previewSrc,
+          previewSrc,
+          stablePath: stableSource,
+          exists: false,
+          reason: 'raw Windows path is not allowed as img src',
+        })
+        return
+      }
+      previewSrc = toFileUrl(previewSrc)
     }
 
     const nextBlock: EmbeddedEditorBlock = {
@@ -3679,6 +3804,8 @@ export default function EmbeddedOfficeEnginePanel() {
       type: 'image',
       alt: payload.altText || 'image',
       title,
+      caption: paperGeneratedImage ? (payload.title && isFigureCaptionText(payload.title) ? payload.title : payload.altText) : undefined,
+      paperGenerated: paperGeneratedImage,
       sourceId,
       sourceXml: payload.sourceXml,
       relationshipId: payload.relationshipId,
@@ -4080,13 +4207,13 @@ export default function EmbeddedOfficeEnginePanel() {
 
   const executeInlineReference = useCallback(async () => {
     const selection = getCurrentSelection()
-    if (!selection) {
-      setStatusMessage('请先选中要检索文献的文本')
+    if (!selection || !String(selection.text || '').trim()) {
+      setStatusMessage('请先选中需要添加引用的正文句子或段落')
       return
     }
     const anchorBlock = selection.anchorId ? blocksRef.current.find((block) => block.id === selection.anchorId) : null
     if (anchorBlock && (anchorBlock.type === 'paragraph' || anchorBlock.type === 'heading') && isAbstractTextBlock(anchorBlock)) {
-      setStatusMessage('摘要/Abstract 区域不支持插入引用')
+      setStatusMessage('摘要区域不支持插入引用，请选择正文内容')
       return
     }
     const settings = getAIToolSettings()
@@ -4106,11 +4233,11 @@ export default function EmbeddedOfficeEnginePanel() {
         setStatusMessage(`找到 ${result.citations.length} 条文献`)
       } else {
         setInlineRef(null)
-        setStatusMessage('未找到匹配文献')
+        setStatusMessage('未找到匹配文献，可尝试扩大关键词或年份范围')
       }
     } catch (error) {
       setInlineRef(null)
-      setStatusMessage(error instanceof Error ? error.message : String(error))
+      setStatusMessage(`文献检索失败：${error instanceof Error ? error.message : String(error)}`)
     } finally {
       setAiBusy(false)
     }
@@ -4123,6 +4250,7 @@ export default function EmbeddedOfficeEnginePanel() {
       setStatusMessage('请至少勾选一篇文献')
       return
     }
+    setStatusMessage('正在插入引用...')
 
     // --- DocumentSchema-first path ---
     const currentSchema = currentDocumentSchemaRef.current
@@ -4179,6 +4307,17 @@ export default function EmbeddedOfficeEnginePanel() {
                 return
               }
             }
+            if (window.electronAPI?.saveGeneratedPaperJsonArtifact) {
+              try {
+                await window.electronAPI.saveGeneratedPaperJsonArtifact({
+                  workspacePath: activeWorkspacePath,
+                  documentSchema: nextDoc,
+                  title: nextDoc.meta?.title || currentFileName || 'paper',
+                })
+              } catch (paperJsonError) {
+                console.warn('[paper:citation_paper_json_save_failed]', paperJsonError)
+              }
+            }
             const marker = newCitationNumbers.length ? ` ${formatCitationMarker(newCitationNumbers)}` : ''
             setStatusMessage(`已插入引用${marker}，并同步更新参考文献列表文件（已保存到工作区）`)
           } else {
@@ -4195,7 +4334,11 @@ export default function EmbeddedOfficeEnginePanel() {
     }
 
     if (currentSchema && currentSchemaIsPaper && !schemaBlockId) {
-      setStatusMessage('插入引用失败：未能将当前选区映射到 DocumentSchema block，未进入 legacy 模式')
+      console.warn('[paper:citation_block_mapping_failed]', {
+        anchorId: inlineRef.range.anchorId,
+        selectedText: inlineRef.range.text,
+      })
+      setStatusMessage('插入引用失败：无法定位到当前正文段落，请重新点击正文后再试')
       return
     }
 
@@ -4211,7 +4354,7 @@ export default function EmbeddedOfficeEnginePanel() {
     void persistReferenceSectionToWorkspace(updated.orderedItems).catch(() => undefined)
     setInlineRef(null)
     setStatusMessage(`已插入引用 ${formatCitationMarker(updated.citationNumbers)}（legacy 模式，未关联 DocumentSchema）`)
-  }, [activeWorkspacePath, commitBlocks, filePath, inlineRef, persistReferenceSectionToWorkspace, refreshTree, setStatusMessage])
+  }, [activeWorkspacePath, commitBlocks, currentFileName, filePath, inlineRef, persistReferenceSectionToWorkspace, refreshTree, setStatusMessage])
 
   const toggleInlineCitationSelection = useCallback((citation: CitationItem) => {
     const citationKey = buildCitationSelectionKey(citation)
@@ -5498,7 +5641,7 @@ export default function EmbeddedOfficeEnginePanel() {
             {!inlineRef.loading ? (
               <FloatingActions>
                 <FloatingButton onClick={() => setInlineRef(null)}>取消</FloatingButton>
-                <FloatingButton $primary onClick={handleInsertSelectedCitations} disabled={inlineRef.selectedCitationKeys.length === 0}>插入已选引用</FloatingButton>
+                <FloatingButton $primary onClick={handleInsertSelectedCitations}>插入已选引用</FloatingButton>
               </FloatingActions>
             ) : null}
           </FloatingPanel>

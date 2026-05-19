@@ -315,6 +315,20 @@ assert(String((refParas5[2] as any).text || '').includes('[3]'), 'third ref para
 const bodyBlocks5 = exportedDoc5.blocks.filter((b) => b.metadata?.role !== 'references-section')
 assert(bodyBlocks5.length > 0, 'body blocks preserved in exported document')
 
+// Paper export should not duplicate an image caption paragraph immediately after
+// the image block. The image block is the authoritative caption source.
+const imageForCaptionDoc5 = doc4.blocks.find((b) => b.type === 'image' && String(b.value?.caption || '').includes('Figure 2.1 method diagram'))!
+const exportCaptionDoc5 = {
+  ...doc4,
+  blocks: [
+    imageForCaptionDoc5,
+    { id: 'dup-caption-5', type: 'paragraph' as const, text: 'Figure 2.1 method diagram', metadata: { source: 'paper-generation' } },
+  ],
+}
+const exportedCaptionDoc5 = renderDocumentCitationsForExport(exportCaptionDoc5)
+const duplicateExportCaptions5 = exportedCaptionDoc5.blocks.filter((b) => b.type === 'paragraph' && b.text === 'Figure 2.1 method diagram')
+assertEq(duplicateExportCaptions5.length, 0, 'paper export dedupes image-following Figure caption paragraph')
+
 // Preview still works on original (un-mutated) document
 assert(previewText5.includes('[1]'), 'preview text includes [1]')
 assert(previewText5.includes('[2]'), 'preview text includes [2]')

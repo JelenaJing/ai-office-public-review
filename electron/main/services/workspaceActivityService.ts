@@ -37,8 +37,10 @@ import type {
   FileContentSummary,
   DailyActivityReport,
   WorkType,
+  ProgressStage,
+  OutcomeLevel,
 } from '../../../src/types/workspaceActivity'
-import type { DailyReportInput } from '../../../src/types/workActivityTypes'
+import type { DailyReportInput, WorkActivityEvent } from '../../../src/types/workActivityTypes'
 import { userActionLogService } from './userActionLogService'
 
 const execFileAsync = promisify(execFile)
@@ -389,10 +391,16 @@ async function analyzeFileWithLlm(
     fileName: entry.fileName,
     changeType: entry.changeType,
     workType: 'other',
+    taskName: stripFileExtension(entry.fileName),
     topic: '（无法读取内容）',
+    progressStage: 'blocked',
+    progressDelta: '',
     summary: '文件内容无法提取或为空',
     keyActions: [],
     outputValue: '',
+    remainingIssues: ['文件内容无法提取或为空'],
+    evidence: [`文件名：${entry.fileName}`, `变更类型：${changeTypeLabel(entry.changeType)}`],
+    outcomeLevel: 'none',
     confidence: 0,
   }
 
@@ -405,7 +413,7 @@ async function analyzeFileWithLlm(
 
   const excerpt = text.slice(0, LLM_TEXT_MAX_CHARS)
 
-  const prompt = `你是一个工作内容分析助手。以下是用户在 AI Office 中修改的一个文件内容节选。
+  const prompt = `你是一个工作进展分析助手。以下是用户在 AI Office 中修改的一个文件内容节选。
 
 文件名：${entry.fileName}
 变更类型：${changeTypeLabel(entry.changeType)}
@@ -414,16 +422,29 @@ async function analyzeFileWithLlm(
 内容节选：
 ${excerpt}
 
-请分析用户在这个文件上做了什么，用 JSON 格式返回（只返回 JSON，不要任何说明）：
+请根据文件名、变更类型和内容节选，分析这个文件反映的“工作进展”，不是简单描述“修改了文件”。
+用 JSON 格式返回（只返回 JSON，不要任何说明）：
 {
-  "workType": "draft 草稿|formal 正式文稿|email 邮件|ppt 演示文稿|research 研究资料|notes 笔记|other 其他（选一个关键词）",
+  "workType": "draft|formal|email|ppt|research|notes|debugging|communication|other",
+  "taskName": "归并后的任务名称，不要直接用文件名",
   "topic": "文件主题（一句话）",
-  "summary": "用户在此文件上的主要内容（2-3句）",
-  "keyActions": ["动作1", "动作2"],
-  "outputValue": "产出价值（简短）",
+  "progressStage": "planning|drafting|editing|reviewing|finalizing|exporting|debugging|communicating|blocked|completed",
+  "progressDelta": "今天相对之前推进了什么，1-2句，例如从初稿生成推进到插图和引用修复",
+  "summary": "文件内容变化摘要，2句以内，必须写推进了什么，不要只写修改了文件",
+  "keyActions": ["关键动作1", "关键动作2"],
+  "outputValue": "形成的阶段性成果或业务价值",
+  "remainingIssues": ["仍未解决的问题"],
+  "evidence": ["来自文件名、变更类型、文本片段的证据1", "证据2"],
+  "outcomeLevel": "none|partial|substantial|completed",
   "confidence": 0.85
 }
-workType 只能是以下之一：draft, formal, email, ppt, research, notes, other`
+要求：
+1. workType 只能是 draft, formal, email, ppt, research, notes, debugging, communication, other。
+2. progressStage 只能是 planning, drafting, editing, reviewing, finalizing, exporting, debugging, communicating, blocked, completed。
+3. outcomeLevel 只能是 none, partial, substantial, completed。
+4. progressDelta 必须体现变化；如果看不出实质变化，说明“仅有保存/导出证据，实质推进不足”。
+5. evidence 必须来自输入内容，不允许编造；导出产物只能作为佐证，不要夸大为核心工作。
+6. 只有打开/保存且无实质内容变化时，outcomeLevel = none 或 partial。`
 
   try {
     const raw = await completeText(settings, {
@@ -441,10 +462,16 @@ workType 只能是以下之一：draft, formal, email, ppt, research, notes, oth
       fileName: entry.fileName,
       changeType: entry.changeType,
       workType: validateWorkType(parsed.workType) ?? 'other',
+      taskName: String(parsed.taskName || stripFileExtension(entry.fileName)),
       topic: String(parsed.topic || '（未识别）'),
+      progressStage: validateProgressStage(parsed.progressStage) ?? 'editing',
+      progressDelta: String(parsed.progressDelta || ''),
       summary: String(parsed.summary || ''),
       keyActions: Array.isArray(parsed.keyActions) ? parsed.keyActions.map(String) : [],
       outputValue: String(parsed.outputValue || ''),
+      remainingIssues: Array.isArray(parsed.remainingIssues) ? parsed.remainingIssues.map(String) : [],
+      evidence: Array.isArray(parsed.evidence) ? parsed.evidence.map(String) : [],
+      outcomeLevel: validateOutcomeLevel(parsed.outcomeLevel) ?? 'partial',
       confidence: typeof parsed.confidence === 'number' ? Math.min(1, Math.max(0, parsed.confidence)) : 0.5,
     }
   } catch {
@@ -460,13 +487,510 @@ function changeTypeLabel(ct: string): string {
   return ct
 }
 
-const VALID_WORK_TYPES = new Set<WorkType>(['draft', 'formal', 'email', 'ppt', 'research', 'notes', 'other'])
+function stripFileExtension(fileName: string): string {
+  return fileName.replace(/\.[^.]+$/, '')
+}
+
+const VALID_WORK_TYPES = new Set<WorkType>(['draft', 'formal', 'email', 'ppt', 'research', 'notes', 'debugging', 'communication', 'other'])
 function validateWorkType(v: unknown): WorkType | null {
   if (typeof v === 'string' && VALID_WORK_TYPES.has(v as WorkType)) return v as WorkType
   return null
 }
 
+const VALID_PROGRESS_STAGES = new Set<ProgressStage>(['planning', 'drafting', 'editing', 'reviewing', 'finalizing', 'exporting', 'debugging', 'communicating', 'blocked', 'completed'])
+function validateProgressStage(v: unknown): ProgressStage | null {
+  if (typeof v === 'string' && VALID_PROGRESS_STAGES.has(v as ProgressStage)) return v as ProgressStage
+  return null
+}
+
+const VALID_OUTCOME_LEVELS = new Set<OutcomeLevel>(['none', 'partial', 'substantial', 'completed'])
+function validateOutcomeLevel(v: unknown): OutcomeLevel | null {
+  if (typeof v === 'string' && VALID_OUTCOME_LEVELS.has(v as OutcomeLevel)) return v as OutcomeLevel
+  return null
+}
+
 // ── daily report generation ───────────────────────────────────────────────────
+
+export interface ProgressTaskEvidence {
+  taskName: string
+  evidence: string[]
+  files: string[]
+  aiPrompts: string[]
+  aiOutputs: string[]
+  errors: string[]
+  communications: string[]
+  durationMs: number
+  eventCount: number
+  hasPrompt: boolean
+  hasCompletion: boolean
+  hasFailure: boolean
+  inferredProgress: string
+}
+
+export interface ProgressEvidenceBundle {
+  tasks: ProgressTaskEvidence[]
+  text: string
+  hasEffectiveActivity: boolean
+}
+
+interface MutableProgressTaskEvidence extends ProgressTaskEvidence {
+  tokenSet: Set<string>
+  rawSignals: string[]
+  lastTsMs: number
+}
+
+const HIGH_VALUE_EVENT_TYPES = new Set<string>([
+  'file_saved',
+  'file_exported',
+  'ppt_generated',
+  'ppt_exported',
+  'ai_prompt_submitted',
+  'ai_task_completed',
+  'ai_task_failed',
+  'email_sent',
+  'chat_message_sent',
+  'attachment_sent',
+  'error_occurred',
+])
+
+const LOW_VALUE_ACTIONS = new Set(['open', 'opened', 'view', 'viewed', 'focus', 'focused', 'navigate', 'navigation', 'switch', 'select'])
+
+function getPayload(e: WorkActivityEvent): Record<string, unknown> {
+  return (e.payload ?? {}) as Record<string, unknown>
+}
+
+function getPayloadString(payload: Record<string, unknown>, keys: string[]): string {
+  for (const key of keys) {
+    const value = payload[key]
+    if (typeof value === 'string' && value.trim()) return value.trim()
+    if (typeof value === 'number') return String(value)
+  }
+  return ''
+}
+
+function getPayloadStringArray(payload: Record<string, unknown>, keys: string[]): string[] {
+  for (const key of keys) {
+    const value = payload[key]
+    if (Array.isArray(value)) return value.map(String).filter(Boolean)
+  }
+  return []
+}
+
+function isMeaningfulActivityEvent(e: WorkActivityEvent): boolean {
+  if (e.eventType === 'session_started' || e.eventType === 'session_ended') return false
+  const action = (e.action ?? '').toLowerCase()
+  if (e.eventType === 'file_opened') return false
+  if (action && LOW_VALUE_ACTIONS.has(action)) return false
+  return HIGH_VALUE_EVENT_TYPES.has(e.eventType) || action === 'save_document'
+}
+
+function eventTsMs(e: WorkActivityEvent): number {
+  const ms = Date.parse(e.ts)
+  return Number.isFinite(ms) ? ms : 0
+}
+
+function normalizeEvidenceText(text: string, maxLength = 120): string {
+  return text.replace(/\s+/g, ' ').trim().slice(0, maxLength)
+}
+
+function collectEventSignals(e: WorkActivityEvent): string[] {
+  const p = getPayload(e)
+  return [
+    e.targetTitle,
+    e.targetId,
+    e.module,
+    e.action,
+    e.errorMessage,
+    getPayloadString(p, ['fileName']),
+    getPayloadString(p, ['title']),
+    getPayloadString(p, ['featureName']),
+    getPayloadString(p, ['promptSummary']),
+    getPayloadString(p, ['outputSummary']),
+    getPayloadString(p, ['messageSummary']),
+    getPayloadString(p, ['subjectSummary']),
+    getPayloadString(p, ['conversationId']),
+    ...getPayloadStringArray(p, ['changedFiles', 'files', 'fileNames']),
+  ].filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+}
+
+function collectSummarySignals(summary: FileContentSummary): string[] {
+  return [
+    summary.taskName,
+    summary.fileName,
+    summary.topic,
+    summary.progressDelta,
+    summary.summary,
+    summary.outputValue,
+    ...(summary.keyActions ?? []),
+    ...(summary.remainingIssues ?? []),
+    ...(summary.evidence ?? []),
+  ].filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+}
+
+function extractSemanticTokens(signals: string[]): Set<string> {
+  const joined = signals.join(' ').toLowerCase()
+  const tokens = new Set<string>()
+  const addIf = (token: string, pattern: RegExp) => {
+    if (pattern.test(joined)) tokens.add(token)
+  }
+
+  addIf('paper', /论文|paper|manuscript/)
+  addIf('generation', /生成|generation|generate/)
+  addIf('image', /图片|插图|图像|figure|image|img/)
+  addIf('preservation', /保留|保存|preserv|retain/)
+  addIf('reference', /引用|参考文献|reference|citation/)
+  addIf('daily-report', /日报|daily report|工作进展|进展报告/)
+  addIf('progress', /进展|推进|progress/)
+  addIf('email', /邮件|email/)
+  addIf('chat', /聊天|沟通|message|chat/)
+  addIf('debugging', /修复|排查|异常|失败|错误|bug|debug|fix|error/)
+  addIf('finalize', /finalize|定稿|收尾/)
+  addIf('export', /导出|export/)
+
+  for (const signal of signals) {
+    const asciiMatches = signal.match(/[A-Za-z][A-Za-z0-9_]{2,}/g) ?? []
+    for (const match of asciiMatches.slice(0, 6)) {
+      const normalized = match.toLowerCase()
+      if (!['the', 'and', 'for', 'with', 'file', 'save', 'task', 'completed'].includes(normalized)) {
+        tokens.add(normalized)
+      }
+    }
+  }
+  return tokens
+}
+
+function tokenSimilarity(a: Set<string>, b: Set<string>): number {
+  if (a.size === 0 || b.size === 0) return 0
+  let overlap = 0
+  for (const token of a) {
+    if (b.has(token)) overlap += 1
+  }
+  return overlap / Math.min(a.size, b.size)
+}
+
+function inferTaskNameFromSignals(signals: string[]): string {
+  const joined = signals.join(' ')
+  if (/(论文|paper|manuscript)/i.test(joined) && /(图片|插图|图像|figure|image|preserv|保留)/i.test(joined)) {
+    return '论文生成链路图片保留问题'
+  }
+  if (/(日报|daily report|工作进展|进展报告)/i.test(joined)) {
+    return '工作日报进展报告优化'
+  }
+  if (/(邮件|email)/i.test(joined)) return '邮件沟通推进'
+  if (/(聊天|沟通|message|chat)/i.test(joined)) return '沟通事项推进'
+
+  const p = signals.map((s) => normalizeEvidenceText(s, 40)).find((s) => s && !/\.(tsx?|jsx?|json|docx?|pptx?|pdf|md)$/i.test(s))
+  return p || '未命名工作任务'
+}
+
+function createMutableTask(signals: string[], tsMs: number): MutableProgressTaskEvidence {
+  const tokenSet = extractSemanticTokens(signals)
+  return {
+    taskName: inferTaskNameFromSignals(signals),
+    evidence: [],
+    files: [],
+    aiPrompts: [],
+    aiOutputs: [],
+    errors: [],
+    communications: [],
+    durationMs: 0,
+    eventCount: 0,
+    hasPrompt: false,
+    hasCompletion: false,
+    hasFailure: false,
+    inferredProgress: '',
+    tokenSet,
+    rawSignals: signals,
+    lastTsMs: tsMs,
+  }
+}
+
+function findMatchingTask(tasks: MutableProgressTaskEvidence[], signals: string[], tsMs: number, eventType?: string): MutableProgressTaskEvidence | null {
+  const tokens = extractSemanticTokens(signals)
+  let best: MutableProgressTaskEvidence | null = null
+  let bestScore = 0
+  for (const task of tasks) {
+    const score = tokenSimilarity(tokens, task.tokenSet)
+    if (score > bestScore) {
+      bestScore = score
+      best = task
+    }
+  }
+  if (best && bestScore >= 0.34) return best
+
+  const lastTask = tasks[tasks.length - 1]
+  const isWeakEvidence = eventType === 'file_saved' || eventType === 'file_exported' || eventType === 'error_occurred'
+  if (lastTask && isWeakEvidence && tsMs > 0 && tsMs - lastTask.lastTsMs <= 30 * 60 * 1000) {
+    return lastTask
+  }
+  return null
+}
+
+function addUnique(target: string[], value: string): void {
+  const normalized = normalizeEvidenceText(value)
+  if (normalized && !target.includes(normalized)) target.push(normalized)
+}
+
+function addSignalsToTask(task: MutableProgressTaskEvidence, signals: string[], tsMs: number): void {
+  task.rawSignals.push(...signals)
+  task.taskName = inferTaskNameFromSignals(task.rawSignals)
+  for (const token of extractSemanticTokens(signals)) task.tokenSet.add(token)
+  if (tsMs > 0) task.lastTsMs = tsMs
+}
+
+function eventEvidenceLine(e: WorkActivityEvent): string {
+  const p = getPayload(e)
+  const title = e.targetTitle || getPayloadString(p, ['fileName', 'title'])
+  const feature = getPayloadString(p, ['featureName'])
+  const prompt = getPayloadString(p, ['promptSummary'])
+  const output = getPayloadString(p, ['outputSummary'])
+  const subject = getPayloadString(p, ['subjectSummary'])
+  const message = getPayloadString(p, ['messageSummary'])
+
+  if (e.eventType === 'ai_prompt_submitted') return `AI 提示词：${normalizeEvidenceText(prompt || feature || '已提交 AI 任务')}`
+  if (e.eventType === 'ai_task_completed') return `完成事件：${normalizeEvidenceText(output || feature || 'AI 任务完成')}`
+  if (e.eventType === 'ai_task_failed') return `异常：${normalizeEvidenceText(e.errorMessage || output || 'AI 任务失败')}`
+  if (e.eventType === 'file_saved' || e.action === 'save_document') return `文件变更：${normalizeEvidenceText(title || '未命名文件')}（保存）`
+  if (e.eventType === 'file_exported' || e.eventType === 'ppt_exported') return `文件产物：${normalizeEvidenceText(title || '未命名文件')}（导出）`
+  if (e.eventType === 'ppt_generated') return `文件产物：${normalizeEvidenceText(title || '演示文稿')}（生成）`
+  if (e.eventType === 'email_sent') return `邮件：${normalizeEvidenceText(subject || title || '已发送邮件')}`
+  if (e.eventType === 'chat_message_sent') return `沟通：${normalizeEvidenceText(message || title || '已发送消息')}`
+  if (e.eventType === 'attachment_sent') return `附件：${normalizeEvidenceText(title || '已发送附件')}`
+  if (e.eventType === 'error_occurred') return `异常：${normalizeEvidenceText(e.errorMessage || '发生异常')}`
+  return `${e.eventType}：${normalizeEvidenceText(title || feature || e.action || '')}`
+}
+
+function addEventToTask(task: MutableProgressTaskEvidence, e: WorkActivityEvent): void {
+  const p = getPayload(e)
+  const evidence = eventEvidenceLine(e)
+  addUnique(task.evidence, evidence)
+  task.eventCount += 1
+  task.durationMs += e.durationMs ?? 0
+  if (e.durationMs) addUnique(task.evidence, `耗时：约 ${Math.round(e.durationMs / 1000)} 秒`)
+
+  const title = e.targetTitle || getPayloadString(p, ['fileName', 'title'])
+  if (title && (e.eventType.startsWith('file_') || e.action === 'save_document')) addUnique(task.files, title)
+
+  if (e.eventType === 'ai_prompt_submitted') {
+    task.hasPrompt = true
+    addUnique(task.aiPrompts, getPayloadString(p, ['promptSummary']) || getPayloadString(p, ['featureName']) || '已提交 AI 任务')
+  }
+  if (e.eventType === 'ai_task_completed') {
+    task.hasCompletion = true
+    addUnique(task.aiOutputs, getPayloadString(p, ['outputSummary']) || getPayloadString(p, ['featureName']) || 'AI 任务完成')
+  }
+  if (e.eventType === 'ai_task_failed') {
+    task.hasFailure = true
+    addUnique(task.errors, e.errorMessage || 'AI 任务失败')
+  }
+  if (e.eventType === 'error_occurred') {
+    task.hasFailure = true
+    addUnique(task.errors, e.errorMessage || '发生异常')
+  }
+  if (e.eventType === 'email_sent' || e.eventType === 'chat_message_sent') {
+    addUnique(task.communications, evidence.replace(/^(邮件|沟通)：/, ''))
+  }
+}
+
+function addSummaryToTask(tasks: MutableProgressTaskEvidence[], summary: FileContentSummary): void {
+  if (summary.outcomeLevel === 'none' && !summary.progressDelta && !summary.outputValue) return
+  const signals = collectSummarySignals(summary)
+  const task = findMatchingTask(tasks, signals, 0) ?? createMutableTask(signals, 0)
+  if (!tasks.includes(task)) tasks.push(task)
+  addSignalsToTask(task, signals, 0)
+
+  const fileLabel = `${summary.fileName}（${changeTypeLabel(summary.changeType)}）`
+  addUnique(task.files, summary.fileName)
+  addUnique(task.evidence, summary.changeType === 'exported' ? `文件产物：${fileLabel}` : `文件分析：${fileLabel}`)
+  if (summary.progressDelta) addUnique(task.evidence, `进展变化：${summary.progressDelta}`)
+  if (summary.outputValue) addUnique(task.aiOutputs, summary.outputValue)
+  for (const issue of summary.remainingIssues ?? []) addUnique(task.errors, issue)
+  if (summary.outcomeLevel === 'completed' || summary.outcomeLevel === 'substantial') task.hasCompletion = true
+}
+
+function normalizeRiskMessage(message: string): string {
+  const normalized = normalizeEvidenceText(message, 60)
+  if (/finalize/i.test(normalized) && /图片|image|图/.test(normalized) && /消失|丢失|missing|lost/i.test(normalized)) {
+    return 'finalize 后图片消失'
+  }
+  return normalized
+}
+
+function inferTaskProgress(task: ProgressTaskEvidence): string {
+  const firstRisk = task.errors[0] ? normalizeRiskMessage(task.errors[0]) : ''
+  if (task.hasCompletion && firstRisk) return `${task.taskName}继续推进，但 ${firstRisk}仍是风险。`
+  if (task.hasPrompt && !task.hasCompletion) return `${task.taskName}已发起/尝试处理，尚未看到结果事件。`
+  if (task.hasCompletion) {
+    const output = task.aiOutputs[0] ? `，阶段性成果是${task.aiOutputs[0]}` : ''
+    return `${task.taskName}形成阶段性成果${output}。`
+  }
+  if (firstRisk) return `${task.taskName}出现异常，${firstRisk}需要继续处理。`
+  if (task.files.length > 0) return `${task.taskName}有文件变更记录，但实质进展需结合内容确认。`
+  return `${task.taskName}有工作线索，但日志证据不足。`
+}
+
+function finalizeProgressTasks(tasks: MutableProgressTaskEvidence[]): ProgressTaskEvidence[] {
+  return tasks.map((task) => {
+    const plain: ProgressTaskEvidence = {
+      taskName: task.taskName,
+      evidence: task.evidence,
+      files: task.files,
+      aiPrompts: task.aiPrompts,
+      aiOutputs: task.aiOutputs,
+      errors: task.errors,
+      communications: task.communications,
+      durationMs: task.durationMs,
+      eventCount: task.eventCount,
+      hasPrompt: task.hasPrompt,
+      hasCompletion: task.hasCompletion,
+      hasFailure: task.hasFailure,
+      inferredProgress: '',
+    }
+    plain.inferredProgress = inferTaskProgress(plain)
+    return plain
+  })
+}
+
+function formatProgressEvidence(tasks: ProgressTaskEvidence[]): string {
+  if (tasks.length === 0) return '【任务进展证据】\n无有效工作记录。'
+  const lines = ['【任务进展证据】']
+  for (const task of tasks) {
+    lines.push(`- 任务：${task.taskName}`)
+    lines.push('  证据：')
+    const evidence = task.evidence.length > 0 ? task.evidence : ['日志证据不足']
+    for (const item of evidence.slice(0, 8)) lines.push(`  - ${item}`)
+    if (task.files.length > 0) lines.push(`  文件产物：${task.files.slice(0, 6).join('、')}`)
+    if (task.aiOutputs.length > 0) lines.push(`  AI 输出摘要：${task.aiOutputs.slice(0, 3).join('；')}`)
+    if (task.errors.length > 0) lines.push(`  异常/失败：${task.errors.slice(0, 3).join('；')}`)
+    if (task.eventCount > 0) lines.push(`  事件数：${task.eventCount}`)
+    if (task.durationMs > 0) lines.push(`  耗时：约 ${Math.round(task.durationMs / 1000)} 秒`)
+    lines.push(`  推断：${task.inferredProgress}`)
+  }
+  return lines.join('\n')
+}
+
+export function buildProgressEvidence(
+  activityContext: DailyReportInput | undefined,
+  summaries: FileContentSummary[],
+): ProgressEvidenceBundle {
+  const tasks: MutableProgressTaskEvidence[] = []
+  const events = (activityContext?.activityEvents ?? [])
+    .filter(isMeaningfulActivityEvent)
+    .sort((a, b) => eventTsMs(a) - eventTsMs(b))
+
+  for (const event of events) {
+    const tsMs = eventTsMs(event)
+    const signals = collectEventSignals(event)
+    const task = findMatchingTask(tasks, signals, tsMs, event.eventType) ?? createMutableTask(signals, tsMs)
+    if (!tasks.includes(task)) tasks.push(task)
+    addSignalsToTask(task, signals, tsMs)
+    addEventToTask(task, event)
+  }
+
+  for (const summary of summaries) addSummaryToTask(tasks, summary)
+
+  const finalized = finalizeProgressTasks(tasks)
+  return {
+    tasks: finalized,
+    text: formatProgressEvidence(finalized),
+    hasEffectiveActivity: finalized.length > 0,
+  }
+}
+
+export function buildDailyActivityReportFromProgressJson(
+  date: string,
+  username: string | undefined,
+  summaries: FileContentSummary[],
+  parsed: Record<string, unknown>,
+): DailyActivityReport {
+  const overview = String(parsed.overview || '')
+  const progressSummary = String(parsed.progressSummary || parsed.mainWork || '')
+  const keyMilestones = String(parsed.keyMilestones || parsed.keyOutputs || '')
+  const evidenceBasedDetails = String(parsed.evidenceBasedDetails || parsed.fileOutputs || '')
+  const blockersAndRisks = String(parsed.blockersAndRisks || parsed.anomalies || '')
+  const aiContribution = String(parsed.aiContribution || parsed.aiUsage || '')
+  const communicationProgress = String(parsed.communicationProgress || parsed.emailAndChat || '')
+  const timeAndEffort = String(parsed.timeAndEffort || parsed.timeStats || '')
+  const nextFocus = String(parsed.nextFocus || parsed.suggestions || '')
+  const mdParts: string[] = []
+  if (username) mdParts.push(`**${username}** 工作日报 · ${date}\n`)
+  mdParts.push(`## 今日概览\n${overview || '无'}`)
+  mdParts.push(`## 工作进展\n${progressSummary || '无'}`)
+  mdParts.push(`## 阶段性成果\n${keyMilestones || '无'}`)
+  mdParts.push(`## 证据依据\n${evidenceBasedDetails || '无'}`)
+  mdParts.push(`## 阻塞与风险\n${blockersAndRisks || '无'}`)
+  mdParts.push(`## AI 贡献\n${aiContribution || '无'}`)
+  mdParts.push(`## 沟通推进\n${communicationProgress || '无'}`)
+  mdParts.push(`## 时间投入\n${timeAndEffort || '无'}`)
+  mdParts.push(`## 下一步焦点\n${nextFocus || '无'}`)
+
+  return {
+    date,
+    workspacePath: '',
+    username,
+    generatedAt: new Date().toISOString(),
+    overview,
+    mainWork: progressSummary,
+    keyOutputs: keyMilestones,
+    comparison: '',
+    workFocusChange: '',
+    anomalies: blockersAndRisks,
+    suggestions: nextFocus,
+    progressSummary,
+    keyMilestones,
+    evidenceBasedDetails,
+    blockersAndRisks,
+    aiContribution,
+    communicationProgress,
+    timeAndEffort,
+    nextFocus,
+    fileOutputs: evidenceBasedDetails,
+    timeStats: timeAndEffort,
+    detailedMarkdown: mdParts.join('\n\n'),
+    summaries,
+  }
+}
+
+export function createNoEffectiveActivityReport(date: string, username: string | undefined, summaries: FileContentSummary[]): DailyActivityReport {
+  const detailedMarkdown = [
+    username ? `**${username}** 工作日报 · ${date}\n` : '',
+    '## 今日概览\n今日无有效工作记录',
+    '## 工作进展\n无',
+    '## 阶段性成果\n无',
+    '## 证据依据\n无',
+    '## 阻塞与风险\n无',
+    '## AI 贡献\n无',
+    '## 沟通推进\n无',
+    '## 时间投入\n无',
+    '## 下一步焦点\n无',
+  ].filter(Boolean).join('\n\n')
+
+  return {
+    date,
+    workspacePath: '',
+    username,
+    generatedAt: new Date().toISOString(),
+    overview: '今日无有效工作记录',
+    mainWork: '无',
+    keyOutputs: '无',
+    comparison: '',
+    workFocusChange: '',
+    anomalies: '无',
+    suggestions: '无',
+    progressSummary: '无',
+    keyMilestones: '无',
+    evidenceBasedDetails: '无',
+    blockersAndRisks: '无',
+    aiContribution: '无',
+    communicationProgress: '无',
+    timeAndEffort: '无',
+    nextFocus: '无',
+    fileOutputs: '无',
+    timeStats: '无',
+    detailedMarkdown,
+    summaries,
+  }
+}
 
 async function generateDailyReportText(
   settings: AppSettings,
@@ -476,8 +1000,19 @@ async function generateDailyReportText(
   username?: string,
   activityContext?: DailyReportInput,
 ): Promise<DailyActivityReport> {
+  const progressEvidence = buildProgressEvidence(activityContext, summaries)
+  if (!progressEvidence.hasEffectiveActivity && summaries.length === 0) {
+    return createNoEffectiveActivityReport(date, username, summaries)
+  }
+
   const summaryLines = summaries
-    .map((s) => `- [${changeTypeLabel(s.changeType)}] ${s.fileName}（${s.topic}）：${s.summary}`)
+    .map((s) => [
+      `- 任务：${s.taskName || stripFileExtension(s.fileName)}`,
+      `  文件：${s.fileName}（${changeTypeLabel(s.changeType)}，${s.topic}）`,
+      `  阶段：${s.progressStage || '未识别'}；推进：${s.progressDelta || s.summary}`,
+      `  成果：${s.outputValue || '无明确产出'}；未完成：${(s.remainingIssues ?? []).join('；') || '无明确记录'}`,
+      `  证据：${(s.evidence ?? []).slice(0, 4).join('；') || '文件内容摘要'}`,
+    ].join('\n'))
     .join('\n')
 
   const yesterdaySummary = yesterdayReport
@@ -486,116 +1021,39 @@ async function generateDailyReportText(
 
   const userLabel = username ? `用户：${username}\n` : ''
 
-  // Build activity context section from user-action-logs
-  let activitySection = ''
-  if (activityContext && activityContext.activityEvents.length > 0) {
-    const lines: string[] = []
-
-    // File events
-    const fileEvts = activityContext.fileEvents
-    if (fileEvts.length > 0) {
-      lines.push('【文件操作】')
-      for (const e of fileEvts) {
-        const p = (e.payload ?? {}) as Record<string, unknown>
-        const title = (e.targetTitle ?? p.fileName ?? p.title ?? '') as string
-        const durationNote = e.durationMs ? `，耗时 ${Math.round(e.durationMs / 1000)}s` : ''
-        lines.push(`  - [${e.eventType}] ${title}${durationNote}`)
-      }
-    }
-
-    // AI events
-    const aiEvts = activityContext.aiEvents
-    if (aiEvts.length > 0) {
-      lines.push('【AI 使用】')
-      for (const e of aiEvts) {
-        const p = (e.payload ?? {}) as Record<string, unknown>
-        if (e.eventType === 'ai_prompt_submitted') {
-          const feat = (p.featureName ?? '') as string
-          const model = (p.model ?? '') as string
-          const prompt = (p.promptSummary ?? '') as string
-          lines.push(`  - [AI提交] 功能: ${feat}, 模型: ${model}`)
-          if (prompt) lines.push(`    提示词摘要: ${String(prompt).slice(0, 100)}`)
-        } else if (e.eventType === 'ai_task_completed') {
-          const feat = (p.featureName ?? '') as string
-          const output = (p.outputSummary ?? '') as string
-          const durationNote = e.durationMs ? ` 耗时 ${Math.round(e.durationMs / 1000)}s` : ''
-          lines.push(`  - [AI完成] ${feat}${durationNote}`)
-          if (output) lines.push(`    输出摘要: ${String(output).slice(0, 100)}`)
-        } else if (e.eventType === 'ai_task_failed') {
-          lines.push(`  - [AI失败] ${e.errorMessage ?? '未知错误'}`)
-        }
-      }
-    }
-
-    // Email events
-    const emailEvts = activityContext.activityEvents.filter((e) => e.eventType === 'email_sent')
-    if (emailEvts.length > 0) {
-      lines.push('【邮件】')
-      for (const e of emailEvts) {
-        const p = (e.payload ?? {}) as Record<string, unknown>
-        const subj = (p.subjectSummary ?? '') as string
-        const domains = (p.toDomains ?? []) as string[]
-        lines.push(`  - [发送邮件] 主题: ${subj}，收件人域: ${domains.join(', ')}`)
-      }
-    }
-
-    // Chat events
-    const chatEvts = activityContext.activityEvents.filter((e) => e.eventType === 'chat_message_sent')
-    if (chatEvts.length > 0) {
-      lines.push('【内部通讯】')
-      for (const e of chatEvts) {
-        const p = (e.payload ?? {}) as Record<string, unknown>
-        const msgType = (p.messageType ?? 'text') as string
-        const summary = (p.messageSummary ?? '') as string
-        lines.push(`  - [发送消息] 类型: ${msgType}${summary ? `，摘要: ${summary}` : ''}`)
-      }
-    }
-
-    // Error events
-    const errorEvts = activityContext.activityEvents.filter((e) => e.eventType === 'error_occurred')
-    if (errorEvts.length > 0) {
-      lines.push('【异常】')
-      for (const e of errorEvts) {
-        lines.push(`  - [${e.errorCode ?? 'ERROR'}] ${e.errorMessage ?? ''}`)
-      }
-    }
-
-    if (lines.length > 0) {
-      activitySection = `\n今日行为日志：\n${lines.join('\n')}`
-    }
-  } else if (activityContext && activityContext.activityEvents.length === 0 && summaries.length === 0) {
-    // No activity at all
-    activitySection = '\n今日无任何记录行为。'
-  }
-
-  const prompt = `你是一个工作日报生成助手。请根据以下工作日志，生成一份完整的每日工作日报，包含所有章节。
+  const prompt = `你是一个工作进展报告生成助手。请根据已归并的任务证据，生成一份管理者想看的每日工作进展报告。
 
 ${userLabel}日期：${date}
 
 今日文件活动摘要：
-${summaryLines || '今日没有检测到文件变更。'}
-${activitySection}
+${summaryLines || '今日没有检测到有效文件变更。'}
+
+${progressEvidence.text}
+
 ${yesterdaySummary}
 
 要求：
-1. 有日志才总结，没有日志时 overview 输出"今日无工作记录"，其余字段输出"无"。
-2. 不要编造，不要夸大。
-3. fileOutputs 列出今日修改/生成的每个文件及其用途，如无则输出"无"。
-4. aiUsage 列出调用了哪些 AI 功能、输入了什么提示词、生成了什么，如无则输出"无"。
-5. emailAndChat 列出发送的邮件主题、收件人域、内部消息摘要，如无则输出"无"。
-6. timeStats 列出各主要任务的大致耗时，如无耗时数据则输出"无耗时数据"。
-7. anomalies 列出失败任务和异常，如无则输出"无"。
-8. 不要生成明日建议。
+1. 主要写“推进了哪些工作、进展到什么阶段、产出了什么、还有什么风险”，不要罗列打开文件/保存文件/点击按钮。
+2. 每条主工作必须包含“动作 + 结果 + 当前状态”。
+3. 有证据才说完成；只有 ai_prompt_submitted 而没有 ai_task_completed 时，只能写“发起/尝试/推进”，不能写“完成”。
+4. 如果有失败或异常，必须写入 blockersAndRisks，并说明影响和下一步处理方向。
+5. nextFocus 是“下一步工作焦点”，必须来自今天日志中的未完成项或异常，最多 3 条；不要写泛泛建议。
+6. AI 调用要按任务合并，说明实际辅助完成了什么；不要把所有调用列成流水账。
+7. 如果日志证据不足，要明确写“日志证据不足”，不要编造。
+8. 导出产物只作为佐证，不要夸大为核心工作成果。
+9. 语言简洁，不要官话，不要夸大。
 
 请用 JSON 格式返回（只返回 JSON，不要任何其他内容）：
 {
-  "overview": "今日概览（1-2句话）",
-  "mainWork": "今日主要工作（按条列出，每条以 • 开头换行）",
-  "fileOutputs": "文件与产出（逐条列出文件名和操作描述，每条以 • 开头换行，如无则填写无）",
-  "aiUsage": "AI 使用情况（列出 AI 功能名称、提示词摘要、输出内容摘要，每条以 • 开头换行，如无则填写无）",
-  "emailAndChat": "邮件与内部通讯（列出发送邮件和内部消息摘要，每条以 • 开头换行，如无则填写无）",
-  "timeStats": "耗时统计（各任务大致耗时，每条以 • 开头换行，如无耗时数据则填写无耗时数据）",
-  "anomalies": "异常情况（列出失败任务和错误，每条以 • 开头换行，如无则填写无）"
+  "overview": "今日整体进展，1-2句话，强调推进结果，不是事件列表",
+  "progressSummary": "按任务归纳的进展，每条以 • 开头",
+  "keyMilestones": "阶段性成果，每条以 • 开头，无则填无",
+  "evidenceBasedDetails": "证据型说明：引用日志、文件变更、AI调用、通讯等证据，每条以 • 开头，无则填无",
+  "blockersAndRisks": "阻塞、异常、失败、未完成事项，每条以 • 开头，无则填无",
+  "aiContribution": "AI 实际贡献：辅助完成了什么、输出了什么、节省了什么，每条以 • 开头，无则填无",
+  "communicationProgress": "沟通推进：通过邮件/聊天推进了什么事项，每条以 • 开头，无则填无",
+  "timeAndEffort": "耗时和投入估计，基于日志 durationMs 和事件数量，不要编造，无则填无耗时数据",
+  "nextFocus": "基于未完成事项推断下一步重点，最多3条，不要写泛泛建议"
 }`
 
   const blank: DailyActivityReport = {
@@ -610,6 +1068,14 @@ ${yesterdaySummary}
     workFocusChange: '',
     anomalies: '',
     suggestions: '',
+    progressSummary: '',
+    keyMilestones: '',
+    evidenceBasedDetails: '',
+    blockersAndRisks: '',
+    aiContribution: '',
+    communicationProgress: '',
+    timeAndEffort: '',
+    nextFocus: '',
     fileOutputs: '',
     timeStats: '',
     summaries,
@@ -619,48 +1085,15 @@ ${yesterdaySummary}
     const raw = await completeText(settings, {
       systemPrompt: '你是工作日报生成助手，严格只输出 JSON，不输出任何说明或 markdown 代码块。',
       userPrompt: prompt,
-      maxTokens: 1400,
+      maxTokens: 1800,
       temperature: 0.4,
+      featureName: 'workspaceActivity.dailyProgressReport',
     })
     const jsonStart = raw.indexOf('{')
     const jsonEnd = raw.lastIndexOf('}')
     if (jsonStart === -1 || jsonEnd === -1) return blank
     const parsed = JSON.parse(raw.slice(jsonStart, jsonEnd + 1)) as Record<string, unknown>
-    const overview = String(parsed.overview || '')
-    const mainWork = String(parsed.mainWork || '')
-    const fileOutputs = String(parsed.fileOutputs || '')
-    const aiUsage = String(parsed.aiUsage || '')
-    const emailAndChat = String(parsed.emailAndChat || '')
-    const timeStats = String(parsed.timeStats || '')
-    const anomalies = String(parsed.anomalies || '')
-    // Build combined detailedMarkdown
-    const mdParts: string[] = []
-    if (username) mdParts.push(`**${username}** 工作日报 · ${date}\n`)
-    if (overview) mdParts.push(`## 今日概览\n${overview}`)
-    if (mainWork && mainWork !== '无') mdParts.push(`## 主要工作\n${mainWork}`)
-    if (fileOutputs && fileOutputs !== '无') mdParts.push(`## 文件与产出\n${fileOutputs}`)
-    if (aiUsage && aiUsage !== '无') mdParts.push(`## AI 使用情况\n${aiUsage}`)
-    if (emailAndChat && emailAndChat !== '无') mdParts.push(`## 邮件与内部通讯\n${emailAndChat}`)
-    if (timeStats && timeStats !== '无耗时数据' && timeStats !== '无') mdParts.push(`## 耗时统计\n${timeStats}`)
-    if (anomalies && anomalies !== '无') mdParts.push(`## 异常情况\n${anomalies}`)
-    const detailedMarkdown = mdParts.join('\n\n')
-    return {
-      date,
-      workspacePath: '',
-      username,
-      generatedAt: new Date().toISOString(),
-      overview,
-      mainWork,
-      keyOutputs: fileOutputs,
-      comparison: '',
-      workFocusChange: '',
-      anomalies,
-      suggestions: '',
-      fileOutputs,
-      timeStats,
-      detailedMarkdown,
-      summaries,
-    }
+    return buildDailyActivityReportFromProgressJson(date, username, summaries, parsed)
   } catch {
     return blank
   }

@@ -264,6 +264,22 @@ export function mergeExistingImageBlocksIntoFinalDocument(
       missingImageCount: missingImages.length,
       preservedImageCount: currentImages.length,
     })
+    console.info('[paper:image_preserved]', {
+      count: missingImages.length,
+      images: missingImages.map((image) => ({
+        blockId: image.block.id,
+        resourceId: image.resource.id,
+        path: image.resource.path,
+        caption: getImageCaption(image.block, image.resource),
+      })),
+    })
+  }
+
+  if (droppedImageReasons.length > 0) {
+    console.warn('[paper:image_dropped]', {
+      count: droppedImageReasons.length,
+      reasons: droppedImageReasons,
+    })
   }
 
   const finalBlocks = reinsertMissingPaperImages(mergedBlocks, missingImages)

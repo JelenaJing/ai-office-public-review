@@ -278,7 +278,7 @@ function changeTypeLabel(ct: string): string {
 function workTypeLabel(wt: string): string {
   const map: Record<string, string> = {
     draft: '草稿', formal: '正式文稿', email: '邮件', ppt: 'PPT',
-    research: '研究资料', notes: '笔记', other: '其他',
+    research: '研究资料', notes: '笔记', debugging: '调试修复', communication: '沟通', other: '其他',
   }
   return map[wt] || wt
 }
@@ -332,19 +332,25 @@ function SummaryList({ summaries }: { summaries: FileContentSummary[] }) {
     <>
       {summaries.map((s) => (
         <SummaryCard key={s.filePath}>
-          <SummaryFileName>{s.fileName}</SummaryFileName>
+          <SummaryFileName>{s.taskName || s.fileName}</SummaryFileName>
           <SummaryTopic>{s.topic}</SummaryTopic>
           <TagRow>
             <Tag>{changeTypeLabel(s.changeType)}</Tag>
             <Tag>{workTypeLabel(s.workType)}</Tag>
+            {s.progressStage && <Tag>{s.progressStage}</Tag>}
+            {s.outcomeLevel && <Tag>{s.outcomeLevel}</Tag>}
             {s.confidence > 0 && <Tag>置信度 {Math.round(s.confidence * 100)}%</Tag>}
           </TagRow>
           <Divider />
+          {s.progressDelta && <SummaryBody>{s.progressDelta}</SummaryBody>}
           <SummaryBody>{s.summary}</SummaryBody>
           {s.keyActions.length > 0 && (
             <TagRow>{s.keyActions.map((a, i) => <Tag key={i}>{a}</Tag>)}</TagRow>
           )}
           {s.outputValue && <SummaryBody style={{ color: '#4a7a5a', marginTop: 4 }}>✓ {s.outputValue}</SummaryBody>}
+          {s.remainingIssues && s.remainingIssues.length > 0 && (
+            <SummaryBody style={{ color: '#9a5a3a', marginTop: 4 }}>风险：{s.remainingIssues.join('；')}</SummaryBody>
+          )}
         </SummaryCard>
       ))}
     </>
@@ -354,12 +360,16 @@ function SummaryList({ summaries }: { summaries: FileContentSummary[] }) {
 function ReportView({ report }: { report: DailyActivityReport }) {
   const sections = [
     { key: 'overview',         label: '今日概览',     value: report.overview },
-    { key: 'mainWork',         label: '主要工作',     value: report.mainWork },
-    { key: 'keyOutputs',       label: '关键产出',     value: report.keyOutputs },
+    { key: 'mainWork',         label: '工作进展',     value: report.progressSummary ?? report.mainWork },
+    { key: 'keyOutputs',       label: '阶段性成果',   value: report.keyMilestones ?? report.keyOutputs },
+    { key: 'fileOutputs',      label: '证据依据',     value: report.evidenceBasedDetails ?? report.fileOutputs },
+    { key: 'aiContribution',   label: 'AI 贡献',      value: report.aiContribution },
+    { key: 'communication',    label: '沟通推进',     value: report.communicationProgress },
+    { key: 'timeAndEffort',    label: '时间投入',     value: report.timeAndEffort ?? report.timeStats },
     { key: 'comparison',       label: '与昨日对比',   value: report.comparison },
     { key: 'workFocusChange',  label: '工作重心变化', value: report.workFocusChange },
-    { key: 'anomalies',        label: '异常/未完成',  value: report.anomalies },
-    { key: 'suggestions',      label: '明日建议',     value: report.suggestions },
+    { key: 'anomalies',        label: '阻塞与风险',   value: report.blockersAndRisks ?? report.anomalies },
+    { key: 'suggestions',      label: '下一步焦点',   value: report.nextFocus ?? report.suggestions },
   ]
   return (
     <Card>
@@ -428,7 +438,7 @@ export function ActivityReportPanel({ workspacePath, username }: ActivityReportP
     setError(null)
     try {
       const res = await electronAPI.activityTakeSnapshot(workspacePath)
-      if (!res.ok) { setError(`快照失败：${res.error}`); setPhase('error'); return }
+      if (res.ok === false) { setError(`快照失败：${res.error}`); setPhase('error'); return }
       // Load diff after snapshot
       const diffRes = await electronAPI.activityGetActivity({ workspacePath, date })
       if (diffRes.ok) setDiff(diffRes.diff)
@@ -447,7 +457,7 @@ export function ActivityReportPanel({ workspacePath, username }: ActivityReportP
       // Take snapshot first to ensure we have today's data
       await electronAPI.activityTakeSnapshot(workspacePath)
       const res = await electronAPI.activityAnalyzeFiles({ workspacePath, date })
-      if (!res.ok) { setError(`分析失败：${res.error}`); setPhase('error'); return }
+      if (res.ok === false) { setError(`分析失败：${res.error}`); setPhase('error'); return }
       setSummaries(res.summaries)
       const diffRes = await electronAPI.activityGetActivity({ workspacePath, date })
       if (diffRes.ok) setDiff(diffRes.diff)
@@ -464,7 +474,7 @@ export function ActivityReportPanel({ workspacePath, username }: ActivityReportP
     setError(null)
     try {
       const res = await electronAPI.activityGenerateReport({ workspacePath, date, username })
-      if (!res.ok) { setError(`日报生成失败：${res.error}`); setPhase('error'); return }
+      if (res.ok === false) { setError(`日报生成失败：${res.error}`); setPhase('error'); return }
       setReport(res.report)
       setSummaries(res.report.summaries)
       const diffRes = await electronAPI.activityGetActivity({ workspacePath, date })

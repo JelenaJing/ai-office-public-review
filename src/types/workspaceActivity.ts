@@ -35,17 +35,31 @@ export interface FileDiff {
   exported: FileChangeRecord[]
 }
 
-export type WorkType = 'draft' | 'formal' | 'email' | 'ppt' | 'research' | 'notes' | 'other'
+export type WorkType = 'draft' | 'formal' | 'email' | 'ppt' | 'research' | 'notes' | 'debugging' | 'communication' | 'other'
+export type ProgressStage = 'planning' | 'drafting' | 'editing' | 'reviewing' | 'finalizing' | 'exporting' | 'debugging' | 'communicating' | 'blocked' | 'completed'
+export type OutcomeLevel = 'none' | 'partial' | 'substantial' | 'completed'
 
 export interface FileContentSummary {
   filePath: string
   fileName: string
   changeType: FileChangeType
   workType: WorkType
+  /** 归并后的任务名称；不是文件名直译 */
+  taskName?: string
   topic: string
+  /** 文件所反映的当前工作阶段 */
+  progressStage?: ProgressStage
+  /** 相对之前推进了什么 */
+  progressDelta?: string
   summary: string
   keyActions: string[]
   outputValue: string
+  /** 仍未解决的问题 */
+  remainingIssues?: string[]
+  /** 支撑判断的文件名、变更类型、文本片段或日志事件 */
+  evidence?: string[]
+  /** 阶段性产出程度 */
+  outcomeLevel?: OutcomeLevel
   confidence: number
 }
 
@@ -61,6 +75,22 @@ export interface DailyActivityReport {
   workFocusChange: string
   anomalies: string
   suggestions: string
+  /** 今日整体进展，强调推进结果 */
+  progressSummary?: string
+  /** 阶段性成果 */
+  keyMilestones?: string
+  /** 证据型说明 */
+  evidenceBasedDetails?: string
+  /** 阻塞、异常、失败、未完成事项 */
+  blockersAndRisks?: string
+  /** AI 实际贡献 */
+  aiContribution?: string
+  /** 沟通推进 */
+  communicationProgress?: string
+  /** 耗时和投入估计 */
+  timeAndEffort?: string
+  /** 下一步工作焦点 */
+  nextFocus?: string
   summaries: FileContentSummary[]
   /** 今日收发邮件统计（托管模式下附加） */
   emailActivity?: {
