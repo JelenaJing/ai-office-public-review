@@ -246,6 +246,8 @@ export async function generateSectionFigures(
       const imageResult = await generateImage(settings, outputDir, {
         prompt: figureProfile.prompt,
         aspectRatio: settings.defaults.imageAspectRatio,
+        flowType: 'paper-generation',
+        traceId: `paper-figure-s${sectionNum}-f${figIndex}-${Date.now()}`,
       }, emit)
 
       // 生成 caption

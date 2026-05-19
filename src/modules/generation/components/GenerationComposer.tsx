@@ -405,8 +405,8 @@ interface Props {
   onPauseChange?: (paused: boolean) => void
   onPaperStreamStart?: (tabId: string) => boolean
   onPaperStreamAppend?: (payload: { tabId: string; markdown: string; contentType?: string; eventType?: 'references' | 'image' }) => boolean
-  onPaperStreamSync?: (payload: { tabId: string; markdown: string; backendUrl: string }) => boolean
-  onPaperStreamComplete?: (payload: { tabId: string; markdown: string; backendUrl: string }) => boolean
+  onPaperStreamSync?: (payload: { tabId: string; markdown: string; backendUrl: string; paragraphIndex?: number; updatedParagraph?: string; citationNumber?: number }) => boolean
+  onPaperStreamComplete?: (payload: { tabId: string; markdown: string; backendUrl: string; documentSchema?: DocumentSchema }) => boolean
 }
 
 type AssistantTargetMode = 'document'
@@ -1040,7 +1040,7 @@ const GenerationComposer: React.FC<Props> = ({
   onPaperStreamSync,
   onPaperStreamComplete,
 }) => {
-  const { activeTabId, openTab, setStatusMessage, setTabShellContent, tabs, mainTabId, markTabShellSaved, ensureWritableManuscriptTarget } = useDocument()
+  const { activeTabId, openTab, switchTab, setStatusMessage, setTabShellContent, tabs, mainTabId, markTabShellSaved, ensureWritableManuscriptTarget } = useDocument()
   const workbench = useGenerationWorkbench()
   const { generationMode } = useWorkspaceMode()
   const {
@@ -1086,6 +1086,7 @@ const GenerationComposer: React.FC<Props> = ({
   const latestPaperMarkdownRef = useRef('')
   const latestStreamAppendedMarkdownRef = useRef('')
   const lastSyncedContentRef = useRef('')
+  const paperGenerationTabIdRef = useRef<string | null>(null)
   const tabsRef = useRef(tabs)
   const activeEditorTabIdRef = useRef(activeTabId)
   const manualEditGuardRef = useRef<{ tabId: string; blocked: boolean; lastNonce: number }>({ tabId: '', blocked: false, lastNonce: 0 })
@@ -2600,7 +2601,20 @@ const GenerationComposer: React.FC<Props> = ({
       routeDecision = resolveDocumentFlow(sourceText, normalizedInstruction)
       documentFlow = routeDecision.flow
     } else if (documentFlow === 'paper-generation') {
-      console.info('[paper:duplicate_tab_prevented]', { targetTab, reason: 'reuse-active-paper-generation-tab' })
+      const existingPaperTabId = paperGenerationTabIdRef.current
+      const existingPaperTab = existingPaperTabId ? tabsRef.current.find((tab) => tab.id === existingPaperTabId) : null
+      if (existingPaperTab) {
+        targetTab = existingPaperTab.id
+        targetContent = getEditorTabResolvedContent(existingPaperTab)
+        sourceText = htmlToPlainText(targetContent)
+        console.info('[paper:duplicate_tab_prevented]', { targetTab, reason: 'reuse-bound-paper-generation-tab' })
+        if (activeEditorTabIdRef.current !== targetTab) {
+          await switchTab(targetTab)
+        }
+      } else {
+        paperGenerationTabIdRef.current = targetTab
+        console.info('[paper:tab_create]', { tabId: targetTab, reason: 'bind-current-tab-as-paper-generation' })
+      }
     }
     if (!canStartWritingTask(targetTab, running)) {
       const limitMessage = `当前最多并行 ${MAX_CONCURRENT_WRITING_TASKS} 个写作任务，请先停止其他标签页任务`
@@ -2946,13 +2960,20 @@ const GenerationComposer: React.FC<Props> = ({
             resolve()
           }
 
-          const syncPreview = (rawMarkdown: string, flush = false, _eventType?: string, _structuredBlocks?: EmbeddedPayloadBlock[], _ooxmlSnapshot?: PaperOoxmlSnapshot) => {
+          const syncPreview = (
+            rawMarkdown: string,
+            flush = false,
+            _eventType?: string,
+            _structuredBlocks?: EmbeddedPayloadBlock[],
+            _ooxmlSnapshot?: PaperOoxmlSnapshot,
+            delta?: { paragraphIndex?: number; updatedParagraph?: string; citationNumber?: number },
+          ) => {
             if (!rawMarkdown) return
             if (rawMarkdown === lastSyncedContentRef.current && !flush) return
             lastSyncedContentRef.current = rawMarkdown
             stopTypewriter(false)
             if (onPaperStreamSync) {
-              const handled = onPaperStreamSync({ tabId: targetTab, markdown: rawMarkdown, backendUrl })
+              const handled = onPaperStreamSync({ tabId: targetTab, markdown: rawMarkdown, backendUrl, ...delta })
               if (handled !== false) return
             }
             let displayMarkdown = replaceImageUrls(rawMarkdown, imagePathMapRef.current)
@@ -3091,14 +3112,15 @@ const GenerationComposer: React.FC<Props> = ({
                         const schemaHtml = serializeDocumentSchemaToHtml(completionDocumentSchema)
                         if (schemaHtml.trim()) {
                           setDocumentContentIfAllowed(targetTab, schemaHtml)
-                          if (savedManuscriptPath) {
-                            markTabShellSaved(targetTab, {
-                              filePath: savedManuscriptPath,
-                              fileName: savedManuscriptPath.split(/[\\/]/).pop() || '论文.aidoc.json',
-                              content: schemaHtml,
-                            })
-                          }
-                          onPaperStreamComplete?.({ tabId: targetTab, markdown: finalMarkdown || normalizedResponseMarkdown, backendUrl })
+                          const finalPaperTabTitle = sanitizeGeneratedName(completionDocumentSchema.meta?.title || normalizedResponse.title || normalizedInstruction, '论文', 80)
+                          markTabShellSaved(targetTab, {
+                            filePath: savedManuscriptPath || undefined,
+                            fileName: savedManuscriptPath ? (savedManuscriptPath.split(/[\\/]/).pop() || `${finalPaperTabTitle}.docx`) : `${finalPaperTabTitle}.docx`,
+                            content: schemaHtml,
+                          })
+                          paperGenerationTabIdRef.current = targetTab
+                          console.info('[paper:tab_update]', { tabId: targetTab, title: finalPaperTabTitle, phase: 'finalize' })
+                          onPaperStreamComplete?.({ tabId: targetTab, markdown: finalMarkdown || normalizedResponseMarkdown, backendUrl, documentSchema: completionDocumentSchema })
                           window.dispatchEvent(new CustomEvent('ai-writer-paper-preview-sync', {
                             detail: { tabId: targetTab, html: schemaHtml, markdown: finalMarkdown || normalizedResponseMarkdown, backendUrl, documentSchema: completionDocumentSchema },
                           }))
@@ -3299,7 +3321,11 @@ const GenerationComposer: React.FC<Props> = ({
                   }
                 }
                 if (!cumulative.trim()) return
-                syncPreview(cumulative, false, String(event.eventType || event.event_type || ''), eventStructuredBlocks)
+                syncPreview(cumulative, false, String(event.eventType || event.event_type || ''), eventStructuredBlocks, undefined, {
+                  paragraphIndex: typeof event.paragraphIndex === 'number' ? event.paragraphIndex : undefined,
+                  updatedParagraph: typeof event.updatedParagraph === 'string' ? event.updatedParagraph : undefined,
+                  citationNumber: typeof event.citationNumber === 'number' ? event.citationNumber : undefined,
+                })
                 latestPaperMarkdownRef.current = cumulative
                 const eventType = String(event.eventType || event.event_type || '').trim()
                 const rawImagePath = String(
@@ -3486,7 +3512,7 @@ const GenerationComposer: React.FC<Props> = ({
       setRunningState(false)
       abortRef.current = null
     }
-  }, [activeWorkspacePath, appendGeneratedDocumentIllustration, applyDocumentOnDelta, buildGenerationExtraContext, buildKnowledgeGenerationContext, buildKnowledgeTemplatePayload, commitGeneratedHtmlToWorkbench, dispatchTerminalComposerHidden, effectiveTaskReferenceDocumentIds, generationMode, isDocumentOverwriteBlocked, manualEditNonce, markTabShellSaved, onApplySelectionRewrite, onPaperStreamComplete, onPaperStreamStart, onResolveDocumentRewriteTarget, onShadowTextChange, preservePaperPreviewOnStop, readTaskIds, refreshTree, renderStablePaperPreview, resetManualEditGuard, resolveDocumentFlow, resolveDocumentTargetTab, resolveTargetTab, restoreOriginalDocumentIfAllowed, runDialogImageTask, running, saveKnowledgeGenerationTaskRecord, setRunningState, setStatus, setStatusMessage, setTabShellContent, settings.genNoImageMode, settings.genPaperType, settings.genYearFrom, settings.genYearTo, shouldUseKnowledgeForCurrentTask, startDailyReportGeneration, startEssayGeneration, stopPaperEventStream, stopPolling, stopTypewriter, syncTypewriterPreview, tabs, taskTemplateDocument, taskTemplateDocumentId, writeTaskIds])
+  }, [activeWorkspacePath, appendGeneratedDocumentIllustration, applyDocumentOnDelta, buildGenerationExtraContext, buildKnowledgeGenerationContext, buildKnowledgeTemplatePayload, commitGeneratedHtmlToWorkbench, dispatchTerminalComposerHidden, effectiveTaskReferenceDocumentIds, generationMode, isDocumentOverwriteBlocked, manualEditNonce, markTabShellSaved, onApplySelectionRewrite, onPaperStreamComplete, onPaperStreamStart, onResolveDocumentRewriteTarget, onShadowTextChange, preservePaperPreviewOnStop, readTaskIds, refreshTree, renderStablePaperPreview, resetManualEditGuard, resolveDocumentFlow, resolveDocumentTargetTab, resolveTargetTab, restoreOriginalDocumentIfAllowed, runDialogImageTask, running, saveKnowledgeGenerationTaskRecord, setRunningState, setStatus, setStatusMessage, setTabShellContent, settings.genNoImageMode, settings.genPaperType, settings.genYearFrom, settings.genYearTo, shouldUseKnowledgeForCurrentTask, startDailyReportGeneration, startEssayGeneration, stopPaperEventStream, stopPolling, stopTypewriter, switchTab, syncTypewriterPreview, tabs, taskTemplateDocument, taskTemplateDocumentId, writeTaskIds])
 
   const handleSend = useCallback(async () => {
     const instruction = input.trim() || autoTopic?.trim() || ''

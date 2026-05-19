@@ -41,6 +41,7 @@ interface ReferenceImagePayload {
 interface ImageGenerationParams {
   prompt: string
   aspectRatio: string
+  flowType?: 'paper-generation' | string
   negativePrompt?: string
   primaryImageId?: string | null
   selectedStyleImageIds?: string[]
@@ -76,6 +77,20 @@ const IMAGE_DEFAULT_GUARD =
   'Generate an image based on the user description. ' +
   'Do not add figure captions, annotation text boxes, map insets, or dense infographic labels unless explicitly requested. ' +
   'Do not default to an academic paper figure style or scientific diagram layout.'
+
+const MOJIBAKE_PROMPT_PATTERN = /(璇风敓|鎴|涓婚|銆|鈥)/
+
+function assertPromptEncodingSafe(params: ImageGenerationParams, traceId: string): void {
+  const rawPrompt = String(params.prompt || '')
+  if (!MOJIBAKE_PROMPT_PATTERN.test(rawPrompt)) return
+  const payload = {
+    traceId,
+    flowType: params.flowType || params.debug?.source || 'image-generation',
+    rawUserPrompt: rawPrompt,
+  }
+  console.error('[image:prompt-encoding-abnormal]', JSON.stringify(payload))
+  throw new Error('图片 prompt 编码异常')
+}
 
 // Academic figure prompt — only activated when user explicitly requests scientific/academic figures
 const IMAGE_ACADEMIC_SYSTEM_PROMPT =
@@ -899,6 +914,10 @@ export async function generateImage(
   onProgress?: (message: string) => void,
 ): Promise<ImageGenerationResult> {
   ensureImageConfigured(settings)
+  const traceId = typeof params.traceId === 'string'
+    ? params.traceId
+    : `img-main-${Date.now()}`
+  assertPromptEncodingSafe(params, traceId)
   const referenceImages = normalizeReferenceImages(params)
   const styleOptions = normalizeImageStyleOptions(params.styleOptions)
   const generationMode = params.generationMode || DEFAULT_IMAGE_GENERATION_MODE
@@ -939,9 +958,6 @@ export async function generateImage(
     debug: normalizeDebugPayload(params.debug),
   })
   const finalPrompt = `${systemPrefix}\n\n${promptBuild.finalPrompt}`
-  const traceId = typeof params.traceId === 'string'
-    ? params.traceId
-    : `img-main-${Date.now()}`
   const fallbackNotes = [...promptBuild.fallbackNotes]
   console.info('[image:prompt-builder][generic-path]', JSON.stringify({
     traceId,

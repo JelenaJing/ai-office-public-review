@@ -868,6 +868,8 @@ type EmbeddedImageBlock = {
   type: 'image'
   alt: string
   title?: string
+  caption?: string
+  paperGenerated?: boolean
   sourceId?: string
   sourceXml?: string
   relationshipId?: string
@@ -1880,6 +1882,22 @@ function toFileUrl(localPath: string): string {
   return `file:///${encoded}`
 }
 
+function isFigureCaptionText(text: string): boolean {
+  const normalized = String(text || '').trim()
+  return /^(?:Figure|Fig\.?|图|图表)\s*\d+(?:\.\d+)*[\s:：.．-]/i.test(normalized)
+}
+
+function derivePaperFigurePreviewTitle(block: EmbeddedImageBlock, index: number): string {
+  const title = String(block.title || '').trim()
+  const alt = String(block.alt || '').trim()
+  const figureLike = [title, alt, block.caption || ''].find((value) => isFigureCaptionText(value))
+  const figureNo = figureLike?.match(/^(?:Figure|Fig\.?|图|图表)\s*(\d+(?:\.\d+)*)/i)?.[1]
+  if (block.paperGenerated || figureNo || isFigureCaptionText(title) || isFigureCaptionText(alt)) {
+    return figureNo ? `Figure ${figureNo}` : '图片'
+  }
+  return alt || title || `图片 ${index + 1}`
+}
+
 function normalizeLocalImagePath(source: string): string {
   const value = decodeURI(String(source || '').trim())
   if (!value) return value
@@ -2422,11 +2440,16 @@ function documentSchemaToEditorBlocksWithBibliography(schema: DocumentSchema): E
       const previewSrc = resource?.path || (resource?.metadata?.url as string | undefined)
       const displaySrc = previewSrc && /^(?:[a-z]+:|data:)/i.test(previewSrc) ? previewSrc : (previewSrc ? toFileUrl(previewSrc) : undefined)
       const caption = String(block.value?.caption || block.metadata?.caption || resource?.metadata?.caption || '')
+      const figureIndex = block.metadata?.figureIndex ?? resource?.metadata?.figureIndex
+      const sectionNum = block.metadata?.sectionNum ?? resource?.metadata?.sectionNum
+      const figureTitle = sectionNum && figureIndex ? `Figure ${sectionNum}.${figureIndex}` : '图片'
       result.push({
         id: block.id,
         type: 'image',
-        alt: String(block.value?.alt || block.metadata?.alt || resource?.metadata?.alt || caption || ''),
-        title: caption,
+        alt: figureTitle,
+        title: figureTitle,
+        caption,
+        paperGenerated: block.metadata?.source === 'paper-generation' || resource?.metadata?.source === 'paper-generation',
         previewSrc: displaySrc,
         mediaPath: resource?.path || undefined,
       } satisfies EmbeddedImageBlock)
@@ -3707,16 +3730,33 @@ export default function EmbeddedOfficeEnginePanel() {
     return true
   }, [activeTabId, isReadonlyPreviewTab, setDocumentContent, setStatusMessage])
 
-  const syncPaperStreamIntoEditor = useCallback((payload: { tabId: string; markdown: string; backendUrl: string }) => {
+  const syncPaperStreamIntoEditor = useCallback((payload: { tabId: string; markdown: string; backendUrl: string; paragraphIndex?: number; updatedParagraph?: string; citationNumber?: number }) => {
     if (payload.tabId !== activeTabId || isReadonlyPreviewTab) return false
+    if (typeof payload.updatedParagraph === 'string' && payload.updatedParagraph.trim()) {
+      const paragraphBlocks = blocksRef.current.filter((block): block is EmbeddedTextBlock => block.type === 'paragraph')
+      const targetBlock = typeof payload.paragraphIndex === 'number' ? paragraphBlocks[payload.paragraphIndex] : null
+      const updatedText = payload.citationNumber && !payload.updatedParagraph.includes(`[${payload.citationNumber}]`)
+        ? `${payload.updatedParagraph} [${payload.citationNumber}]`
+        : payload.updatedParagraph
+      if (targetBlock) {
+        commitBlocks(blocksRef.current.map((block) => block.id === targetBlock.id ? { ...block, text: updatedText } : block))
+        return true
+      }
+    }
     const markdown = String(payload.markdown || '').trim()
     if (!markdown) return false
     setDocumentContent(markdown)
     return true
   }, [activeTabId, isReadonlyPreviewTab, setDocumentContent])
 
-  const completePaperStreamIntoEditor = useCallback((payload: { tabId: string; markdown: string; backendUrl: string }) => {
+  const completePaperStreamIntoEditor = useCallback((payload: { tabId: string; markdown: string; backendUrl: string; documentSchema?: DocumentSchema }) => {
     if (payload.tabId !== activeTabId || isReadonlyPreviewTab) return false
+    if (payload.documentSchema && Array.isArray(payload.documentSchema.blocks)) {
+      currentDocumentSchemaRef.current = payload.documentSchema
+      commitBlocks(documentSchemaToEditorBlocksWithBibliography(payload.documentSchema))
+      setStatusMessage('论文已生成并写入编辑器')
+      return true
+    }
     const markdown = String(payload.markdown || '').trim()
     if (!markdown) return false
     setDocumentContent(markdown)
@@ -4844,6 +4884,7 @@ export default function EmbeddedOfficeEnginePanel() {
                 const previewWidth = Math.max(80, Math.min(block.imageWidthPx || 240, 420))
                 const previewHeight = Math.max(80, Math.min(block.imageHeightPx || 160, 320))
                 const isActive = activeBlockId === block.id
+                const previewTitle = derivePaperFigurePreviewTitle(block, index)
                 return (
                   <ObjectCardList key={block.id}>
                     <ObjectCard $active={isActive} onClick={() => setActiveBlockId(block.id)}>
@@ -4851,7 +4892,7 @@ export default function EmbeddedOfficeEnginePanel() {
                         <PreviewLabel>Embedded Media</PreviewLabel>
                         <TextBlockMeta>对象 {index + 1}</TextBlockMeta>
                       </ObjectToolbar>
-                      <PreviewTitle>{block.alt || block.title || `图片 ${index + 1}`}</PreviewTitle>
+                      <PreviewTitle>{previewTitle}</PreviewTitle>
                       <PreviewMeta>
                         {block.mediaPath || '当前图片尚未解析出 media 路径'}
                         {(block.imageWidthPx || block.imageHeightPx) ? ` · ${block.imageWidthPx || '?'} x ${block.imageHeightPx || '?'} px` : ''}
