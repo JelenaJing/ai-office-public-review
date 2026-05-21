@@ -2352,9 +2352,12 @@ function AccountSettingsModal({ onClose }: { onClose: () => void }) {
   const [form, setForm] = useState<EmailAccountConfig>(emailAccountConfig ?? blankForm())
   const [testStatus, setTestStatus] = useState<{ tone: 'ok' | 'err' | 'loading'; msg: string } | null>(null)
   const [saving, setSaving] = useState(false)
+  const [schoolProbeResults, setSchoolProbeResults] = useState<Array<{ protocol: 'imap' | 'smtp'; mode: 'starttls' | 'none' | 'ssl'; ok: boolean; message: string }>>([])
 
   const isInternal = form.providerType === 'internal-imap'
-  const isOutlook = !isInternal && /outlook|office365/i.test(form.imapHost)
+  const isSchoolExchange = form.provider === 'school_cuhk_exchange_imap_smtp'
+  const isLinkAccount = form.user.endsWith('@link.cuhk.edu.cn')
+  const isOutlook = !isInternal && !isSchoolExchange && /outlook|office365/i.test(form.imapHost)
 
   const applyPreset = (preset: typeof EMAIL_ACCOUNT_PRESETS[0]) => {
     setForm((f) => ({
@@ -2362,8 +2365,10 @@ function AccountSettingsModal({ onClose }: { onClose: () => void }) {
       imapHost: preset.imapHost, imapPort: preset.imapPort, imapSecure: preset.imapSecure,
       smtpHost: preset.smtpHost, smtpPort: preset.smtpPort, smtpSecure: preset.smtpSecure,
       providerType: '',
+      provider: undefined,
     }))
     setTestStatus(null)
+    setSchoolProbeResults([])
   }
 
   const applyInternalPreset = () => {
@@ -2372,6 +2377,7 @@ function AccountSettingsModal({ onClose }: { onClose: () => void }) {
       return {
         ...f,
         providerType: 'internal-imap',
+        provider: undefined,
         ...(useDefaults ? {
           imapHost: 'mail.ai.cuhk.edu.cn',
           imapPort: 993,
@@ -2384,9 +2390,40 @@ function AccountSettingsModal({ onClose }: { onClose: () => void }) {
       }
     })
     setTestStatus(null)
+    setSchoolProbeResults([])
+  }
+
+  const applySchoolExchangePreset = (email?: string) => {
+    setForm((f) => ({
+      ...f,
+      provider: 'school_cuhk_exchange_imap_smtp',
+      providerType: '',
+      imapHost: 'mail.cuhk.edu.cn',
+      imapPort: 143,
+      imapSecure: false,
+      smtpHost: 'mail.cuhk.edu.cn',
+      smtpPort: 587,
+      smtpSecure: false,
+      username: email || f.user || '',
+      fromPolicy: 'same_as_login',
+    }))
+    setTestStatus(null)
+    setSchoolProbeResults([])
+  }
+
+  const handleEmailChange = (value: string) => {
+    setForm((f) => ({ ...f, user: value }))
+    if (value.endsWith('@cuhk.edu.cn')) {
+      applySchoolExchangePreset(value)
+      setForm((f) => ({ ...f, user: value, provider: 'school_cuhk_exchange_imap_smtp', providerType: '', imapHost: 'mail.cuhk.edu.cn', imapPort: 143, imapSecure: false, smtpHost: 'mail.cuhk.edu.cn', smtpPort: 587, smtpSecure: false, username: value, fromPolicy: 'same_as_login' }))
+    }
   }
 
   const testConnection = async () => {
+    if (isSchoolExchange) {
+      await testSchoolConnection()
+      return
+    }
     setTestStatus({ tone: 'loading', msg: '正在连接...' })
     try {
       const result = await window.electronAPI?.emailTestConnection?.(form)
@@ -2400,18 +2437,77 @@ function AccountSettingsModal({ onClose }: { onClose: () => void }) {
     }
   }
 
+  const testSchoolConnection = async () => {
+    setTestStatus({ tone: 'loading', msg: '正在自动探测 IMAP/SMTP 加密方式（最多 3×3 次）...' })
+    setSchoolProbeResults([])
+    try {
+      const result = await window.electronAPI?.emailTestSchoolAccount?.({
+        email: form.user,
+        password: form.password,
+        imapHost: form.imapHost || 'mail.cuhk.edu.cn',
+        imapPort: form.imapPort || 143,
+        smtpHost: form.smtpHost || 'mail.cuhk.edu.cn',
+        smtpPort: form.smtpPort || 587,
+      })
+      if (result) {
+        setSchoolProbeResults(result.probeResults ?? [])
+        if (result.ok && result.imapEncryption && result.smtpEncryption) {
+          setForm((f) => ({
+            ...f,
+            imapSecure: result.imapEncryption === 'ssl',
+            smtpSecure: result.smtpEncryption === 'ssl',
+            smtpIgnoreTls: result.smtpEncryption === 'none',
+            imapEncryption: result.imapEncryption,
+            smtpEncryption: result.smtpEncryption,
+          }))
+          setTestStatus({ tone: 'ok', msg: `连接成功！IMAP: ${result.imapEncryption.toUpperCase()}  SMTP: ${result.smtpEncryption.toUpperCase()}` })
+        } else {
+          setTestStatus({ tone: 'err', msg: '自动探测未找到可用的加密组合，请查看下方详细结果。' })
+        }
+      }
+    } catch (err) {
+      setTestStatus({ tone: 'err', msg: err instanceof Error ? err.message : String(err) })
+    }
+  }
+
   const handleSave = async () => {
     setSaving(true)
     try {
-      await saveEmailAccount(form)
+      if (isSchoolExchange) {
+        const result = await window.electronAPI?.emailSaveSchoolAccount?.({
+          ...form,
+          provider: 'school_cuhk_exchange_imap_smtp',
+          fromPolicy: 'same_as_login',
+          username: form.user,
+        })
+        if (result && !result.ok) {
+          setTestStatus({ tone: 'err', msg: result.error?.message ?? '保存失败' })
+          setSaving(false)
+          return
+        }
+        // Reload the saved config (without plaintext password) and update
+        // EmailContext state, which also triggers fetchRealMails so the inbox
+        // refreshes immediately after saving the school Exchange account.
+        const savedConfig = await window.electronAPI?.emailGetAccount?.()
+        if (savedConfig) {
+          await saveEmailAccount(savedConfig)
+        }
+      } else {
+        await saveEmailAccount(form)
+      }
       onClose()
-    } catch {
+    } catch (err) {
+      setTestStatus({ tone: 'err', msg: err instanceof Error ? err.message : '保存失败，请重试' })
       setSaving(false)
     }
   }
 
   const handleClear = async () => {
-    await clearEmailAccount()
+    if (isSchoolExchange) {
+      await window.electronAPI?.emailRemoveSchoolAccount?.()
+    } else {
+      await clearEmailAccount()
+    }
     onClose()
   }
 
@@ -2422,9 +2518,14 @@ function AccountSettingsModal({ onClose }: { onClose: () => void }) {
         type={type}
         placeholder={placeholder}
         value={String(form[key] ?? '')}
-        onChange={(e) =>
-          setForm((f) => ({ ...f, [key]: type === 'number' ? Number(e.target.value) : e.target.value }))
-        }
+        onChange={(e) => {
+          const val = type === 'number' ? Number(e.target.value) : e.target.value
+          if (key === 'user' && type === 'email') {
+            handleEmailChange(e.target.value)
+          } else {
+            setForm((f) => ({ ...f, [key]: val }))
+          }
+        }}
       />
     </>
   )
@@ -2437,7 +2538,7 @@ function AccountSettingsModal({ onClose }: { onClose: () => void }) {
           {EMAIL_ACCOUNT_PRESETS.map((p) => (
             <PresetButton
               key={p.label}
-              $active={!isInternal && form.imapHost === p.imapHost}
+              $active={!isInternal && !isSchoolExchange && form.imapHost === p.imapHost}
               onClick={() => applyPreset(p)}
             >
               {p.label}
@@ -2446,12 +2547,30 @@ function AccountSettingsModal({ onClose }: { onClose: () => void }) {
           <PresetButton $active={isInternal} onClick={applyInternalPreset}>
             🏢 内部邮箱
           </PresetButton>
+          <PresetButton $active={isSchoolExchange} onClick={() => applySchoolExchangePreset()}>
+            🎓 CUHK 学校邮箱
+          </PresetButton>
         </PresetRow>
 
         {isInternal && (
           <InternalHint>
             适用于自建 mailcow、iRedMail、校园/企业内网邮件服务器
           </InternalHint>
+        )}
+        {isSchoolExchange && (
+          <InternalHint>
+            🎓 <strong>CUHK 教职工邮箱 (@cuhk.edu.cn)</strong><br />
+            IMAP: mail.cuhk.edu.cn:143 &nbsp;·&nbsp; SMTP: mail.cuhk.edu.cn:587<br />
+            加密方式将在"自动探测"时自动选择。点击"验证连接"开始探测。<br />
+            ⚠️ 仅适用于 @cuhk.edu.cn；@link.cuhk.edu.cn 学生邮箱请见下方提示。
+          </InternalHint>
+        )}
+        {isLinkAccount && (
+          <OutlookHint>
+            ⚠️ <strong>@link.cuhk.edu.cn 学生邮箱属于另一套 Microsoft 365 体系</strong><br />
+            学校 ITSO 提供的 mail.cuhk.edu.cn 参数不适用于学生邮箱，本阶段暂不支持。<br />
+            请等待单独配置或联系 ITSO 确认学生邮箱 IMAP/SMTP 参数。
+          </OutlookHint>
         )}
         {isOutlook && (
           <OutlookHint>
@@ -2461,52 +2580,82 @@ function AccountSettingsModal({ onClose }: { onClose: () => void }) {
         )}
 
         <FormGrid>
-          {field('displayName', '显示名称', 'text', isInternal ? '例：王老师' : '例：王明')}
-          {field('user', '邮箱地址', 'email', isInternal ? 'teacher@ai.cuhk.edu.cn' : '例：wang@qq.com')}
-          {isInternal && (
+          {field('displayName', '显示名称', 'text', isInternal ? '例：王老师' : isSchoolExchange ? '例：王教授' : '例：王明')}
+          <FormLabel>邮箱地址</FormLabel>
+          <FormInput
+            type="email"
+            placeholder={isSchoolExchange ? 'user@cuhk.edu.cn' : isInternal ? 'teacher@ai.cuhk.edu.cn' : '例：wang@qq.com'}
+            value={form.user}
+            onChange={(e) => handleEmailChange(e.target.value)}
+          />
+          {(isInternal || isSchoolExchange) && (
             <>
               <FormLabel>用户名</FormLabel>
               <FormInput
                 type="text"
-                placeholder="默认同邮箱地址"
+                placeholder={isSchoolExchange ? '默认为完整邮箱地址' : '默认同邮箱地址'}
                 value={form.username ?? ''}
                 onChange={(e) => setForm((f) => ({ ...f, username: e.target.value }))}
               />
             </>
           )}
-          {field('password', '密码/授权码', 'password', '邮箱密码或授权码')}
+          <FormLabel>密码{isSchoolExchange ? '（安全存储，不写入配置文件）' : '/授权码'}</FormLabel>
+          <FormInput
+            type="password"
+            placeholder={isSchoolExchange ? '邮箱登录密码' : '邮箱密码或授权码'}
+            value={form.password}
+            onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
+          />
 
-          {isInternal && <FormSectionLabel>IMAP 接收服务器</FormSectionLabel>}
+          {(isInternal || isSchoolExchange) && <FormSectionLabel>IMAP 接收服务器</FormSectionLabel>}
           {field('imapHost', 'IMAP 服务器', 'text')}
           {field('imapPort', 'IMAP 端口', 'number')}
-          {isInternal && (
+          {(isInternal || isSchoolExchange) && (
             <>
               <FormLabel>IMAP 加密</FormLabel>
-              <FormSelect
-                value={form.imapSecure ? 'ssl' : 'starttls'}
-                onChange={(e) => setForm((f) => ({ ...f, imapSecure: e.target.value === 'ssl' }))}
-              >
-                <option value="ssl">SSL/TLS（推荐，端口 993）</option>
-                <option value="starttls">STARTTLS（端口 143）</option>
-                <option value="none">None（不加密）</option>
-              </FormSelect>
+              {isSchoolExchange ? (
+                <FormInput
+                  type="text"
+                  readOnly
+                  value={form.imapEncryption ? `已探测：${form.imapEncryption.toUpperCase()}` : '点击"验证连接"自动探测'}
+                  style={{ color: form.imapEncryption ? 'var(--green, #38a169)' : undefined }}
+                />
+              ) : (
+                <FormSelect
+                  value={form.imapSecure ? 'ssl' : 'starttls'}
+                  onChange={(e) => setForm((f) => ({ ...f, imapSecure: e.target.value === 'ssl' }))}
+                >
+                  <option value="ssl">SSL/TLS（推荐，端口 993）</option>
+                  <option value="starttls">STARTTLS（端口 143）</option>
+                  <option value="none">None（不加密）</option>
+                </FormSelect>
+              )}
             </>
           )}
 
-          {isInternal && <FormSectionLabel>SMTP 发送服务器</FormSectionLabel>}
+          {(isInternal || isSchoolExchange) && <FormSectionLabel>SMTP 发送服务器</FormSectionLabel>}
           {field('smtpHost', 'SMTP 服务器', 'text')}
           {field('smtpPort', 'SMTP 端口', 'number')}
-          {isInternal && (
+          {(isInternal || isSchoolExchange) && (
             <>
               <FormLabel>SMTP 加密</FormLabel>
-              <FormSelect
-                value={form.smtpSecure ? 'ssl' : 'starttls'}
-                onChange={(e) => setForm((f) => ({ ...f, smtpSecure: e.target.value === 'ssl' }))}
-              >
-                <option value="ssl">SSL/TLS（推荐，端口 465）</option>
-                <option value="starttls">STARTTLS（端口 587）</option>
-                <option value="none">None（不加密）</option>
-              </FormSelect>
+              {isSchoolExchange ? (
+                <FormInput
+                  type="text"
+                  readOnly
+                  value={form.smtpEncryption ? `已探测：${form.smtpEncryption.toUpperCase()}` : '点击"验证连接"自动探测'}
+                  style={{ color: form.smtpEncryption ? 'var(--green, #38a169)' : undefined }}
+                />
+              ) : (
+                <FormSelect
+                  value={form.smtpSecure ? 'ssl' : 'starttls'}
+                  onChange={(e) => setForm((f) => ({ ...f, smtpSecure: e.target.value === 'ssl' }))}
+                >
+                  <option value="ssl">SSL/TLS（推荐，端口 465）</option>
+                  <option value="starttls">STARTTLS（端口 587）</option>
+                  <option value="none">None（不加密）</option>
+                </FormSelect>
+              )}
             </>
           )}
 
@@ -2526,7 +2675,47 @@ function AccountSettingsModal({ onClose }: { onClose: () => void }) {
               </CheckboxRow>
             </>
           )}
+
+          {isSchoolExchange && (
+            <>
+              <FormLabel></FormLabel>
+              <div style={{ fontSize: 12, color: 'var(--text-secondary, #718096)' }}>
+                🔒 发件人固定为登录账号，不允许修改发件人地址。
+              </div>
+            </>
+          )}
         </FormGrid>
+
+        {/* Probe results table for school Exchange */}
+        {isSchoolExchange && schoolProbeResults.length > 0 && (
+          <div style={{ marginTop: 8, fontSize: 12, borderTop: '1px solid var(--border, #e2e8f0)', paddingTop: 8 }}>
+            <strong>自动探测详情：</strong>
+            <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 4 }}>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: 'left', padding: '2px 6px', color: 'var(--text-secondary, #718096)' }}>协议</th>
+                  <th style={{ textAlign: 'left', padding: '2px 6px', color: 'var(--text-secondary, #718096)' }}>加密</th>
+                  <th style={{ textAlign: 'left', padding: '2px 6px', color: 'var(--text-secondary, #718096)' }}>结果</th>
+                  <th style={{ textAlign: 'left', padding: '2px 6px', color: 'var(--text-secondary, #718096)' }}>详情</th>
+                </tr>
+              </thead>
+              <tbody>
+                {schoolProbeResults.map((r, i) => (
+                  <tr key={i} style={{ borderTop: '1px solid var(--border, #e2e8f0)' }}>
+                    <td style={{ padding: '2px 6px' }}>{r.protocol.toUpperCase()}</td>
+                    <td style={{ padding: '2px 6px' }}>{r.mode.toUpperCase()}</td>
+                    <td style={{ padding: '2px 6px', color: r.ok ? 'var(--green, #38a169)' : 'var(--red, #e53e3e)' }}>
+                      {r.ok ? '✓ 成功' : '✗ 失败'}
+                    </td>
+                    <td style={{ padding: '2px 6px', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={r.message}>
+                      {r.message}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
 
         {testStatus && <StatusLine $tone={testStatus.tone}>{testStatus.msg}</StatusLine>}
         <ModalActions>
@@ -2535,9 +2724,20 @@ function AccountSettingsModal({ onClose }: { onClose: () => void }) {
               清除账号
             </Btn>
           )}
-          <Btn $variant="muted" onClick={testConnection}>验证连接</Btn>
+          <Btn
+            $variant="muted"
+            onClick={testConnection}
+            disabled={isLinkAccount}
+            title={isLinkAccount ? '@link.cuhk.edu.cn 不适用 mail.cuhk.edu.cn，无法测试' : undefined}
+          >
+            {isSchoolExchange ? '自动探测连接' : '验证连接'}
+          </Btn>
           <Btn $variant="muted" onClick={onClose}>取消</Btn>
-          <Btn onClick={handleSave} disabled={saving}>
+          <Btn
+            onClick={handleSave}
+            disabled={saving || isLinkAccount}
+            title={isLinkAccount ? '@link.cuhk.edu.cn 暂不支持保存' : undefined}
+          >
             {saving ? '保存中...' : '保存并连接'}
           </Btn>
         </ModalActions>
@@ -4429,7 +4629,9 @@ function CommunicationWorkbenchInner() {
                     <GenerationStatusBar $variant="success">✓ 预回复已生成，可编辑后发送。</GenerationStatusBar>
                   )}
                   {!isGenerating && currentDraft?.errorMessage && (
-                    <GenerationStatusBar $variant="error">❌ 预回复生成失败：{currentDraft.errorMessage}</GenerationStatusBar>
+                    <GenerationStatusBar $variant="error">
+                      ❌ {currentDraft.content?.trim() ? '发送失败：' : '预回复生成失败：'}{currentDraft.errorMessage}
+                    </GenerationStatusBar>
                   )}
                   {!isGenerating && selectedTriage?.timeIntent?.hasTimeRequirement && (
                     <GenerationStatusBar $variant={(mailCalendarCheck?.conflicts.length ?? selectedTriage.calendarConflictCount ?? 0) > 0 ? 'error' : 'success'}>

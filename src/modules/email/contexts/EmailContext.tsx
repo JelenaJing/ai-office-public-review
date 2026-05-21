@@ -749,10 +749,12 @@ export function EmailProvider({ children }: { children: ReactNode }) {
     }
 
     if (isRealMode) {
+      // Always send from the authenticated account's address, not from mail.to
+      const accountEmail = accountConfig?.email || accountConfig?.user || accountConfig?.username || perspective.responderAddress
       // Send via real SMTP
       window.electronAPI.emailSend({
-        from: perspective.responderAddress,
-        fromName: perspective.responderName,
+        from: accountEmail,
+        fromName: accountConfig?.label || accountEmail,
         to: perspective.counterpartyAddress,
         subject: replySubject,
         body: draft.content,

@@ -69,6 +69,7 @@ import { ensureSkillPlatformRunning, stopSkillPlatform, getSkillSyncPlan, listMy
 import { EmailService } from './services/emailService'
 import type { EmailAccountConfig, FetchedMail, EmailAttachmentMeta } from './services/emailService'
 import { classifyEmailError } from './services/emailService'
+import { CredentialService } from './services/credentialService'
 import * as workspaceActivity from './services/workspaceActivityService'
 import { WorkspaceActivitySyncService } from './services/workspaceActivitySyncService'
 import { userActionLogService, createPathHash, inferFileType } from './services/userActionLogService'
@@ -398,6 +399,24 @@ async function pathExists(targetPath: string): Promise<boolean> {
   } catch {
     return false
   }
+}
+
+function normalizeFileSystemReadPath(sourcePath: string): string {
+  const source = String(sourcePath || '').trim()
+  if (!source) return source
+  if (source.startsWith('file://')) {
+    try {
+      const url = new URL(source)
+      const pathname = decodeURI(url.pathname || '')
+      if (/^\/[a-zA-Z]:[\\/]/.test(pathname)) return pathname.slice(1)
+      return pathname || source.replace(/^file:\/\//, '')
+    } catch {
+      const stripped = decodeURI(source.replace(/^file:\/\//, ''))
+      return /^\/[a-zA-Z]:[\\/]/.test(stripped) ? stripped.slice(1) : stripped
+    }
+  }
+  if (/^\/[a-zA-Z]:[\\/]/.test(source)) return source.slice(1)
+  return source
 }
 
 async function ensureUniqueFilePath(targetPath: string): Promise<string> {
@@ -1250,6 +1269,30 @@ app.whenReady().then(async () => {
 
   // ---- Email IPC ----
   const emailService = new EmailService(app.getPath('userData'))
+  const credentialService = new CredentialService(app.getPath('userData'))
+
+  /**
+   * Normalise an email address: strip "Display Name <addr>" wrapper, trim, lowercase.
+   * Used when validating/overriding the From field for fromPolicy='same_as_login'.
+   */
+  function normalizeEmailAddress(value: string): string {
+    if (!value) return ''
+    const m = value.match(/<([^>]+)>/)
+    return (m ? m[1] : value).trim().toLowerCase()
+  }
+
+  /**
+   * For school Exchange accounts, the password is stored in safeStorage, not in the
+   * JSON config.  This helper injects the decrypted password before any email operation.
+   */
+  async function injectCredential(config: EmailAccountConfig | null): Promise<EmailAccountConfig | null> {
+    if (!config) return null
+    if (config.credentialRef && !config.password) {
+      const password = await credentialService.getCredential(config.credentialRef)
+      if (password) return { ...config, password }
+    }
+    return config
+  }
 
   /** Convert FetchedMail → MailItem shape expected by the renderer */
   function toMailItem(m: FetchedMail) {
@@ -1486,6 +1529,11 @@ app.whenReady().then(async () => {
   })
   ipcMain.handle('email:clearAccount', async () => {
     try {
+      // Also delete stored credential for school Exchange accounts
+      const config = await emailService.loadConfig().catch(() => null)
+      if (config?.credentialRef) {
+        await credentialService.deleteCredential(config.credentialRef).catch(() => {/* ignore */})
+      }
       await emailService.clearConfig()
       await emailService.clearAttachmentsCache()
       return { ok: true }
@@ -1511,9 +1559,33 @@ app.whenReady().then(async () => {
   })
   ipcMain.handle('email:fetchInbox', async () => {
     try {
-      const config = await emailService.loadConfig()
-      if (!config) return { ok: true, mails: [] }
+      const raw = await emailService.loadConfig()
+      if (!raw) return { ok: true, mails: [] }
+      const config = await injectCredential(raw)
+      // Detect credential-injection failure early and return a clear error
+      if (!config?.password) {
+        console.warn('[email:fetchInbox] credential not found for account', {
+          provider: raw.provider || raw.providerType || 'unknown',
+          credentialRef: raw.credentialRef,
+        })
+        return {
+          ok: false,
+          error: {
+            message: '无法读取邮箱凭据，请重新打开邮件设置并点击"保存并连接"。',
+            errorCode: 'AUTH_FAILED',
+          },
+        }
+      }
+      console.info('[email:fetchInbox:start]', {
+        provider: config.provider || config.providerType || 'unknown',
+        imapHost: config.imapHost,
+        imapPort: config.imapPort,
+        imapEncryption: config.imapEncryption ?? (config.imapSecure ? 'ssl' : 'starttls'),
+        mailbox: 'INBOX',
+        fetchLimit: 50,
+      })
       const mails = await emailService.fetchInbox(config)
+      console.info('[email:fetchInbox:done]', { fetchedCount: mails.length })
       return { ok: true, mails: mails.map(toMailItem) }
     } catch (err) {
       const config = await emailService.loadConfig().catch(() => null)
@@ -1522,9 +1594,10 @@ app.whenReady().then(async () => {
   })
   ipcMain.handle('email:fetchSent', async () => {
     try {
-      const config = await emailService.loadConfig()
-      if (!config) return { ok: true, mails: [] }
-      const mails = await emailService.fetchSent(config)
+      const raw = await emailService.loadConfig()
+      if (!raw) return { ok: true, mails: [] }
+      const config = await injectCredential(raw)
+      const mails = await emailService.fetchSent(config!)
       return { ok: true, mails: mails.map(toMailItem) }
     } catch (err) {
       return toEmailIpcError(err)
@@ -1532,11 +1605,12 @@ app.whenReady().then(async () => {
   })
   ipcMain.handle('email:fetchTrash', async () => {
     try {
-      const config = await emailService.loadConfig()
-      if (!config) return { ok: true, mails: [] }
+      const raw = await emailService.loadConfig()
+      if (!raw) return { ok: true, mails: [] }
+      const config = await injectCredential(raw)
       const [trash, spam] = await Promise.all([
-        emailService.fetchTrash(config).catch(() => []),
-        emailService.fetchSpam(config).catch(() => []),
+        emailService.fetchTrash(config!).catch(() => []),
+        emailService.fetchSpam(config!).catch(() => []),
       ])
       return { ok: true, mails: [...trash, ...spam].map(toMailItem) }
     } catch (err) {
@@ -1547,8 +1621,32 @@ app.whenReady().then(async () => {
     const startedAt = new Date().toISOString()
     const t0 = Date.now()
     try {
-      const config = await emailService.loadConfig()
-      if (!config) throw new Error('邮件账号未配置，请先在邮件设置中填写账号信息')
+      const raw = await emailService.loadConfig()
+      if (!raw) throw new Error('邮件账号未配置，请先在邮件设置中填写账号信息')
+      const config = (await injectCredential(raw))!
+
+      // For fromPolicy='same_as_login', always force-override From to the authenticated account address.
+      // The renderer may supply mail.to (which could differ in case, name format, or be a fallback
+      // placeholder) – override silently rather than rejecting.
+      const accountEmail = config.user || config.email || config.username || ''
+      if (config.fromPolicy === 'same_as_login') {
+        const draftFrom = options?.from ?? ''
+        if (draftFrom && normalizeEmailAddress(draftFrom) !== normalizeEmailAddress(accountEmail)) {
+          console.warn('[email:send] from override – draft.from="' + draftFrom + '" → account="' + accountEmail + '"')
+        }
+        options = { ...options, from: accountEmail, fromName: options?.fromName || accountEmail }
+      }
+      const finalFrom = options?.from ?? accountEmail
+      console.log('[email:send] resolved', {
+        provider: config.provider || config.providerType,
+        email: config.email || config.user,
+        authUser: accountEmail,
+        finalFrom,
+        to: options?.to,
+        subject: String(options?.subject ?? '').slice(0, 60),
+        inReplyTo: options?.inReplyTo ? String(options.inReplyTo).slice(0, 80) : undefined,
+      })
+
       await emailService.sendEmail(config, options)
 
       // Non-fatal: try to append a copy to the IMAP Sent folder
@@ -1607,8 +1705,9 @@ app.whenReady().then(async () => {
 
   ipcMain.handle('email:deleteMessage', async (_, { mailId, folder }: { mailId: string; folder: 'inbox' | 'sent' }) => {
     try {
-      const config = await emailService.loadConfig()
-      if (!config) throw new Error('邮箱未配置，请先在邮件设置中填写账号信息')
+      const raw = await emailService.loadConfig()
+      if (!raw) throw new Error('邮箱未配置，请先在邮件设置中填写账号信息')
+      const config = (await injectCredential(raw))!
       await emailService.moveMessageToTrash(config, mailId, folder)
       return { ok: true }
     } catch (err) {
@@ -1619,13 +1718,79 @@ app.whenReady().then(async () => {
 
   ipcMain.handle('email:restoreMessage', async (_, { mailId, folder }: { mailId: string; folder: 'trash' | 'spam' }) => {
     try {
-      const config = await emailService.loadConfig()
-      if (!config) throw new Error('邮箱未配置，请先在邮件设置中填写账号信息')
+      const raw = await emailService.loadConfig()
+      if (!raw) throw new Error('邮箱未配置，请先在邮件设置中填写账号信息')
+      const config = (await injectCredential(raw))!
       await emailService.restoreMessageToInbox(config, mailId, folder === 'spam' ? 'spam' : 'trash')
       return { ok: true }
     } catch (err) {
       const config = await emailService.loadConfig().catch(() => null)
       return toEmailIpcError(err, 'imap', config?.providerType)
+    }
+  })
+
+  /* ---- School Exchange IPC ---- */
+
+  ipcMain.handle('email:testSchoolAccount', async (_, params: {
+    email: string
+    password: string
+    imapHost: string
+    imapPort: number
+    smtpHost: string
+    smtpPort: number
+  }) => {
+    try {
+      return await emailService.autoProbeSchoolExchange(params)
+    } catch (err) {
+      return {
+        ok: false,
+        probeResults: [{ protocol: 'imap' as const, mode: 'starttls' as const, ok: false, message: err instanceof Error ? err.message : String(err) }],
+      }
+    }
+  })
+
+  ipcMain.handle('email:saveSchoolAccount', async (_, config: EmailAccountConfig & { password: string }) => {
+    try {
+      const { password, ...rest } = config
+      // Securely store the password; do not write it to JSON
+      const credentialRef = rest.credentialRef || rest.user
+      await credentialService.saveCredential(credentialRef, password)
+      const configToSave: EmailAccountConfig = {
+        ...rest,
+        password: '',  // never persisted
+        credentialRef,
+        provider: 'school_cuhk_exchange_imap_smtp' as const,
+        fromPolicy: 'same_as_login' as const,
+        username: rest.username || rest.user,
+      }
+      await emailService.saveConfig(configToSave)
+      console.info('[email:saveSchoolAccount] saved', {
+        provider: configToSave.provider,
+        imapHost: configToSave.imapHost,
+        imapPort: configToSave.imapPort,
+        imapEncryption: configToSave.imapEncryption,
+        smtpHost: configToSave.smtpHost,
+        smtpPort: configToSave.smtpPort,
+        smtpEncryption: configToSave.smtpEncryption,
+        credentialRef: configToSave.credentialRef,
+      })
+      return { ok: true }
+    } catch (err) {
+      return { ok: false, error: { message: err instanceof Error ? err.message : String(err) } }
+    }
+  })
+
+  ipcMain.handle('email:removeSchoolAccount', async () => {
+    try {
+      const config = await emailService.loadConfig().catch(() => null)
+      if (config?.credentialRef) {
+        await credentialService.deleteCredential(config.credentialRef).catch(() => {/* ignore */})
+      }
+      await emailService.clearConfig()
+      await emailService.clearAttachmentsCache()
+      return { ok: true }
+    } catch (err) {
+      return { ok: false, error: { message: err instanceof Error ? err.message : String(err) } }
     }
   })
 
@@ -1982,7 +2147,19 @@ app.whenReady().then(async () => {
       dataUrl: `data:${contentType};base64,${buffer.toString('base64')}`,
     }
   })
-    ipcMain.handle('file:readImageAsDataUrl', async (_, sourcePath) => {
+  ipcMain.handle('file:getInfo', async (_, sourcePath) => {
+    const normalizedPath = normalizeFileSystemReadPath(String(sourcePath || ''))
+    if (!normalizedPath || /^https?:\/\//i.test(normalizedPath) || /^data:/i.test(normalizedPath)) {
+      return { exists: false, fileSize: 0, path: normalizedPath }
+    }
+    try {
+      const stat = await fs.stat(normalizedPath)
+      return { exists: stat.isFile(), fileSize: stat.isFile() ? stat.size : 0, path: normalizedPath }
+    } catch {
+      return { exists: false, fileSize: 0, path: normalizedPath }
+    }
+  })
+  ipcMain.handle('file:readImageAsDataUrl', async (_, sourcePath) => {
       const source = String(sourcePath || '').trim()
       if (!source) throw new Error('图片路径不能为空')
 
@@ -2004,14 +2181,7 @@ app.whenReady().then(async () => {
         }
       }
 
-      let normalizedPath: string
-      if (source.startsWith('file://')) {
-        const stripped = decodeURI(source.replace(/^file:\/\//, ''))
-        // Handle Windows 3-slash URLs: file:///E:/path → /E:/path → E:/path
-        normalizedPath = /^\/[a-zA-Z]:[\\/]/.test(stripped) ? stripped.slice(1) : stripped
-      } else {
-        normalizedPath = source
-      }
+      const normalizedPath = normalizeFileSystemReadPath(source)
       const fileName = path.basename(normalizedPath)
       const contentType = getImageContentType(normalizedPath)
       const buffer = await fs.readFile(normalizedPath)
