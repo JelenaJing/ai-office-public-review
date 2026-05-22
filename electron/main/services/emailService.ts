@@ -20,6 +20,11 @@ import { INTERNAL_MAIL_CONFIG } from './mail/internalMailConfig'
 
 /** Structured error codes returned alongside human-readable messages */
 export type EmailErrorCode =
+  | 'IMAP_CONNECT_FAILED'
+  | 'IMAP_AUTH_FAILED'
+  | 'SMTP_CONNECT_FAILED'
+  | 'SMTP_AUTH_FAILED'
+  | 'TLS_HANDSHAKE_FAILED'
   | 'AUTH_FAILED'
   | 'NETWORK_TIMEOUT'
   | 'TLS_CERT_ERROR'
@@ -27,6 +32,22 @@ export type EmailErrorCode =
   | 'SMTP_SEND_FAILED'
   | 'MIME_PARSE_ERROR'
   | 'UNKNOWN_ERROR'
+
+export interface EmailConnectionErrorDetail {
+  code?: string
+  command?: string
+  responseCode?: number | string
+  message: string
+}
+
+export interface EmailConnectionCheckResult {
+  ok: boolean
+  protocol: 'imap' | 'smtp'
+  message: string
+  error?: EmailConnectionErrorDetail & {
+    errorCode?: EmailErrorCode
+  }
+}
 
 /** Classify a caught error into a structured code for the renderer */
 export function classifyEmailError(
@@ -61,6 +82,8 @@ export interface EmailAttachmentMeta {
 export interface EmailAccountConfig {
   /** Email address — used as IMAP/SMTP login username unless `username` is set */
   user: string
+  /** Convenience alias for user (email address) */
+  email?: string
   /** Password or app-password */
   password: string
   /** Display name shown in outgoing mail "From" header */
@@ -94,8 +117,14 @@ export interface EmailAccountConfig {
   fromPolicy?: 'same_as_login'
   /** When true, SMTP STARTTLS negotiation is disabled (nodemailer ignoreTLS) */
   smtpIgnoreTls?: boolean
+  /** Explicit STARTTLS preference for SMTP */
+  smtpStartTls?: boolean
   /** Disable TLS certificate verification — for dev/test environments with self-signed certs */
   allowSelfSignedCerts?: boolean
+  /** AccountCenter user ID — used for user isolation on internal accounts */
+  ownerUserId?: string
+  /** AccountCenter username — used for debug display */
+  ownerUsername?: string
   /** Successful IMAP encryption mode detected during auto-probe ('none' | 'starttls' | 'ssl') */
   imapEncryption?: 'none' | 'starttls' | 'ssl'
   /** Successful SMTP encryption mode detected during auto-probe ('none' | 'starttls' | 'ssl') */
@@ -260,12 +289,15 @@ interface ImapStageRef {
 }
 
 interface SanitizedImapConfig {
-  host: string
-  port: number
-  secure: boolean
-  encryption: string
   provider: string
-  email: string
+  emailDomain: string
+  imapHost: string
+  imapPort: number
+  imapSecure: boolean
+  smtpHost: string
+  smtpPort: number
+  smtpSecure: boolean
+  requireTLS: boolean
   folder: string
 }
 
@@ -380,6 +412,14 @@ function buildTlsOpts(config: EmailAccountConfig): { tls?: Record<string, unknow
       },
     }
   }
+  if (config.provider === 'school_cuhk_exchange_imap_smtp') {
+    return {
+      tls: {
+        rejectUnauthorized: false,
+        servername: config.imapHost || config.smtpHost || 'mail.cuhk.edu.cn',
+      },
+    }
+  }
   return config.allowSelfSignedCerts ? { tls: { rejectUnauthorized: false } } : {}
 }
 
@@ -412,15 +452,179 @@ function maskUsername(username: string): string {
   return `${visible}***@${domain}`
 }
 
-function sanitizedImapConfig(config: EmailAccountConfig, folder: string): SanitizedImapConfig {
-  const enc = config.imapEncryption ?? (config.imapSecure ? 'ssl' : 'starttls')
+function extractEmailDomain(address: string): string {
+  const normalized = String(address || '').trim().toLowerCase()
+  const at = normalized.lastIndexOf('@')
+  return at >= 0 ? normalized.slice(at + 1) : ''
+}
+
+function is163ProviderConfig(config: EmailAccountConfig): boolean {
+  const imapHost = config.imapHost.trim().toLowerCase()
+  const smtpHost = config.smtpHost.trim().toLowerCase()
+  return imapHost === 'imap.163.com' || smtpHost === 'smtp.163.com' || extractEmailDomain(config.user) === '163.com'
+}
+
+function resolveConfiguredSmtpMode(config: EmailAccountConfig): 'ssl' | 'starttls' | 'none' {
+  if (config.smtpEncryption) return config.smtpEncryption
+  if (config.smtpIgnoreTls) return 'none'
+  if (config.smtpSecure) return 'ssl'
+  if (config.smtpStartTls || Number(config.smtpPort) === 587) return 'starttls'
+  return 'starttls'
+}
+
+function createTlsConfigError(message: string): NodeJS.ErrnoException {
+  const err = new Error(message) as NodeJS.ErrnoException
+  err.code = 'TLS_CONFIG_ERROR'
+  return err
+}
+
+function validateImapTlsConfig(config: EmailAccountConfig): void {
+  const port = Number(config.imapPort)
+  if (port === 993 && !config.imapSecure) {
+    throw createTlsConfigError('IMAP 993 端口必须使用 implicit SSL/TLS（secure=true），不能走 STARTTLS。')
+  }
+  if (port === 143 && config.imapSecure) {
+    throw createTlsConfigError('IMAP 143 端口应使用 STARTTLS（secure=false），不要配置为 implicit SSL/TLS。')
+  }
+}
+
+function resolveSmtpSecurity(config: EmailAccountConfig): {
+  secure: boolean
+  requireTLS: boolean
+  ignoreTLS: boolean
+  mode: 'ssl' | 'starttls' | 'none'
+} {
+  const port = Number(config.smtpPort)
+  const mode = resolveConfiguredSmtpMode(config)
+
+  if (port === 465) {
+    if (!config.smtpSecure || mode === 'starttls') {
+      throw createTlsConfigError('SMTP 465 端口必须使用 implicit SSL/TLS（secure=true），不允许走 STARTTLS。')
+    }
+    return { secure: true, requireTLS: false, ignoreTLS: false, mode: 'ssl' }
+  }
+
+  if (port === 587) {
+    if (config.smtpSecure || mode === 'ssl' || mode === 'none') {
+      throw createTlsConfigError('SMTP 587 端口必须使用 STARTTLS（secure=false 且 requireTLS=true）。')
+    }
+    return { secure: false, requireTLS: true, ignoreTLS: false, mode: 'starttls' }
+  }
+
+  if (mode === 'ssl') return { secure: true, requireTLS: false, ignoreTLS: false, mode }
+  if (mode === 'none') return { secure: false, requireTLS: false, ignoreTLS: true, mode }
+  return { secure: false, requireTLS: true, ignoreTLS: false, mode: 'starttls' }
+}
+
+function resolveAuthUser(config: EmailAccountConfig): string {
+  const primaryUser = String(config.user || config.email || '').trim()
+  if (is163ProviderConfig(config)) return primaryUser
+  return config.username?.trim() || primaryUser
+}
+
+function normalizeEmailAccountConfig(config: EmailAccountConfig): EmailAccountConfig {
+  const user = String(config.user || config.email || '').trim()
+  const username = config.username?.trim()
   return {
-    host: config.imapHost,
-    port: config.imapPort,
-    secure: config.imapSecure,
-    encryption: enc,
+    ...config,
+    user,
+    email: user,
+    username: is163ProviderConfig({ ...config, user, email: user }) ? user : (username || undefined),
+  }
+}
+
+function extractConnectionErrorDetail(err: unknown): EmailConnectionErrorDetail {
+  const anyErr = err as NodeJS.ErrnoException & { command?: unknown; responseCode?: unknown }
+  return {
+    code: typeof anyErr.code === 'string' ? anyErr.code : undefined,
+    command: typeof anyErr.command === 'string' ? anyErr.command : undefined,
+    responseCode:
+      typeof anyErr.responseCode === 'number' || typeof anyErr.responseCode === 'string'
+        ? anyErr.responseCode
+        : undefined,
+    message: err instanceof Error ? err.message : String(err),
+  }
+}
+
+function isAuthConnectionError(detail: EmailConnectionErrorDetail): boolean {
+  return (
+    detail.code === 'EAUTH' ||
+    detail.responseCode === 535 ||
+    /^AUTH\b/i.test(detail.command || '') ||
+    /Invalid login|Authentication failed|AUTHENTICATIONFAILED|Login is disabled|Command failed|credentials|EAUTH|\[AUTH\]/i.test(detail.message)
+  )
+}
+
+function isNetworkConnectionError(detail: EmailConnectionErrorDetail): boolean {
+  return (
+    detail.code === 'ECONNREFUSED' ||
+    detail.code === 'ETIMEDOUT' ||
+    detail.code === 'ENOTFOUND' ||
+    detail.code === 'CONNECT_TIMEOUT' ||
+    detail.code === 'GREETING_TIMEOUT' ||
+    /ECONNREFUSED|ETIMEDOUT|ENOTFOUND|timeout|getaddrinfo/i.test(detail.message)
+  )
+}
+
+function isTlsConnectionError(detail: EmailConnectionErrorDetail): boolean {
+  return (
+    detail.code === 'TLS_CONFIG_ERROR' ||
+    /certificate|self.?signed|TLS|SSL|handshake|wrong version|unable to verify/i.test(detail.message) ||
+    /CERT_|SELF_SIGNED/i.test(detail.code || '')
+  )
+}
+
+function buildConnectionHelpMessage(
+  detail: EmailConnectionErrorDetail,
+  config: EmailAccountConfig,
+): string {
+  if (isAuthConnectionError(detail)) {
+    if (is163ProviderConfig(config)) {
+      return '请确认 163 网页端已开启 IMAP/SMTP 服务，并使用客户端授权码，不是网页登录密码'
+    }
+    return '认证失败，请确认用户名和授权信息正确'
+  }
+  if (isNetworkConnectionError(detail)) {
+    return '网络或端口不可达'
+  }
+  if (isTlsConnectionError(detail)) {
+    return 'SSL/TLS 配置错误，请检查 465/993 是否使用 secure=true'
+  }
+  return detail.message
+}
+
+function resolveConnectionErrorCode(
+  protocol: 'imap' | 'smtp',
+  stage: ImapStage | 'auth' | 'connect',
+  detail: EmailConnectionErrorDetail,
+): EmailErrorCode {
+  if (isTlsConnectionError(detail)) return 'TLS_HANDSHAKE_FAILED'
+  if (protocol === 'imap') return stage === 'auth' || isAuthConnectionError(detail) ? 'IMAP_AUTH_FAILED' : 'IMAP_CONNECT_FAILED'
+  return isAuthConnectionError(detail) ? 'SMTP_AUTH_FAILED' : 'SMTP_CONNECT_FAILED'
+}
+
+function buildConnectionResult(
+  protocol: 'imap' | 'smtp',
+  ok: boolean,
+  message: string,
+  error?: EmailConnectionCheckResult['error'],
+): EmailConnectionCheckResult {
+  return { ok, protocol, message, error }
+}
+
+function sanitizedImapConfig(config: EmailAccountConfig, folder: string): SanitizedImapConfig {
+  const smtpMode = resolveConfiguredSmtpMode(config)
+  const requireTLS = smtpMode === 'starttls' || (!config.smtpSecure && Number(config.smtpPort) === 587 && !config.smtpIgnoreTls)
+  return {
     provider: config.provider || config.providerType || 'unknown',
-    email: maskUsername(config.user),
+    emailDomain: extractEmailDomain(config.user),
+    imapHost: config.imapHost,
+    imapPort: config.imapPort,
+    imapSecure: config.imapSecure,
+    smtpHost: config.smtpHost,
+    smtpPort: config.smtpPort,
+    smtpSecure: config.smtpSecure,
+    requireTLS,
     folder,
   }
 }
@@ -448,8 +652,33 @@ function logImapError(
   console.error('[EmailService:IMAP]', {
     stage,
     ...sanitizedImapConfig(config, folder),
-    error: err instanceof Error ? err.message : String(err),
-    code: (err as NodeJS.ErrnoException).code,
+    error: extractConnectionErrorDetail(err),
+    ...(extra ?? {}),
+  })
+}
+
+function logSmtpStage(
+  config: EmailAccountConfig,
+  stage: string,
+  extra?: Record<string, unknown>,
+): void {
+  console.info('[EmailService:SMTP]', {
+    stage,
+    ...sanitizedImapConfig(config, 'SMTP'),
+    ...(extra ?? {}),
+  })
+}
+
+function logSmtpError(
+  config: EmailAccountConfig,
+  stage: string,
+  err: unknown,
+  extra?: Record<string, unknown>,
+): void {
+  console.error('[EmailService:SMTP]', {
+    stage,
+    ...sanitizedImapConfig(config, 'SMTP'),
+    error: extractConnectionErrorDetail(err),
     ...(extra ?? {}),
   })
 }
@@ -602,7 +831,7 @@ export class EmailService {
 
   async saveConfig(config: EmailAccountConfig): Promise<void> {
     await fs.mkdir(path.dirname(this.configPath), { recursive: true })
-    await fs.writeFile(this.configPath, JSON.stringify(config, null, 2), 'utf-8')
+    await fs.writeFile(this.configPath, JSON.stringify(normalizeEmailAccountConfig(config), null, 2), 'utf-8')
   }
 
   async clearConfig(): Promise<void> {
@@ -611,7 +840,8 @@ export class EmailService {
 
   /* ---------- connection test ---------- */
 
-  async testConnection(config: EmailAccountConfig): Promise<{ ok: boolean; message: string }> {
+  async testConnection(config: EmailAccountConfig): Promise<EmailConnectionCheckResult> {
+    const normalizedConfig = normalizeEmailAccountConfig(config)
     const folderForLog = 'INBOX'
     const stageRef: ImapStageRef = {
       current: 'prepare',
@@ -620,69 +850,99 @@ export class EmailService {
       authOkLogged: false,
     }
     try {
-      assertImapConfigNotSmtp(config, folderForLog)
+      validateImapTlsConfig(normalizedConfig)
+      assertImapConfigNotSmtp(normalizedConfig, folderForLog)
     } catch (err) {
-      return { ok: false, message: friendlyErrorMessage(err, config.providerType) }
+      const detail = extractConnectionErrorDetail(err)
+      const errorCode = resolveConnectionErrorCode('imap', 'connect', detail)
+      logImapError(normalizedConfig, folderForLog, 'prepare:failed', err)
+      return buildConnectionResult('imap', false, buildConnectionHelpMessage(detail, normalizedConfig), { ...detail, errorCode })
     }
 
     // Pre-flight: empty password gives confusing ImapFlow error — catch it early
-    if (!config.password) {
-      const msg = config.providerType === 'internal-imap'
+    if (!normalizedConfig.password) {
+      const msg = normalizedConfig.providerType === 'internal-imap'
         ? '内部邮箱未配置密码，请输入该内部账号的邮箱密码后重试。'
         : '未配置邮箱密码，请填写密码后重试。'
-      return { ok: false, message: msg }
+      return buildConnectionResult('imap', false, msg, { message: msg, errorCode: 'IMAP_AUTH_FAILED' })
     }
 
-    const authUser = config.username?.trim() || config.user
-    const tlsOpts = buildTlsOpts(config)
+    const authUser = resolveAuthUser(normalizedConfig)
+    const tlsOpts = buildTlsOpts(normalizedConfig)
     const client = createSafeImapFlow({
-      host: config.providerType === 'internal-imap' ? INTERNAL_MAIL_CONFIG.fallbackIp : config.imapHost,
-      port: config.imapPort,
-      secure: config.imapSecure,
-      auth: { user: authUser, pass: config.password },
-      logger: createImapLogger(config, folderForLog, stageRef),
+      host: normalizedConfig.providerType === 'internal-imap' ? INTERNAL_MAIL_CONFIG.fallbackIp : normalizedConfig.imapHost,
+      port: normalizedConfig.imapPort,
+      secure: normalizedConfig.imapSecure,
+      auth: { user: authUser, pass: normalizedConfig.password },
+      logger: createImapLogger(normalizedConfig, folderForLog, stageRef),
       ...tlsOpts,
       ...IMAP_OPTIONS,
-    }, config, folderForLog, stageRef)
+    }, normalizedConfig, folderForLog, stageRef)
     try {
       stageRef.current = 'connect'
-      logImapStage(config, folderForLog, 'connect:start')
+      logImapStage(normalizedConfig, folderForLog, 'connect:start')
       await client.connect()
-      if (!stageRef.connectOkLogged) logImapStage(config, folderForLog, 'connect:ok')
-      if (!stageRef.authStartLogged) logImapStage(config, folderForLog, 'auth:start')
-      if (!stageRef.authOkLogged) logImapStage(config, folderForLog, 'auth:ok')
+      if (!stageRef.connectOkLogged) logImapStage(normalizedConfig, folderForLog, 'connect:ok')
+      if (!stageRef.authStartLogged) logImapStage(normalizedConfig, folderForLog, 'auth:start')
+      if (!stageRef.authOkLogged) logImapStage(normalizedConfig, folderForLog, 'auth:ok')
       await client.logout()
-      return { ok: true, message: '连接成功' }
+      return buildConnectionResult('imap', true, '连接成功')
     } catch (err) {
-      logImapError(config, folderForLog, `${stageRef.current}:failed`, err)
-      return { ok: false, message: friendlyErrorMessage(err, config.providerType) }
+      const detail = extractConnectionErrorDetail(err)
+      const errorCode = resolveConnectionErrorCode('imap', stageRef.current, detail)
+      logImapError(normalizedConfig, folderForLog, `${stageRef.current}:failed`, err)
+      return buildConnectionResult('imap', false, buildConnectionHelpMessage(detail, normalizedConfig), { ...detail, errorCode })
     }
   }
 
-  async testSmtpConnection(config: EmailAccountConfig): Promise<{ ok: boolean; message: string }> {
-    if (!config.password) {
-      const msg = config.providerType === 'internal-imap'
+  async testSmtpConnection(config: EmailAccountConfig): Promise<EmailConnectionCheckResult> {
+    const normalizedConfig = normalizeEmailAccountConfig(config)
+    if (!normalizedConfig.password) {
+      const msg = normalizedConfig.providerType === 'internal-imap'
         ? '内部邮箱未配置密码，请输入该内部账号的邮箱密码后重试。'
         : '未配置邮箱密码，请填写密码后重试。'
-      return { ok: false, message: msg }
+      return buildConnectionResult('smtp', false, msg, { message: msg, errorCode: 'SMTP_AUTH_FAILED' })
     }
-    const authUser = config.username?.trim() || config.user
+
+    let smtpSecurity: ReturnType<typeof resolveSmtpSecurity>
+    try {
+      smtpSecurity = resolveSmtpSecurity(normalizedConfig)
+    } catch (err) {
+      const detail = extractConnectionErrorDetail(err)
+      const errorCode = resolveConnectionErrorCode('smtp', 'connect', detail)
+      logSmtpError(normalizedConfig, 'prepare:failed', err)
+      return buildConnectionResult('smtp', false, buildConnectionHelpMessage(detail, normalizedConfig), { ...detail, errorCode })
+    }
+
+    const authUser = resolveAuthUser(normalizedConfig)
+    logSmtpStage(normalizedConfig, 'connect:start', {
+      authUser: maskUsername(authUser),
+    })
     const transporter = nodemailer.createTransport({
-      host: config.providerType === 'internal-imap' ? INTERNAL_MAIL_CONFIG.fallbackIp : config.smtpHost,
-      port: config.smtpPort,
-      secure: config.smtpSecure,
-      auth: { user: authUser, pass: config.password },
+      host: normalizedConfig.providerType === 'internal-imap' ? INTERNAL_MAIL_CONFIG.fallbackIp : normalizedConfig.smtpHost,
+      port: normalizedConfig.smtpPort,
+      secure: smtpSecurity.secure,
+      auth: { user: authUser, pass: normalizedConfig.password },
       connectionTimeout: 10000,
       greetingTimeout: 10000,
       socketTimeout: 15000,
-      ...(config.smtpIgnoreTls ? { ignoreTLS: true } : {}),
-      ...buildTlsOpts(config),
+      ...(smtpSecurity.ignoreTLS ? { ignoreTLS: true } : {}),
+      ...(smtpSecurity.requireTLS ? { requireTLS: true } : {}),
+      ...buildTlsOpts(normalizedConfig),
     })
     try {
       await transporter.verify()
-      return { ok: true, message: 'SMTP 连接成功' }
+      logSmtpStage(normalizedConfig, 'connect:ok', {
+        authUser: maskUsername(authUser),
+      })
+      return buildConnectionResult('smtp', true, '连接成功')
     } catch (err) {
-      return { ok: false, message: friendlySmtpErrorMessage(err, config.providerType) }
+      const detail = extractConnectionErrorDetail(err)
+      const errorCode = resolveConnectionErrorCode('smtp', isAuthConnectionError(detail) ? 'auth' : 'connect', detail)
+      logSmtpError(normalizedConfig, isAuthConnectionError(detail) ? 'auth:failed' : 'connect:failed', err, {
+        authUser: maskUsername(authUser),
+      })
+      return buildConnectionResult('smtp', false, buildConnectionHelpMessage(detail, normalizedConfig), { ...detail, errorCode })
     }
   }
 
@@ -738,7 +998,7 @@ export class EmailService {
       throw new Error(`[IMAP auth] ${msg}`)
     }
 
-    const authUser = config.username?.trim() || config.user
+    const authUser = resolveAuthUser(config)
     const tlsOpts = buildTlsOpts(config)
     const client = createSafeImapFlow({
       host: config.providerType === 'internal-imap' ? INTERNAL_MAIL_CONFIG.fallbackIp : config.imapHost,
@@ -931,19 +1191,19 @@ export class EmailService {
   /* ---------- send ---------- */
 
   async sendEmail(config: EmailAccountConfig, options: SendEmailOptions): Promise<void> {
-    const authUser = config.username?.trim() || config.user
+    const authUser = resolveAuthUser(config)
+    const smtpSecurity = resolveSmtpSecurity(config)
     const fromAddr = (options.from || config.user || authUser).trim()
     const transporter = nodemailer.createTransport({
       host: config.providerType === 'internal-imap' ? INTERNAL_MAIL_CONFIG.fallbackIp : config.smtpHost,
       port: config.smtpPort,
-      secure: config.smtpSecure,
+      secure: smtpSecurity.secure,
       auth: { user: authUser, pass: config.password },
       connectionTimeout: 10000,
       greetingTimeout: 10000,
       socketTimeout: 15000,
-      ...(config.smtpIgnoreTls ? { ignoreTLS: true } : {}),
-      // For STARTTLS (port 587): require TLS upgrade, never send in plaintext
-      ...(config.smtpEncryption === 'starttls' ? { requireTLS: true } : {}),
+      ...(smtpSecurity.ignoreTLS ? { ignoreTLS: true } : {}),
+      ...(smtpSecurity.requireTLS ? { requireTLS: true } : {}),
       ...buildTlsOpts(config),
     })
 
@@ -1006,7 +1266,7 @@ export class EmailService {
       authStartLogged: false,
       authOkLogged: false,
     }
-    const authUser = config.username?.trim() || config.user
+    const authUser = resolveAuthUser(config)
     const tlsOpts = buildTlsOpts(config)
     const client = createSafeImapFlow({
       host: config.providerType === 'internal-imap' ? INTERNAL_MAIL_CONFIG.fallbackIp : config.imapHost,
@@ -1073,7 +1333,7 @@ export class EmailService {
       authOkLogged: false,
     }
 
-    const authUser = config.username?.trim() || config.user
+    const authUser = resolveAuthUser(config)
     const tlsOpts = buildTlsOpts(config)
     const client = createSafeImapFlow({
       host: config.providerType === 'internal-imap' ? INTERNAL_MAIL_CONFIG.fallbackIp : config.imapHost,
@@ -1177,7 +1437,7 @@ export class EmailService {
       authStartLogged: false,
       authOkLogged: false,
     }
-    const authUser = config.username?.trim() || config.user
+    const authUser = resolveAuthUser(config)
     const tlsOpts = buildTlsOpts(config)
     const client = createSafeImapFlow({
       host: config.providerType === 'internal-imap' ? INTERNAL_MAIL_CONFIG.fallbackIp : config.imapHost,
@@ -1302,6 +1562,7 @@ export class EmailService {
     for (const mode of ['starttls', 'none', 'ssl'] as const) {
       const secure = mode === 'ssl'
       const ignoreTLS = mode === 'none'
+      const requireTLS = mode === 'starttls'
       try {
         const transporter = nodemailer.createTransport({
           host: params.smtpHost,
@@ -1309,6 +1570,7 @@ export class EmailService {
           secure,
           auth: { user: params.email, pass: params.password },
           ...(ignoreTLS ? { ignoreTLS: true } : {}),
+          ...(requireTLS ? { requireTLS: true } : {}),
           connectionTimeout: 8000,
           greetingTimeout: 8000,
           socketTimeout: 10000,

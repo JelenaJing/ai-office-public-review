@@ -70,6 +70,7 @@ import { EmailService } from './services/emailService'
 import type { EmailAccountConfig, FetchedMail, EmailAttachmentMeta } from './services/emailService'
 import { classifyEmailError } from './services/emailService'
 import { CredentialService } from './services/credentialService'
+import { SCHOOL_CUHK_EXCHANGE_CONFIG } from './services/mail/schoolExchangeConfig'
 import * as workspaceActivity from './services/workspaceActivityService'
 import { WorkspaceActivitySyncService } from './services/workspaceActivitySyncService'
 import { userActionLogService, createPathHash, inferFileType } from './services/userActionLogService'
@@ -1323,7 +1324,14 @@ app.whenReady().then(async () => {
 
   function toEmailIpcError(err: unknown, context: 'imap' | 'smtp' | 'mime' = 'imap', providerType?: string) {
     const message = err instanceof Error ? err.message : String(err)
-    const code = (err as NodeJS.ErrnoException).code
+    const code = (err as NodeJS.ErrnoException & { command?: unknown }).code
+    const command = typeof (err as { command?: unknown }).command === 'string'
+      ? (err as { command?: string }).command
+      : undefined
+    const responseCode = (() => {
+      const value = (err as { responseCode?: unknown }).responseCode
+      return typeof value === 'number' || typeof value === 'string' ? value : undefined
+    })()
     const errorCode = classifyEmailError(err, context)
     const isInternalImap = providerType === 'internal-imap'
     const needsModernAuth = !isInternalImap &&
@@ -1335,6 +1343,8 @@ app.whenReady().then(async () => {
           ? `${message}\n可能需要 OAuth2 / Modern Auth，而不是普通密码直连。`
           : message,
         code,
+        command,
+        responseCode,
         errorCode,
         needsModernAuth,
       },
@@ -1762,6 +1772,7 @@ app.whenReady().then(async () => {
         provider: 'school_cuhk_exchange_imap_smtp' as const,
         fromPolicy: 'same_as_login' as const,
         username: rest.username || rest.user,
+        allowSelfSignedCerts: true,
       }
       await emailService.saveConfig(configToSave)
       console.info('[email:saveSchoolAccount] saved', {
@@ -1809,10 +1820,15 @@ app.whenReady().then(async () => {
         return { ok: false, error: { message: '附件文件已过期，请刷新邮件后重试', errorCode: 'IMAP_FETCH_FAILED' } }
       }
       const ownerWindow = BrowserWindow.fromWebContents(event.sender) ?? mainWindow
-      const result = await dialog.showSaveDialog(ownerWindow ?? undefined, {
-        defaultPath: filename,
-        title: '保存附件',
-      })
+      const result = ownerWindow
+        ? await dialog.showSaveDialog(ownerWindow, {
+            defaultPath: filename,
+            title: '保存附件',
+          })
+        : await dialog.showSaveDialog({
+            defaultPath: filename,
+            title: '保存附件',
+          })
       if (result.canceled || !result.filePath) {
         return { ok: true, canceled: true }
       }
@@ -1826,7 +1842,7 @@ app.whenReady().then(async () => {
   ipcMain.handle('email:selectAttachments', async (event) => {
     try {
       const ownerWindow = BrowserWindow.fromWebContents(event.sender) ?? mainWindow
-      const result = await dialog.showOpenDialog(ownerWindow ?? undefined, {
+      const dialogOptions = {
         title: '选择附件',
         properties: ['openFile', 'multiSelections'] as OpenDialogOptions['properties'],
         filters: [
@@ -1834,7 +1850,10 @@ app.whenReady().then(async () => {
           { name: '图片', extensions: ['png', 'jpg', 'jpeg', 'webp'] },
           { name: '所有文件', extensions: ['*'] },
         ],
-      })
+      }
+      const result = ownerWindow
+        ? await dialog.showOpenDialog(ownerWindow, dialogOptions)
+        : await dialog.showOpenDialog(dialogOptions)
       if (result.canceled || result.filePaths.length === 0) {
         return { ok: true, files: [] }
       }
@@ -2316,6 +2335,7 @@ app.whenReady().then(async () => {
   /* TODO(phase6): migrate to Electron safeStorage for encrypted at-rest storage */
   const _iatUserDataDir = app.getPath('userData')
   const internalAccountTokenPath = path.join(_iatUserDataDir, 'internal-account-token.json')
+  const internalAccountSessionPath = path.join(_iatUserDataDir, 'internal-account-session.json')
   const _iatTmpPath = internalAccountTokenPath + '.tmp'
 
   // Delays (ms) between successive retry attempts on transient Windows file errors
@@ -2434,6 +2454,123 @@ app.whenReady().then(async () => {
   ipcMain.handle('internalAccount:clearToken', async () => {
     try { await fs.unlink(internalAccountTokenPath) } catch { /* already gone */ }
     return { ok: true }
+  })
+
+  ipcMain.handle('internalAccount:getSession', async () => {
+    try {
+      const raw = await fs.readFile(internalAccountSessionPath, 'utf-8')
+      const parsed = JSON.parse(raw) as { session?: unknown }
+      return { session: parsed?.session ?? null }
+    } catch {
+      return { session: null }
+    }
+  })
+
+  ipcMain.handle('internalAccount:setSession', async (_, sessionData: unknown) => {
+    try {
+      await fs.mkdir(path.dirname(internalAccountSessionPath), { recursive: true })
+      await fs.writeFile(internalAccountSessionPath, JSON.stringify({ session: sessionData }, null, 2), 'utf-8')
+      return { ok: true }
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) }
+    }
+  })
+
+  ipcMain.handle('internalAccount:clearSession', async () => {
+    try { await fs.unlink(internalAccountSessionPath) } catch { /* already gone */ }
+    return { ok: true }
+  })
+
+  ipcMain.handle('internalAccount:loginMailbox', async (_, payload: unknown) => {
+    try {
+      const data = (payload ?? {}) as { usernameOrEmail?: string; password?: string }
+      const usernameOrEmail = String(data.usernameOrEmail ?? '').trim()
+      const password = String(data.password ?? '')
+      if (!usernameOrEmail) return { ok: false, error: '请输入用户名或邮箱' }
+      if (!password) return { ok: false, error: '请输入密码' }
+
+      const normalizedEmail = usernameOrEmail.includes('@')
+        ? usernameOrEmail.toLowerCase()
+        : `${usernameOrEmail.toLowerCase()}${SCHOOL_CUHK_EXCHANGE_CONFIG.emailSuffix}`
+      const localPart = normalizedEmail.split('@')[0] || usernameOrEmail
+      const displayName = localPart
+
+      const probe = await emailService.autoProbeSchoolExchange({
+        email: normalizedEmail,
+        password,
+        imapHost: SCHOOL_CUHK_EXCHANGE_CONFIG.host,
+        imapPort: SCHOOL_CUHK_EXCHANGE_CONFIG.imap.port,
+        smtpHost: SCHOOL_CUHK_EXCHANGE_CONFIG.host,
+        smtpPort: SCHOOL_CUHK_EXCHANGE_CONFIG.smtp.port,
+      })
+      if (!probe.ok || !probe.imapEncryption || !probe.smtpEncryption) {
+        const probeMessage = probe.probeResults.find((item) => !item.ok)?.message || '邮箱连接失败'
+        return { ok: false, error: probeMessage, mailboxEmail: normalizedEmail, probeResults: probe.probeResults }
+      }
+
+      const credentialRef = normalizedEmail
+      await credentialService.saveCredential(credentialRef, password)
+
+      const configToSave: EmailAccountConfig = {
+        user: normalizedEmail,
+        password: '',
+        displayName,
+        username: normalizedEmail,
+        provider: 'school_cuhk_exchange_imap_smtp',
+        credentialRef,
+        fromPolicy: 'same_as_login',
+        label: '学校邮箱',
+        imapHost: SCHOOL_CUHK_EXCHANGE_CONFIG.host,
+        imapPort: SCHOOL_CUHK_EXCHANGE_CONFIG.imap.port,
+        imapSecure: probe.imapEncryption === 'ssl',
+        smtpHost: SCHOOL_CUHK_EXCHANGE_CONFIG.host,
+        smtpPort: SCHOOL_CUHK_EXCHANGE_CONFIG.smtp.port,
+        smtpSecure: probe.smtpEncryption === 'ssl',
+        smtpIgnoreTls: probe.smtpEncryption === 'none',
+        imapEncryption: probe.imapEncryption,
+        smtpEncryption: probe.smtpEncryption,
+        allowSelfSignedCerts: true,
+      }
+      await emailService.saveConfig(configToSave)
+
+      const sessionData = {
+        source: 'mailbox-fallback',
+        token: '',
+        user: {
+          id: `mailbox:${normalizedEmail}`,
+          username: localPart,
+          displayName,
+          email: normalizedEmail,
+          roles: ['mailbox-fallback'],
+          status: 'active',
+          mustChangePassword: false,
+        },
+        bindings: {
+          mail: {
+            service: 'mail',
+            status: 'active',
+            metadata: {
+              source: 'mailbox-fallback',
+              mailboxEmail: normalizedEmail,
+            },
+          },
+        },
+        bindingsPhase: 'success',
+        emailAutoStatus: 'applied',
+      }
+
+      await fs.mkdir(path.dirname(internalAccountSessionPath), { recursive: true })
+      await fs.writeFile(internalAccountSessionPath, JSON.stringify({ session: sessionData }, null, 2), 'utf-8')
+
+      return {
+        ok: true,
+        mailboxEmail: normalizedEmail,
+        session: sessionData,
+        probeResults: probe.probeResults,
+      }
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) }
+    }
   })
 
   /* ---- Matrix session storage (file in userData) ---- */
@@ -3795,7 +3932,7 @@ app.whenReady().then(async () => {
 
   ipcMain.handle('skill:downloadPackage', async (_event, payload: { skillId: string; packageHash?: string; downloadPath?: string | null }) => {
     if (!payload?.skillId) return { ok: false, error: 'skillId 不能为空' }
-    return downloadSkillPackage({ skillId: payload.skillId, packageHash: payload.packageHash, downloadPath: payload.downloadPath })
+    return downloadSkillPackage({ skillId: payload.skillId, packageHash: payload.packageHash })
   })
 
   ipcMain.handle('skill:getEmbedUrl', async () => {

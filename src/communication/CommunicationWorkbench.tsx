@@ -22,7 +22,7 @@ import type {
   CommunicationThread,
   CommFilter,
 } from './types'
-import type { EmailAccountConfig, EmailReplyGenerationOptions, EmailReplyKnowledgeSelection, EmailReplyKnowledgeSnippet, EmailReplyKnowledgeTrace } from '../types/email'
+import type { EmailAccountConfig, EmailConnectionCheckResult, EmailReplyGenerationOptions, EmailReplyKnowledgeSelection, EmailReplyKnowledgeSnippet, EmailReplyKnowledgeTrace } from '../types/email'
 import { EMAIL_ACCOUNT_PRESETS } from '../types/email'
 import type { MailItem } from '../types/email'
 import { buildEmailReplyKnowledgeTrace } from './services/emailReplyKnowledgeTrace'
@@ -1456,6 +1456,7 @@ const ModalActions= styled.div`
 const StatusLine = styled.div<{ $tone?: 'ok' | 'err' | 'loading' }>`
   font-size: var(--font-size-sm); margin-bottom: 10px;
   color: ${({ $tone }) => $tone === 'ok' ? '#38a169' : $tone === 'err' ? '#e53e3e' : '#718096'};
+  white-space: pre-wrap;
 `
 
 const OutlookHint = styled.div`
@@ -2383,14 +2384,45 @@ function AccountSettingsModal({ onClose }: { onClose: () => void }) {
   const isSchoolExchange = form.provider === 'school_cuhk_exchange_imap_smtp'
   const isLinkAccount = form.user.endsWith('@link.cuhk.edu.cn')
   const isOutlook = !isInternal && !isSchoolExchange && /outlook|office365/i.test(form.imapHost)
+  const is163 = !isInternal && !isSchoolExchange
+    && form.imapHost.trim().toLowerCase() === 'imap.163.com'
+    && form.smtpHost.trim().toLowerCase() === 'smtp.163.com'
+
+  const normalizeManualForm = useCallback((draft: EmailAccountConfig): EmailAccountConfig => {
+    const user = draft.user.trim()
+    const is163Draft = draft.imapHost.trim().toLowerCase() === 'imap.163.com'
+      && draft.smtpHost.trim().toLowerCase() === 'smtp.163.com'
+    return {
+      ...draft,
+      user,
+      email: user,
+      username: is163Draft ? user : (draft.username?.trim() || ''),
+      smtpIgnoreTls: draft.smtpPort === 587 ? false : (draft.smtpIgnoreTls ?? false),
+      smtpEncryption:
+        draft.smtpPort === 465 ? 'ssl'
+          : draft.smtpPort === 587 ? 'starttls'
+            : draft.smtpEncryption,
+    }
+  }, [])
+
+  const formatConnectionStatusLine = useCallback((result: EmailConnectionCheckResult) => {
+    if (result.ok) return `${result.protocol.toUpperCase()}: 连接成功`
+    return `${result.error?.errorCode || `${result.protocol.toUpperCase()}_FAILED`}: ${result.message}`
+  }, [])
 
   const applyPreset = (preset: typeof EMAIL_ACCOUNT_PRESETS[0]) => {
     setForm((f) => ({
       ...f,
       imapHost: preset.imapHost, imapPort: preset.imapPort, imapSecure: preset.imapSecure,
       smtpHost: preset.smtpHost, smtpPort: preset.smtpPort, smtpSecure: preset.smtpSecure,
+      username: preset.label === '163邮箱' ? f.user.trim() : '',
+      email: f.user.trim(),
       providerType: '',
       provider: undefined,
+      fromPolicy: undefined,
+      smtpIgnoreTls: false,
+      imapEncryption: undefined,
+      smtpEncryption: preset.smtpPort === 465 ? 'ssl' : preset.smtpPort === 587 ? 'starttls' : undefined,
     }))
     setTestStatus(null)
     setSchoolProbeResults([])
@@ -2437,11 +2469,33 @@ function AccountSettingsModal({ onClose }: { onClose: () => void }) {
   }
 
   const handleEmailChange = (value: string) => {
-    setForm((f) => ({ ...f, user: value }))
     if (value.endsWith('@cuhk.edu.cn')) {
-      applySchoolExchangePreset(value)
-      setForm((f) => ({ ...f, user: value, provider: 'school_cuhk_exchange_imap_smtp', providerType: '', imapHost: 'mail.cuhk.edu.cn', imapPort: 143, imapSecure: false, smtpHost: 'mail.cuhk.edu.cn', smtpPort: 587, smtpSecure: false, username: value, fromPolicy: 'same_as_login' }))
+      setForm((f) => ({
+        ...f,
+        user: value,
+        email: value,
+        provider: 'school_cuhk_exchange_imap_smtp',
+        providerType: '',
+        imapHost: 'mail.cuhk.edu.cn',
+        imapPort: 143,
+        imapSecure: false,
+        smtpHost: 'mail.cuhk.edu.cn',
+        smtpPort: 587,
+        smtpSecure: false,
+        username: value,
+        fromPolicy: 'same_as_login',
+      }))
+      return
     }
+    setForm((f) => ({
+      ...f,
+      user: value,
+      email: value,
+      username: (
+        f.imapHost.trim().toLowerCase() === 'imap.163.com'
+        && f.smtpHost.trim().toLowerCase() === 'smtp.163.com'
+      ) ? value : f.username,
+    }))
   }
 
   const testConnection = async () => {
@@ -2449,14 +2503,25 @@ function AccountSettingsModal({ onClose }: { onClose: () => void }) {
       await testSchoolConnection()
       return
     }
-    setTestStatus({ tone: 'loading', msg: '正在连接...' })
+    setTestStatus({ tone: 'loading', msg: '正在分别验证 IMAP 和 SMTP...' })
     try {
-      const result = await window.electronAPI?.emailTestConnection?.(form)
-      if (result && typeof result === 'object' && 'ok' in result) {
-        setTestStatus({ tone: result.ok ? 'ok' : 'err', msg: (result as { ok: boolean; message: string }).message })
-      } else {
-        setTestStatus({ tone: 'ok', msg: '连接成功！' })
+      const config = normalizeManualForm(form)
+      const [imapResult, smtpResult] = await Promise.all([
+        window.electronAPI?.emailTestConnection?.(config),
+        window.electronAPI?.emailTestSmtp?.(config),
+      ])
+      if (!imapResult || !smtpResult) {
+        setTestStatus({ tone: 'err', msg: '连接测试不可用，请重试。' })
+        return
       }
+      const statusMsg = [
+        formatConnectionStatusLine(imapResult),
+        formatConnectionStatusLine(smtpResult),
+      ].join('\n')
+      setTestStatus({
+        tone: imapResult.ok && smtpResult.ok ? 'ok' : 'err',
+        msg: statusMsg,
+      })
     } catch (err) {
       setTestStatus({ tone: 'err', msg: err instanceof Error ? err.message : String(err) })
     }
@@ -2499,7 +2564,7 @@ function AccountSettingsModal({ onClose }: { onClose: () => void }) {
     setSaving(true)
     try {
       // Keep email alias in sync with user (primary field) before saving
-      const normalizedForm: typeof form = { ...form, email: form.user }
+      const normalizedForm: typeof form = normalizeManualForm(form)
       if (isSchoolExchange) {
         const result = await window.electronAPI?.emailSaveSchoolAccount?.({
           ...normalizedForm,
@@ -2589,6 +2654,7 @@ function AccountSettingsModal({ onClose }: { onClose: () => void }) {
             🎓 <strong>CUHK 教职工邮箱 (@cuhk.edu.cn)</strong><br />
             IMAP: mail.cuhk.edu.cn:143 &nbsp;·&nbsp; SMTP: mail.cuhk.edu.cn:587<br />
             加密方式将在"自动探测"时自动选择。点击"验证连接"开始探测。<br />
+            当前学校 Exchange 证书链不完整，客户端会按学校服务器配置放宽证书校验。<br />
             ⚠️ 仅适用于 @cuhk.edu.cn；@link.cuhk.edu.cn 学生邮箱请见下方提示。
           </InternalHint>
         )}
@@ -2603,6 +2669,12 @@ function AccountSettingsModal({ onClose }: { onClose: () => void }) {
           <OutlookHint>
             ⚠️ <strong>Outlook / Office 365 需要应用密码</strong><br />
             请在 account.microsoft.com → 安全 → 高级安全选项中创建应用密码，填入下方密码栏。
+          </OutlookHint>
+        )}
+        {is163 && (
+          <OutlookHint>
+            ⚠️ <strong>163 邮箱必须开启 IMAP/SMTP，并使用客户端授权码</strong><br />
+            用户名必须填写完整邮箱地址，不能只填 @ 前面的账号，也不要使用网页登录密码。
           </OutlookHint>
         )}
 
@@ -2626,10 +2698,16 @@ function AccountSettingsModal({ onClose }: { onClose: () => void }) {
               />
             </>
           )}
-          <FormLabel>密码{isSchoolExchange ? '（安全存储，不写入配置文件）' : '/授权码'}</FormLabel>
+          <FormLabel>{is163 ? '客户端授权码' : `密码${isSchoolExchange ? '（安全存储，不写入配置文件）' : '/授权码'}`}</FormLabel>
           <FormInput
             type="password"
-            placeholder={isSchoolExchange ? '邮箱登录密码' : '邮箱密码或授权码'}
+            placeholder={
+              is163
+                ? '请输入 163 客户端授权码'
+                : isSchoolExchange
+                  ? '邮箱登录密码'
+                  : '邮箱密码或授权码'
+            }
             value={form.password}
             onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
           />

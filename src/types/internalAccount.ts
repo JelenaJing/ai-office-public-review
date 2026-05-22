@@ -12,6 +12,8 @@ export interface ServiceBinding {
   updatedAt?: string
 }
 
+export type InternalAccountSessionSource = 'account-center' | 'mailbox-fallback'
+
 export interface InternalAccountUser {
   id: string
   username: string
@@ -25,6 +27,7 @@ export interface InternalAccountUser {
 
 export interface InternalAccountSession {
   token: string
+  source: InternalAccountSessionSource
   user: InternalAccountUser
   bindings?: {
     mail?: ServiceBinding

@@ -301,7 +301,8 @@ function InternalMailSection() {
   const [smtpResult, setSmtpResult] = useState<{ ok: boolean; message: string } | null>(null)
 
   if (state.phase !== 'logged_in') return null
-  const { user, emailAutoStatus, emailAutoError } = state.session
+  const { user, emailAutoStatus, emailAutoError, source } = state.session
+  const isMailboxFallback = source === 'mailbox-fallback'
 
   const handleRetry = useCallback(async () => {
     setRetrying(true)
@@ -348,22 +349,30 @@ function InternalMailSection() {
   return (
     <Section style={{ marginTop: 14 }}>
       <SectionHeader>
-        <SectionTitle>📧 内部邮箱</SectionTitle>
+        <SectionTitle>{isMailboxFallback ? '📧 学校邮箱' : '📧 内部邮箱'}</SectionTitle>
       </SectionHeader>
       <SectionBody>
         <InfoRow><InfoLabel>邮箱地址</InfoLabel><InfoValue>{user.email}</InfoValue></InfoRow>
-        <InfoRow><InfoLabel>IMAP</InfoLabel><InfoValue>{INTERNAL_MAIL_HOST}:993 (SSL)</InfoValue></InfoRow>
-        <InfoRow><InfoLabel>SMTP</InfoLabel><InfoValue>{INTERNAL_MAIL_HOST}:465 (SSL)</InfoValue></InfoRow>
-        <InfoRow>
-          <InfoLabel>Webmail</InfoLabel>
-          <InfoValue>
-            <a href={INTERNAL_MAIL_WEB_URL} target="_blank" rel="noopener noreferrer" style={{ color: '#0e639c' }}>
-              打开 SOGo
-            </a>
-          </InfoValue>
-        </InfoRow>
+        {isMailboxFallback ? (
+          <StatusBox $ok style={{ marginTop: 10 }}>
+            当前通过学校邮箱连通登录，邮件已自动绑定到 {user.email}
+          </StatusBox>
+        ) : (
+          <>
+            <InfoRow><InfoLabel>IMAP</InfoLabel><InfoValue>{INTERNAL_MAIL_HOST}:993 (SSL)</InfoValue></InfoRow>
+            <InfoRow><InfoLabel>SMTP</InfoLabel><InfoValue>{INTERNAL_MAIL_HOST}:465 (SSL)</InfoValue></InfoRow>
+            <InfoRow>
+              <InfoLabel>Webmail</InfoLabel>
+              <InfoValue>
+                <a href={INTERNAL_MAIL_WEB_URL} target="_blank" rel="noopener noreferrer" style={{ color: '#0e639c' }}>
+                  打开 SOGo
+                </a>
+              </InfoValue>
+            </InfoRow>
+          </>
+        )}
 
-        {imapResult || smtpResult ? (
+        {!isMailboxFallback && (imapResult || smtpResult) ? (
           <>
             {imapResult && (
               <StatusBox $ok={imapResult.ok} $error={!imapResult.ok} style={{ marginTop: 10 }}>
@@ -376,20 +385,20 @@ function InternalMailSection() {
               </StatusBox>
             )}
           </>
-        ) : emailAutoStatus === 'applying' ? (
+        ) : !isMailboxFallback && emailAutoStatus === 'applying' ? (
           <StatusBox style={{ marginTop: 10 }}>正在自动配置内部邮箱...</StatusBox>
-        ) : emailAutoStatus === 'applied' ? (
+        ) : !isMailboxFallback && emailAutoStatus === 'applied' ? (
           <StatusBox $ok style={{ marginTop: 10 }}>✓ 内部邮箱已自动配置</StatusBox>
-        ) : emailAutoStatus === 'error' ? (
+        ) : !isMailboxFallback && emailAutoStatus === 'error' ? (
           <StatusBox $error style={{ marginTop: 10 }}>
             邮箱自动配置失败：{emailAutoError || '未知错误'}
           </StatusBox>
         ) : null}
 
-        {retrying && (
+        {!isMailboxFallback && retrying && (
           <div style={{ fontSize: 14, color: '#8a9db5', marginTop: 8 }}>正在重新应用并测试连接...</div>
         )}
-        {emailAutoStatus !== 'applying' && !retrying && (
+        {!isMailboxFallback && emailAutoStatus !== 'applying' && !retrying && (
           <SmallBtn
             type="button"
             onClick={() => void handleRetry()}
@@ -400,7 +409,9 @@ function InternalMailSection() {
           </SmallBtn>
         )}
         <div style={{ fontSize: 14, color: '#8a9db5', marginTop: 6 }}>
-          邮箱 SMTP/IMAP 密码使用邮箱初始密码（与 AccountCenter 登录密码独立管理，修改登录密码不影响邮箱连接）。
+          {isMailboxFallback
+            ? '学校邮箱登录会直接使用当前邮箱密码完成连通验证与绑定。'
+            : '邮箱 SMTP/IMAP 密码使用邮箱初始密码（与 AccountCenter 登录密码独立管理，修改登录密码不影响邮箱连接）。'}
         </div>
       </SectionBody>
     </Section>
@@ -412,6 +423,7 @@ function InternalChatSection() {
   const { state } = useInternalAccount()
 
   if (state.phase !== 'logged_in') return null
+  const isMailboxFallback = state.session.source === 'mailbox-fallback'
 
   return (
     <Section style={{ marginTop: 14 }}>
@@ -419,16 +431,24 @@ function InternalChatSection() {
         <SectionTitle>💬 内部通讯</SectionTitle>
       </SectionHeader>
       <SectionBody>
-        <div style={{ fontSize: 14, color: '#627385', lineHeight: 1.6, marginBottom: 10 }}>
-          支持单聊与群聊，基于 AccountCenter Chat 服务。
-        </div>
-        <Btn
-          $primary
-          type="button"
-          onClick={() => window.dispatchEvent(new CustomEvent('open-chat-window'))}
-        >
-          打开内部通讯
-        </Btn>
+        {isMailboxFallback ? (
+          <StatusBox $warn>
+            当前通过学校邮箱兜底进入，内部通讯依赖内部账号令牌，暂不可用。
+          </StatusBox>
+        ) : (
+          <>
+            <div style={{ fontSize: 14, color: '#627385', lineHeight: 1.6, marginBottom: 10 }}>
+              支持单聊与群聊，基于 AccountCenter Chat 服务。
+            </div>
+            <Btn
+              $primary
+              type="button"
+              onClick={() => window.dispatchEvent(new CustomEvent('open-chat-window'))}
+            >
+              打开内部通讯
+            </Btn>
+          </>
+        )}
       </SectionBody>
     </Section>
   )

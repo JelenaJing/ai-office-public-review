@@ -185,7 +185,12 @@ const api = {
   internalAccountGetToken: () => ipcRenderer.invoke('internalAccount:getToken'),
   internalAccountSetToken: (token: string) => ipcRenderer.invoke('internalAccount:setToken', token),
   internalAccountClearToken: () => ipcRenderer.invoke('internalAccount:clearToken'),
+  internalAccountGetSession: () => ipcRenderer.invoke('internalAccount:getSession'),
+  internalAccountSetSession: (session: unknown) => ipcRenderer.invoke('internalAccount:setSession', session),
+  internalAccountClearSession: () => ipcRenderer.invoke('internalAccount:clearSession'),
   internalAccountApplyEmailConfig: (config: unknown) => ipcRenderer.invoke('internalAccount:applyEmailConfig', config),
+  internalAccountLoginMailbox: (payload: { usernameOrEmail: string; password: string }) =>
+    ipcRenderer.invoke('internalAccount:loginMailbox', payload),
 
   // ---- Matrix IPC ----
   matrixGetSession: () => ipcRenderer.invoke('matrix:getSession'),

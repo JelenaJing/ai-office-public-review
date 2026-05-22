@@ -181,6 +181,11 @@ export interface SentMailRecord {
 /* ------------------------------------------------------------------ */
 
 export type EmailErrorCode =
+  | 'IMAP_CONNECT_FAILED'
+  | 'IMAP_AUTH_FAILED'
+  | 'SMTP_CONNECT_FAILED'
+  | 'SMTP_AUTH_FAILED'
+  | 'TLS_HANDSHAKE_FAILED'
   | 'AUTH_FAILED'
   | 'NETWORK_TIMEOUT'
   | 'TLS_CERT_ERROR'
@@ -188,6 +193,19 @@ export type EmailErrorCode =
   | 'SMTP_SEND_FAILED'
   | 'MIME_PARSE_ERROR'
   | 'UNKNOWN_ERROR'
+
+export interface EmailConnectionCheckResult {
+  ok: boolean
+  protocol: 'imap' | 'smtp'
+  message: string
+  error?: {
+    message: string
+    code?: string
+    command?: string
+    responseCode?: number | string
+    errorCode?: EmailErrorCode
+  }
+}
 
 /* ------------------------------------------------------------------ */
 /*  Email reply draft types                                           */

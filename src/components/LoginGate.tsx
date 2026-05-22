@@ -193,7 +193,7 @@ export default function LoginGate() {
       <Card>
         <Brand>
           <BrandTitle>AI Office</BrandTitle>
-          <BrandSubtitle>登录内部账号后继续使用</BrandSubtitle>
+          <BrandSubtitle>支持用户名或邮箱登录，用户名会自动补全为学校邮箱</BrandSubtitle>
         </Brand>
 
         {isExpiredMsg && (
@@ -204,7 +204,7 @@ export default function LoginGate() {
 
         <form onSubmit={handleSubmit} autoComplete="on">
           <Field>
-            <Label htmlFor="lg-username">AI Office 邮箱</Label>
+            <Label htmlFor="lg-username">用户名或邮箱</Label>
             <Input
               id="lg-username"
               ref={usernameRef}
@@ -212,7 +212,7 @@ export default function LoginGate() {
               autoComplete="username"
               value={username}
               onChange={e => setUsername(e.target.value)}
-              placeholder="请输入 AI Office 邮箱（aiEmail）"
+              placeholder="请输入用户名或完整邮箱"
               disabled={submitting}
               $error={!!errorMsg && !isExpiredMsg}
             />
@@ -242,7 +242,7 @@ export default function LoginGate() {
           </LoginBtn>
         </form>
 
-        <Footer>AI Office 3.0 · AccountCenter 内部账号</Footer>
+        <Footer>AI Office 3.0 · 支持内部账号与学校邮箱兜底登录</Footer>
       </Card>
     </Screen>
   )

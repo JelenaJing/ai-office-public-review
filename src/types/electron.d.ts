@@ -44,6 +44,8 @@ declare global {
     error: {
       message: string
       code?: string
+      command?: string
+      responseCode?: number | string
       /** Structured error code for programmatic handling */
       errorCode?: import('./email').EmailErrorCode
       needsModernAuth?: boolean
@@ -191,7 +193,17 @@ declare global {
       internalAccountGetToken: () => Promise<{ token: string | null }>
       internalAccountSetToken: (token: string) => Promise<{ ok: boolean }>
       internalAccountClearToken: () => Promise<{ ok: boolean }>
+      internalAccountGetSession: () => Promise<{ session: unknown | null }>
+      internalAccountSetSession: (session: unknown) => Promise<{ ok: boolean; error?: string }>
+      internalAccountClearSession: () => Promise<{ ok: boolean }>
       internalAccountApplyEmailConfig: (config: import('./email').EmailAccountConfig) => Promise<{ ok: boolean; error?: string }>
+      internalAccountLoginMailbox: (payload: { usernameOrEmail: string; password: string }) => Promise<{
+        ok: boolean
+        session?: unknown
+        mailboxEmail?: string
+        error?: string
+        probeResults?: Array<{ protocol: 'imap' | 'smtp'; mode: 'starttls' | 'none' | 'ssl'; ok: boolean; message: string }>
+      }>
 
       // ---- Matrix IPC ----
       matrixGetSession: () => Promise<{ session: import('./matrix').MatrixSession | null }>
@@ -328,8 +340,8 @@ declare global {
       emailGetAccount: () => Promise<import('./email').EmailAccountConfig | null>
       emailSaveAccount: (config: import('./email').EmailAccountConfig) => Promise<void>
       emailClearAccount: () => Promise<void>
-      emailTestConnection: (config: import('./email').EmailAccountConfig) => Promise<{ ok: boolean; message: string }>
-      emailTestSmtp: (config: import('./email').EmailAccountConfig) => Promise<{ ok: boolean; message: string }>
+      emailTestConnection: (config: import('./email').EmailAccountConfig) => Promise<import('./email').EmailConnectionCheckResult>
+      emailTestSmtp: (config: import('./email').EmailAccountConfig) => Promise<import('./email').EmailConnectionCheckResult>
       emailFetchInbox: () => Promise<import('./email').MailItem[] | EmailFetchResult>
       emailFetchSent: () => Promise<import('./email').MailItem[] | EmailFetchResult>
       emailFetchTrash: () => Promise<import('./email').MailItem[] | EmailFetchResult>

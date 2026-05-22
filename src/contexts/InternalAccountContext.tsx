@@ -23,6 +23,7 @@ import * as client from '../services/accountCenterClient'
 import type {
   InternalAccountSession,
   InternalAccountState,
+  InternalAccountSessionSource,
   InternalAccountUser,
 } from '../types/internalAccount'
 import { setAmbientUserId, setAmbientToken, flushPendingActivities } from '../services/workActivityLog'
@@ -82,12 +83,33 @@ async function storeToken(token: string): Promise<void> {
   }
 }
 
+async function readStoredSession(): Promise<InternalAccountSession | null> {
+  const api = electronAPI()
+  if (!api?.internalAccountGetSession) return null
+  const res = await api.internalAccountGetSession()
+  return (res?.session ?? null) as InternalAccountSession | null
+}
+
+async function storeSession(session: InternalAccountSession): Promise<void> {
+  const api = electronAPI()
+  if (!api?.internalAccountSetSession) return
+  const res = await api.internalAccountSetSession(session)
+  if (!res?.ok) throw new Error(res?.error ?? '会话写入失败')
+}
+
 async function clearStoredToken(): Promise<void> {
   const api = electronAPI()
   if (api?.internalAccountClearToken) {
     await api.internalAccountClearToken()
   }
   try { localStorage.removeItem(LEGACY_TOKEN_KEY) } catch { /* ignore */ }
+}
+
+async function clearStoredSession(): Promise<void> {
+  const api = electronAPI()
+  if (api?.internalAccountClearSession) {
+    await api.internalAccountClearSession()
+  }
 }
 
 function clearForcePasswordChangeStorage(): void {
@@ -170,6 +192,18 @@ const InternalAccountContext = createContext<InternalAccountContextValue | null>
 export function InternalAccountProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<InternalAccountState>({ phase: 'restoring' })
 
+  const buildSession = useCallback((
+    source: InternalAccountSessionSource,
+    token: string,
+    user: InternalAccountUser,
+    extra: Partial<InternalAccountSession> = {},
+  ): InternalAccountSession => ({
+    source,
+    token,
+    user,
+    ...extra,
+  }), [])
+
   // Keep ambient userId + token in sync so deeply-nested components (e.g. EditorPanel)
   // can log and sync work activities without threading auth props.
   useEffect(() => {
@@ -217,19 +251,26 @@ export function InternalAccountProvider({ children }: { children: ReactNode }) {
 
   /* ---- 启动时恢复 token ---- */
   useEffect(() => {
-    readStoredToken().then((token) => {
+    Promise.all([readStoredSession(), readStoredToken()]).then(([storedSession, storedToken]) => {
+      if (storedSession?.source === 'mailbox-fallback') {
+        clearForcePasswordChangeStorage()
+        setState({ phase: 'logged_in', session: storedSession })
+        return
+      }
+
+      const token = storedSession?.token || storedToken
       if (!token) {
         setState({ phase: 'idle' })
         return
       }
 
-      // Stay in 'restoring' while validating — App shows startup splash
       client
         .me(token)
         .then((user) => {
           clearForcePasswordChangeStorage()
-          // Mark bindings as loading immediately so UI shows spinner, not infinite "loading"
-          setState({ phase: 'logged_in', session: { token, user, bindingsPhase: 'loading' } })
+          const restoredSession = buildSession('account-center', token, user, { bindingsPhase: 'loading' })
+          setState({ phase: 'logged_in', session: restoredSession })
+          void storeSession(restoredSession).catch(() => {/* ignore */})
           return client.getBindings(token, user.id).then(
             (bindings) => {
               setState((prev) =>
@@ -250,12 +291,13 @@ export function InternalAccountProvider({ children }: { children: ReactNode }) {
         })
         .catch(() => {
           clearStoredToken().catch(() => {/* ignore */})
+          clearStoredSession().catch(() => {/* ignore */})
           setState({ phase: 'idle' })
         })
     }).catch(() => {
       setState({ phase: 'idle' })
     })
-  }, [])
+  }, [buildSession])
 
   /* ---- 会话过期监听 (401 from any authenticated request) ---- */
   useEffect(() => {
@@ -266,6 +308,7 @@ export function InternalAccountProvider({ children }: { children: ReactNode }) {
         passwordRef.current = null
         mailboxPasswordRef.current = null
         clearStoredToken().catch(() => {/* ignore */})
+        clearStoredSession().catch(() => {/* ignore */})
         return { phase: 'error', message: '登录已过期，请重新登录。' }
       })
     }
@@ -301,13 +344,18 @@ export function InternalAccountProvider({ children }: { children: ReactNode }) {
 
       clearForcePasswordChangeStorage()
 
+      const baseSession = buildSession('account-center', token, user, { bindingsPhase: 'loading' })
+
       // If force password change is enabled and required, gate the user in the force-change phase
       if (isForcePasswordChangeRequired(user)) {
-        setState({ phase: 'must_change_password', session: { token, user, bindingsPhase: 'loading' } })
+        await storeSession(baseSession)
+        setState({ phase: 'must_change_password', session: baseSession })
         return
       }
 
-      setState({ phase: 'logged_in', session: { token, user, bindingsPhase: 'loading', emailAutoStatus: 'applying' } })
+      const activeSession = { ...baseSession, emailAutoStatus: 'applying' as const }
+      await storeSession(activeSession)
+      setState({ phase: 'logged_in', session: activeSession })
 
       // Auto-apply email config in background (non-blocking)
       ;(async () => {
@@ -346,24 +394,54 @@ export function InternalAccountProvider({ children }: { children: ReactNode }) {
         },
       )
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      setState({ phase: 'error', message })
+      const accountError = err instanceof Error ? err.message : String(err)
+      try {
+        const api = electronAPI()
+        if (!api?.internalAccountLoginMailbox) {
+          setState({ phase: 'error', message: accountError })
+          return
+        }
+        const mailboxResult = await api.internalAccountLoginMailbox({ usernameOrEmail: username, password })
+        if (mailboxResult?.ok && mailboxResult.session) {
+          const fallbackSession = mailboxResult.session as InternalAccountSession
+          passwordRef.current = password
+          mailboxPasswordRef.current = password
+          await clearStoredToken()
+          await storeSession(fallbackSession)
+          setState({ phase: 'logged_in', session: fallbackSession })
+          return
+        }
+        const mailboxError = mailboxResult?.error || '邮箱连接失败'
+        setState({ phase: 'error', message: `${accountError}；${mailboxError}` })
+      } catch (fallbackErr) {
+        const fallbackMessage = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr)
+        setState({ phase: 'error', message: `${accountError}；${fallbackMessage}` })
+      }
     } finally {
       loginInProgressRef.current = false
     }
-  }, [])
+  }, [buildSession])
 
   /* ---- logout ---- */
   const logout = useCallback(() => {
     passwordRef.current = null // clear in-memory password
     mailboxPasswordRef.current = null
     clearStoredToken().catch(() => {/* ignore */})
+    clearStoredSession().catch(() => {/* ignore */})
     setState({ phase: 'idle' })
   }, [])
 
   /* ---- loadBindings ---- */
   const loadBindings = useCallback(async () => {
     if (state.phase !== 'logged_in') return
+    if (state.session.source === 'mailbox-fallback' || !state.session.token) {
+      setState((prev) =>
+        prev.phase === 'logged_in'
+          ? { phase: 'logged_in', session: { ...prev.session, bindingsPhase: 'success', bindingsError: undefined } }
+          : prev,
+      )
+      return
+    }
     const { token, user } = state.session
     setState((prev) =>
       prev.phase === 'logged_in'
@@ -392,6 +470,9 @@ export function InternalAccountProvider({ children }: { children: ReactNode }) {
   const changePassword = useCallback(
     async (currentPassword: string, newPassword: string) => {
       if (state.phase !== 'logged_in' && state.phase !== 'must_change_password') throw new Error('未登录')
+      if (state.session.source === 'mailbox-fallback' || !state.session.token) {
+        throw new Error('当前为邮箱登录模式，不支持修改内部账号密码')
+      }
       await client.changePassword(state.session.token, currentPassword, newPassword)
       // Update AccountCenter session password — used for future changePassword calls.
       // mailboxPasswordRef is NOT updated: mailcow SMTP/IMAP has separate credentials
@@ -449,6 +530,9 @@ export function InternalAccountProvider({ children }: { children: ReactNode }) {
   // TODO(phase6+): migrate to Electron safeStorage so password isn't written to disk.
   const applyEmailConfig = useCallback(async () => {
     if (state.phase !== 'logged_in') throw new Error('未登录')
+    if (state.session.source === 'mailbox-fallback') {
+      throw new Error('当前已使用学校邮箱登录，无需重新应用内部邮箱配置')
+    }
     // Uses mailboxPasswordRef (initial mailcow SMTP/IMAP password), not the AccountCenter
     // session password. On restart mailboxPasswordRef is null; user must re-login to re-apply.
     const pw = mailboxPasswordRef.current
