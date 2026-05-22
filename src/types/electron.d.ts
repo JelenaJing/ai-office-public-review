@@ -360,6 +360,11 @@ declare global {
       }>
       emailSaveSchoolAccount: (config: import('./email').EmailAccountConfig & { password: string }) => Promise<{ ok: boolean; error?: { message: string } }>
       emailRemoveSchoolAccount: () => Promise<{ ok: boolean; error?: { message: string } }>
+      // ---- Custom Preset IPC ----
+      emailLoadCustomPresets: () => Promise<import('./email').CustomEmailPreset[]>
+      emailSaveCustomPreset: (preset: import('./email').EmailAccountPreset) => Promise<{ ok: boolean; error?: { message: string } }>
+      emailRemoveCustomPreset: (label: string) => Promise<{ ok: boolean; error?: { message: string } }>
+      emailAutoProbeEmailDomain: (domain: string) => Promise<import('./email').EmailDomainProbeResult>
 
       // ---- Workspace Activity / Daily Report IPC ----
       activityTakeSnapshot: (workspacePath: string) => Promise<import('./workspaceActivity').ActivityTakeSnapshotResult>

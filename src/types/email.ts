@@ -329,6 +329,22 @@ export interface EmailAccountPreset {
   smtpSecure: boolean
 }
 
+export interface CustomEmailPreset extends EmailAccountPreset {
+  isCustom: true
+  createdAt: string
+}
+
+export interface EmailDomainProbeResult {
+  ok: boolean
+  imapHost?: string
+  imapPort?: number
+  imapSecure?: boolean
+  smtpHost?: string
+  smtpPort?: number
+  smtpSecure?: boolean
+  message?: string
+}
+
 export const EMAIL_ACCOUNT_PRESETS: EmailAccountPreset[] = [
   {
     label: 'Gmail',
@@ -339,6 +355,11 @@ export const EMAIL_ACCOUNT_PRESETS: EmailAccountPreset[] = [
     label: 'QQ邮箱',
     imapHost: 'imap.qq.com', imapPort: 993, imapSecure: true,
     smtpHost: 'smtp.qq.com', smtpPort: 465, smtpSecure: true,
+  },
+  {
+    label: '腾讯企业邮',
+    imapHost: 'imap.exmail.qq.com', imapPort: 993, imapSecure: true,
+    smtpHost: 'smtp.exmail.qq.com', smtpPort: 465, smtpSecure: true,
   },
   {
     label: '163邮箱',

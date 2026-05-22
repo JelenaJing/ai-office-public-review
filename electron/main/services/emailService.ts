@@ -8,6 +8,8 @@
  */
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import net from 'node:net'
+import tls from 'node:tls'
 import { ImapFlow } from 'imapflow'
 import type { ImapFlowOptions, Logger } from 'imapflow'
 import nodemailer from 'nodemailer'
@@ -302,9 +304,11 @@ interface SanitizedImapConfig {
 }
 
 /** Translate low-level network errors into user-friendly Chinese messages */
-function friendlyErrorMessage(err: unknown, providerType?: string): string {
+function friendlyErrorMessage(err: unknown, providerTypeOrConfig?: string | EmailAccountConfig): string {
   const msg = err instanceof Error ? err.message : String(err)
   const code = (err as NodeJS.ErrnoException).code ?? ''
+  const providerType = typeof providerTypeOrConfig === 'string' ? providerTypeOrConfig : providerTypeOrConfig?.providerType
+  const config = typeof providerTypeOrConfig === 'string' ? undefined : providerTypeOrConfig
 
   if (code === 'CONNECT_TIMEOUT') {
     return 'IMAP 建立 TCP/TLS 连接超时。请检查 IMAP host/port/secure 是否正确，尤其不要把 SMTP 服务器或 587/465 端口填到 IMAP 配置中。'
@@ -341,11 +345,23 @@ function friendlyErrorMessage(err: unknown, providerType?: string): string {
     if (providerType === 'internal-imap') {
       return '邮箱账号或密码认证失败。请确认 mailcow 中已创建 username@ai.cuhk.edu.cn 邮箱账号，并且邮箱密码与 AccountCenter 密码一致。'
     }
+    if (config && isQqMailProviderConfig(config)) {
+      return '认证失败。请确认 QQ 邮箱已开启 IMAP/SMTP，并使用授权码；用户名必须填写完整邮箱地址。'
+    }
+    if (config && isTencentExmailProviderConfig(config)) {
+      return '认证失败。请确认腾讯企业邮已开启 IMAP/SMTP，用户名必须填写完整邮箱地址；通常使用邮箱密码，如管理员启用了客户端专用密码请改用专用密码。'
+    }
     return '认证失败 (Command failed)。请确认用户名和密码/授权码正确。'
   }
   if (msg.includes('Authentication') || msg.includes('LOGIN') || msg.includes('auth') || msg.includes('Login is disabled')) {
     if (providerType === 'internal-imap') {
       return '邮箱账号或密码认证失败。请确认 mailcow 中已创建邮箱账号，并且邮箱密码与 AccountCenter 密码一致。'
+    }
+    if (config && isQqMailProviderConfig(config)) {
+      return '认证失败。请确认 QQ 邮箱已开启 IMAP/SMTP，并使用授权码；用户名必须填写完整邮箱地址。'
+    }
+    if (config && isTencentExmailProviderConfig(config)) {
+      return '认证失败。请确认腾讯企业邮已开启 IMAP/SMTP，用户名必须填写完整邮箱地址；通常使用邮箱密码，如管理员启用了客户端专用密码请改用专用密码。'
     }
     return '认证失败。请确认用户名和密码/授权码正确；Outlook/Office365/学校企业邮箱可能需要 OAuth2 / Modern Auth，而不是普通密码直连。'
   }
@@ -458,10 +474,24 @@ function extractEmailDomain(address: string): string {
   return at >= 0 ? normalized.slice(at + 1) : ''
 }
 
+function matchesHostPair(config: EmailAccountConfig, imapHost: string, smtpHost: string): boolean {
+  return config.imapHost.trim().toLowerCase() === imapHost && config.smtpHost.trim().toLowerCase() === smtpHost
+}
+
 function is163ProviderConfig(config: EmailAccountConfig): boolean {
-  const imapHost = config.imapHost.trim().toLowerCase()
-  const smtpHost = config.smtpHost.trim().toLowerCase()
-  return imapHost === 'imap.163.com' || smtpHost === 'smtp.163.com' || extractEmailDomain(config.user) === '163.com'
+  return matchesHostPair(config, 'imap.163.com', 'smtp.163.com') || extractEmailDomain(config.user) === '163.com'
+}
+
+function isQqMailProviderConfig(config: EmailAccountConfig): boolean {
+  return matchesHostPair(config, 'imap.qq.com', 'smtp.qq.com') || extractEmailDomain(config.user) === 'qq.com'
+}
+
+function isTencentExmailProviderConfig(config: EmailAccountConfig): boolean {
+  return matchesHostPair(config, 'imap.exmail.qq.com', 'smtp.exmail.qq.com')
+}
+
+function requiresFullEmailAuthUser(config: EmailAccountConfig): boolean {
+  return is163ProviderConfig(config) || isQqMailProviderConfig(config) || isTencentExmailProviderConfig(config)
 }
 
 function resolveConfiguredSmtpMode(config: EmailAccountConfig): 'ssl' | 'starttls' | 'none' {
@@ -518,7 +548,7 @@ function resolveSmtpSecurity(config: EmailAccountConfig): {
 
 function resolveAuthUser(config: EmailAccountConfig): string {
   const primaryUser = String(config.user || config.email || '').trim()
-  if (is163ProviderConfig(config)) return primaryUser
+  if (requiresFullEmailAuthUser(config)) return primaryUser
   return config.username?.trim() || primaryUser
 }
 
@@ -529,7 +559,7 @@ function normalizeEmailAccountConfig(config: EmailAccountConfig): EmailAccountCo
     ...config,
     user,
     email: user,
-    username: is163ProviderConfig({ ...config, user, email: user }) ? user : (username || undefined),
+    username: requiresFullEmailAuthUser({ ...config, user, email: user }) ? user : (username || undefined),
   }
 }
 
@@ -581,6 +611,12 @@ function buildConnectionHelpMessage(
   if (isAuthConnectionError(detail)) {
     if (is163ProviderConfig(config)) {
       return '请确认 163 网页端已开启 IMAP/SMTP 服务，并使用客户端授权码，不是网页登录密码'
+    }
+    if (isQqMailProviderConfig(config)) {
+      return '请确认 QQ 邮箱网页端已开启 IMAP/SMTP 服务，并使用授权码，不是 QQ 登录密码；用户名必须填写完整邮箱地址'
+    }
+    if (isTencentExmailProviderConfig(config)) {
+      return '请确认腾讯企业邮已开启 IMAP/SMTP，用户名必须填写完整邮箱地址；通常使用邮箱登录密码，如管理员启用了客户端专用密码请改用专用密码'
     }
     return '认证失败，请确认用户名和授权信息正确'
   }
@@ -764,6 +800,45 @@ class LoggedImapFlow extends ImapFlow {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Domain → preset map (fast path for known providers)              */
+/* ------------------------------------------------------------------ */
+
+const DOMAIN_PRESET_MAP: Record<string, { imapHost: string; imapPort: number; imapSecure: boolean; smtpHost: string; smtpPort: number; smtpSecure: boolean }> = {
+  'qq.com':      { imapHost: 'imap.qq.com', imapPort: 993, imapSecure: true, smtpHost: 'smtp.qq.com', smtpPort: 465, smtpSecure: true },
+  '163.com':     { imapHost: 'imap.163.com', imapPort: 993, imapSecure: true, smtpHost: 'smtp.163.com', smtpPort: 465, smtpSecure: true },
+  '126.com':     { imapHost: 'imap.126.com', imapPort: 993, imapSecure: true, smtpHost: 'smtp.126.com', smtpPort: 465, smtpSecure: true },
+  'yeah.net':    { imapHost: 'imap.yeah.net', imapPort: 993, imapSecure: true, smtpHost: 'smtp.yeah.net', smtpPort: 465, smtpSecure: true },
+  'gmail.com':   { imapHost: 'imap.gmail.com', imapPort: 993, imapSecure: true, smtpHost: 'smtp.gmail.com', smtpPort: 465, smtpSecure: true },
+  'outlook.com': { imapHost: 'outlook.office365.com', imapPort: 993, imapSecure: true, smtpHost: 'smtp-mail.outlook.com', smtpPort: 587, smtpSecure: false },
+  'hotmail.com': { imapHost: 'outlook.office365.com', imapPort: 993, imapSecure: true, smtpHost: 'smtp-mail.outlook.com', smtpPort: 587, smtpSecure: false },
+  'live.com':    { imapHost: 'outlook.office365.com', imapPort: 993, imapSecure: true, smtpHost: 'smtp-mail.outlook.com', smtpPort: 587, smtpSecure: false },
+  'icloud.com':  { imapHost: 'imap.mail.me.com', imapPort: 993, imapSecure: true, smtpHost: 'smtp.mail.me.com', smtpPort: 587, smtpSecure: false },
+}
+
+/** TCP/TLS port probe — returns true if a connection can be established within timeout */
+function probePort(host: string, port: number, secure: boolean, timeout = 5000): Promise<boolean> {
+  return new Promise((resolve) => {
+    let settled = false
+    const done = (ok: boolean) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      resolve(ok)
+    }
+    const timer = setTimeout(() => {
+      if (!settled) { settled = true; socket.destroy(); resolve(false) }
+    }, timeout)
+
+    const socket = secure
+      ? tls.connect({ host, port, servername: host, rejectUnauthorized: false }, () => { socket.destroy(); done(true) })
+      : net.createConnection({ host, port }, () => { socket.destroy(); done(true) })
+
+    socket.on('error', () => done(false))
+    socket.on('close', () => done(false))
+  })
+}
+
+/* ------------------------------------------------------------------ */
 /*  Attachment helpers                                                 */
 /* ------------------------------------------------------------------ */
 
@@ -798,10 +873,12 @@ function isRegularAttachment(att: {
 export class EmailService {
   private readonly configPath: string
   private readonly attachmentsDir: string
+  private readonly customPresetsPath: string
 
   constructor(userDataPath: string) {
     this.configPath = path.join(userDataPath, 'email-account.json')
     this.attachmentsDir = path.join(userDataPath, 'email-attachments')
+    this.customPresetsPath = path.join(userDataPath, 'custom-email-presets.json')
   }
 
   /** Returns the root directory used to cache attachment temp files */
@@ -987,7 +1064,7 @@ export class EmailService {
     try {
       assertImapConfigNotSmtp(config, folderForLog)
     } catch (err) {
-      throw new Error(`[IMAP prepare] ${friendlyErrorMessage(err, config.providerType)}`)
+      throw new Error(`[IMAP prepare] ${friendlyErrorMessage(err, config)}`)
     }
 
     // Pre-flight: empty password gives confusing ImapFlow error — catch it early
@@ -1019,7 +1096,7 @@ export class EmailService {
       if (!stageRef.authOkLogged) logImapStage(config, folderForLog, 'auth:ok')
     } catch (err) {
       logImapError(config, folderForLog, `${stageRef.current}:failed`, err)
-      throw new Error(`[IMAP ${stageRef.current}] ${friendlyErrorMessage(err, config.providerType)}`)
+      throw new Error(`[IMAP ${stageRef.current}] ${friendlyErrorMessage(err, config)}`)
     }
 
     try {
@@ -1586,5 +1663,90 @@ export class EmailService {
 
     const ok = Boolean(imapEncryption && smtpEncryption)
     return { ok, imapEncryption, smtpEncryption, probeResults }
+  }
+
+  /* ---------- custom preset persistence ---------- */
+
+  async loadCustomPresets(): Promise<import('../../../src/types/email').CustomEmailPreset[]> {
+    try {
+      const raw = await fs.readFile(this.customPresetsPath, 'utf-8')
+      const data = JSON.parse(raw)
+      return Array.isArray(data) ? data : []
+    } catch {
+      return []
+    }
+  }
+
+  async saveCustomPreset(preset: Omit<import('../../../src/types/email').CustomEmailPreset, 'isCustom' | 'createdAt'>): Promise<void> {
+    const presets = await this.loadCustomPresets()
+    // Replace existing entry with same label, or append
+    const idx = presets.findIndex((p) => p.label === preset.label)
+    const entry: import('../../../src/types/email').CustomEmailPreset = {
+      ...preset,
+      isCustom: true,
+      createdAt: idx >= 0 ? presets[idx].createdAt : new Date().toISOString(),
+    }
+    if (idx >= 0) presets[idx] = entry
+    else presets.push(entry)
+    await fs.mkdir(path.dirname(this.customPresetsPath), { recursive: true })
+    await fs.writeFile(this.customPresetsPath, JSON.stringify(presets, null, 2), 'utf-8')
+  }
+
+  async removeCustomPreset(label: string): Promise<void> {
+    const presets = await this.loadCustomPresets()
+    const filtered = presets.filter((p) => p.label !== label)
+    await fs.mkdir(path.dirname(this.customPresetsPath), { recursive: true })
+    await fs.writeFile(this.customPresetsPath, JSON.stringify(filtered, null, 2), 'utf-8')
+  }
+
+  /* ---------- domain auto-probe ---------- */
+
+  async autoProbeEmailDomain(domain: string): Promise<import('../../../src/types/email').EmailDomainProbeResult> {
+    const lowerDomain = domain.trim().toLowerCase()
+    if (!lowerDomain || !lowerDomain.includes('.')) {
+      return { ok: false, message: '无效的域名' }
+    }
+
+    // Fast path: known domains
+    const known = DOMAIN_PRESET_MAP[lowerDomain]
+    if (known) {
+      console.info('[email:autoProbe] known domain', { domain: lowerDomain })
+      return { ok: true, ...known }
+    }
+
+    // Probe candidates in parallel (4s timeout each)
+    console.info('[email:autoProbe] probing unknown domain', { domain: lowerDomain })
+    const imapCandidates = [
+      { host: `imap.${lowerDomain}`, port: 993, secure: true },
+      { host: `mail.${lowerDomain}`, port: 993, secure: true },
+      { host: `imap.${lowerDomain}`, port: 143, secure: false },
+      { host: `mail.${lowerDomain}`, port: 143, secure: false },
+    ]
+    const smtpCandidates = [
+      { host: `smtp.${lowerDomain}`, port: 465, secure: true },
+      { host: `mail.${lowerDomain}`, port: 465, secure: true },
+      { host: `smtp.${lowerDomain}`, port: 587, secure: false },
+      { host: `mail.${lowerDomain}`, port: 587, secure: false },
+    ]
+
+    const [imapResults, smtpResults] = await Promise.all([
+      Promise.all(imapCandidates.map((c) => probePort(c.host, c.port, c.secure).then((ok) => ({ ...c, ok })))),
+      Promise.all(smtpCandidates.map((c) => probePort(c.host, c.port, c.secure).then((ok) => ({ ...c, ok })))),
+    ])
+
+    const firstImap = imapResults.find((r) => r.ok)
+    const firstSmtp = smtpResults.find((r) => r.ok)
+
+    if (firstImap && firstSmtp) {
+      console.info('[email:autoProbe] found', { imapHost: firstImap.host, imapPort: firstImap.port, smtpHost: firstSmtp.host, smtpPort: firstSmtp.port })
+      return {
+        ok: true,
+        imapHost: firstImap.host, imapPort: firstImap.port, imapSecure: firstImap.secure,
+        smtpHost: firstSmtp.host, smtpPort: firstSmtp.port, smtpSecure: firstSmtp.secure,
+      }
+    }
+
+    console.info('[email:autoProbe] no reachable server found', { domain: lowerDomain })
+    return { ok: false, message: '未找到可用的邮件服务器，请手动填写 IMAP/SMTP 参数' }
   }
 }

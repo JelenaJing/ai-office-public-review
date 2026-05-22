@@ -218,6 +218,11 @@ const api = {
   emailTestSchoolAccount: (params: unknown) => ipcRenderer.invoke('email:testSchoolAccount', params),
   emailSaveSchoolAccount: (config: unknown) => ipcRenderer.invoke('email:saveSchoolAccount', config),
   emailRemoveSchoolAccount: () => ipcRenderer.invoke('email:removeSchoolAccount'),
+  // ---- Custom Preset IPC ----
+  emailLoadCustomPresets: () => ipcRenderer.invoke('email:loadCustomPresets'),
+  emailSaveCustomPreset: (preset: unknown) => ipcRenderer.invoke('email:saveCustomPreset', preset),
+  emailRemoveCustomPreset: (label: string) => ipcRenderer.invoke('email:removeCustomPreset', label),
+  emailAutoProbeEmailDomain: (domain: string) => ipcRenderer.invoke('email:autoProbeEmailDomain', domain),
   continueWriting: (payload: unknown) => ipcRenderer.invoke('ai:continueWriting', payload),
   rewriteParagraph: (payload: unknown) => ipcRenderer.invoke('ai:rewriteParagraph', payload),
   writingAssistant: (payload: unknown) => ipcRenderer.invoke('ai:writingAssistant', payload),

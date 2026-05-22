@@ -1805,6 +1805,34 @@ app.whenReady().then(async () => {
     }
   })
 
+  /* ---- Custom preset IPC ---- */
+
+  ipcMain.handle('email:loadCustomPresets', async () => {
+    return await emailService.loadCustomPresets()
+  })
+
+  ipcMain.handle('email:saveCustomPreset', async (_, preset) => {
+    try {
+      await emailService.saveCustomPreset(preset)
+      return { ok: true }
+    } catch (err) {
+      return { ok: false, error: { message: err instanceof Error ? err.message : String(err) } }
+    }
+  })
+
+  ipcMain.handle('email:removeCustomPreset', async (_, label: string) => {
+    try {
+      await emailService.removeCustomPreset(label)
+      return { ok: true }
+    } catch (err) {
+      return { ok: false, error: { message: err instanceof Error ? err.message : String(err) } }
+    }
+  })
+
+  ipcMain.handle('email:autoProbeEmailDomain', async (_, domain: string) => {
+    return await emailService.autoProbeEmailDomain(domain)
+  })
+
   ipcMain.handle('email:downloadAttachment', async (event, { tempPath, filename }: { tempPath: string; filename: string }) => {
     try {
       // Security: ensure tempPath is within the managed attachments directory

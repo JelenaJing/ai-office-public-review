@@ -24,6 +24,7 @@ import type {
 } from './types'
 import type { EmailAccountConfig, EmailConnectionCheckResult, EmailReplyGenerationOptions, EmailReplyKnowledgeSelection, EmailReplyKnowledgeSnippet, EmailReplyKnowledgeTrace } from '../types/email'
 import { EMAIL_ACCOUNT_PRESETS } from '../types/email'
+import type { CustomEmailPreset } from '../types/email'
 import type { MailItem } from '../types/email'
 import { buildEmailReplyKnowledgeTrace } from './services/emailReplyKnowledgeTrace'
 import type { Department } from '../types/knowledge'
@@ -1436,6 +1437,30 @@ const PresetButton = styled.button<{ $active?: boolean }>`
   &:hover { border-color: #3182ce; background: #ebf3fd; color: #2b6cb0; }
 `
 
+const CustomPresetButtonWrap = styled.span`
+  display: inline-flex; align-items: center; gap: 0;
+`
+
+const CustomPresetDeleteBtn = styled.button`
+  padding: 2px 6px; border: none; background: transparent; color: #a0aec0;
+  cursor: pointer; font-size: 12px; line-height: 1;
+  &:hover { color: #e53e3e; }
+`
+
+const SavePresetRow = styled.div`
+  display: flex; gap: 8px; align-items: center; margin-bottom: 14px; flex-wrap: wrap;
+`
+
+const SavePresetInput = styled.input`
+  padding: 4px 10px; border: 1.5px solid #cbd5e0; border-radius: 6px;
+  font-size: var(--font-size-sm); width: 160px;
+  &:focus { outline: none; border-color: #3182ce; }
+`
+
+const ProbeStatus = styled.div`
+  font-size: var(--font-size-xs); color: #718096; margin-bottom: 8px;
+`
+
 const FormGrid = styled.div`
   display: grid; grid-template-columns: 110px 1fr; gap: 10px 12px; align-items: center;
   margin-bottom: 14px;
@@ -2379,31 +2404,51 @@ function AccountSettingsModal({ onClose }: { onClose: () => void }) {
   const [testStatus, setTestStatus] = useState<{ tone: 'ok' | 'err' | 'loading'; msg: string } | null>(null)
   const [saving, setSaving] = useState(false)
   const [schoolProbeResults, setSchoolProbeResults] = useState<Array<{ protocol: 'imap' | 'smtp'; mode: 'starttls' | 'none' | 'ssl'; ok: boolean; message: string }>>([])
+  const [customPresets, setCustomPresets] = useState<CustomEmailPreset[]>([])
+  const [probeStatus, setProbeStatus] = useState<string | null>(null)
+  const [probing, setProbing] = useState(false)
+  const [showSavePreset, setShowSavePreset] = useState(false)
+  const [savePresetName, setSavePresetName] = useState('')
+  const domainProbeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const lastProbedDomain = useRef('')
+
+  useEffect(() => {
+    void window.electronAPI?.emailLoadCustomPresets?.().then((presets) => {
+      if (Array.isArray(presets)) setCustomPresets(presets)
+    })
+  }, [])
+
+  const matchesHostPair = useCallback((draft: Pick<EmailAccountConfig, 'imapHost' | 'smtpHost'>, imapHost: string, smtpHost: string) => (
+    draft.imapHost.trim().toLowerCase() === imapHost && draft.smtpHost.trim().toLowerCase() === smtpHost
+  ), [])
+  const requiresFullEmailUsername = useCallback((draft: Pick<EmailAccountConfig, 'imapHost' | 'smtpHost'>) => (
+    matchesHostPair(draft, 'imap.163.com', 'smtp.163.com')
+    || matchesHostPair(draft, 'imap.qq.com', 'smtp.qq.com')
+    || matchesHostPair(draft, 'imap.exmail.qq.com', 'smtp.exmail.qq.com')
+  ), [matchesHostPair])
 
   const isInternal = form.providerType === 'internal-imap'
   const isSchoolExchange = form.provider === 'school_cuhk_exchange_imap_smtp'
   const isLinkAccount = form.user.endsWith('@link.cuhk.edu.cn')
   const isOutlook = !isInternal && !isSchoolExchange && /outlook|office365/i.test(form.imapHost)
-  const is163 = !isInternal && !isSchoolExchange
-    && form.imapHost.trim().toLowerCase() === 'imap.163.com'
-    && form.smtpHost.trim().toLowerCase() === 'smtp.163.com'
+  const is163 = !isInternal && !isSchoolExchange && matchesHostPair(form, 'imap.163.com', 'smtp.163.com')
+  const isQqMail = !isInternal && !isSchoolExchange && matchesHostPair(form, 'imap.qq.com', 'smtp.qq.com')
+  const isTencentExmail = !isInternal && !isSchoolExchange && matchesHostPair(form, 'imap.exmail.qq.com', 'smtp.exmail.qq.com')
 
   const normalizeManualForm = useCallback((draft: EmailAccountConfig): EmailAccountConfig => {
     const user = draft.user.trim()
-    const is163Draft = draft.imapHost.trim().toLowerCase() === 'imap.163.com'
-      && draft.smtpHost.trim().toLowerCase() === 'smtp.163.com'
     return {
       ...draft,
       user,
       email: user,
-      username: is163Draft ? user : (draft.username?.trim() || ''),
+      username: requiresFullEmailUsername(draft) ? user : (draft.username?.trim() || ''),
       smtpIgnoreTls: draft.smtpPort === 587 ? false : (draft.smtpIgnoreTls ?? false),
       smtpEncryption:
         draft.smtpPort === 465 ? 'ssl'
           : draft.smtpPort === 587 ? 'starttls'
             : draft.smtpEncryption,
     }
-  }, [])
+  }, [requiresFullEmailUsername])
 
   const formatConnectionStatusLine = useCallback((result: EmailConnectionCheckResult) => {
     if (result.ok) return `${result.protocol.toUpperCase()}: 连接成功`
@@ -2415,7 +2460,7 @@ function AccountSettingsModal({ onClose }: { onClose: () => void }) {
       ...f,
       imapHost: preset.imapHost, imapPort: preset.imapPort, imapSecure: preset.imapSecure,
       smtpHost: preset.smtpHost, smtpPort: preset.smtpPort, smtpSecure: preset.smtpSecure,
-      username: preset.label === '163邮箱' ? f.user.trim() : '',
+      username: requiresFullEmailUsername(preset) ? f.user.trim() : '',
       email: f.user.trim(),
       providerType: '',
       provider: undefined,
@@ -2491,11 +2536,72 @@ function AccountSettingsModal({ onClose }: { onClose: () => void }) {
       ...f,
       user: value,
       email: value,
-      username: (
-        f.imapHost.trim().toLowerCase() === 'imap.163.com'
-        && f.smtpHost.trim().toLowerCase() === 'smtp.163.com'
-      ) ? value : f.username,
+      username: requiresFullEmailUsername(f) ? value : f.username,
     }))
+    // Auto-probe the domain when email is typed
+    const atIdx = value.lastIndexOf('@')
+    const domain = atIdx >= 0 ? value.slice(atIdx + 1).trim().toLowerCase() : ''
+    if (domain && domain.includes('.') && domain !== lastProbedDomain.current) {
+      if (domainProbeTimer.current) clearTimeout(domainProbeTimer.current)
+      domainProbeTimer.current = setTimeout(() => {
+        void triggerDomainProbe(domain)
+      }, 800)
+    }
+  }
+
+  const triggerDomainProbe = async (domain: string) => {
+    // Skip well-known providers already handled by built-in presets
+    const knownDomains = ['qq.com', '163.com', '126.com', 'yeah.net', 'gmail.com', 'outlook.com', 'hotmail.com', 'live.com', 'icloud.com', 'cuhk.edu.cn']
+    if (knownDomains.includes(domain)) return
+    lastProbedDomain.current = domain
+    setProbing(true)
+    setProbeStatus('🔍 正在自动探测邮件服务器...')
+    try {
+      const result = await window.electronAPI?.emailAutoProbeEmailDomain?.(domain)
+      if (result?.ok && result.imapHost && result.smtpHost) {
+        setForm((f) => ({
+          ...f,
+          imapHost: result.imapHost!,
+          imapPort: result.imapPort!,
+          imapSecure: result.imapSecure!,
+          smtpHost: result.smtpHost!,
+          smtpPort: result.smtpPort!,
+          smtpSecure: result.smtpSecure!,
+          imapEncryption: undefined,
+          smtpEncryption: result.smtpPort === 465 ? 'ssl' : result.smtpPort === 587 ? 'starttls' : undefined,
+          provider: undefined,
+          providerType: '',
+          fromPolicy: undefined,
+        }))
+        setProbeStatus(`✅ 已自动探测到 ${domain} 服务器配置（IMAP: ${result.imapHost}:${result.imapPort}, SMTP: ${result.smtpHost}:${result.smtpPort}）`)
+        setTimeout(() => setProbeStatus(null), 8000)
+      } else {
+        setProbeStatus(null)
+      }
+    } catch {
+      setProbeStatus(null)
+    } finally {
+      setProbing(false)
+    }
+  }
+
+  const handleSaveAsPreset = async () => {
+    if (!savePresetName.trim()) return
+    const preset = {
+      label: savePresetName.trim(),
+      imapHost: form.imapHost, imapPort: form.imapPort, imapSecure: form.imapSecure,
+      smtpHost: form.smtpHost, smtpPort: form.smtpPort, smtpSecure: form.smtpSecure,
+    }
+    await window.electronAPI?.emailSaveCustomPreset?.(preset)
+    const saved: CustomEmailPreset = { ...preset, isCustom: true, createdAt: new Date().toISOString() }
+    setCustomPresets((prev) => [...prev.filter((p) => p.label !== saved.label), saved])
+    setShowSavePreset(false)
+    setSavePresetName('')
+  }
+
+  const handleDeleteCustomPreset = async (label: string) => {
+    await window.electronAPI?.emailRemoveCustomPreset?.(label)
+    setCustomPresets((prev) => prev.filter((p) => p.label !== label))
   }
 
   const testConnection = async () => {
@@ -2636,6 +2742,21 @@ function AccountSettingsModal({ onClose }: { onClose: () => void }) {
               {p.label}
             </PresetButton>
           ))}
+          {customPresets.map((p) => (
+            <CustomPresetButtonWrap key={p.label}>
+              <PresetButton
+                $active={!isInternal && !isSchoolExchange && form.imapHost === p.imapHost && form.smtpHost === p.smtpHost}
+                onClick={() => applyPreset(p)}
+                title={`IMAP: ${p.imapHost}:${p.imapPort}  SMTP: ${p.smtpHost}:${p.smtpPort}`}
+              >
+                📌 {p.label}
+              </PresetButton>
+              <CustomPresetDeleteBtn
+                onClick={() => void handleDeleteCustomPreset(p.label)}
+                title="删除此预设"
+              >✕</CustomPresetDeleteBtn>
+            </CustomPresetButtonWrap>
+          ))}
           <PresetButton $active={isInternal} onClick={applyInternalPreset}>
             🏢 内部邮箱
           </PresetButton>
@@ -2643,6 +2764,35 @@ function AccountSettingsModal({ onClose }: { onClose: () => void }) {
             🎓 CUHK 学校邮箱
           </PresetButton>
         </PresetRow>
+
+        {/* Save-as-preset row */}
+        {!isInternal && !isSchoolExchange && form.imapHost && form.smtpHost && (
+          showSavePreset ? (
+            <SavePresetRow>
+              <SavePresetInput
+                type="text"
+                placeholder="预设名称（如：公司邮箱）"
+                value={savePresetName}
+                onChange={(e) => setSavePresetName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') void handleSaveAsPreset() }}
+                autoFocus
+              />
+              <PresetButton onClick={() => void handleSaveAsPreset()}>保存</PresetButton>
+              <PresetButton onClick={() => { setShowSavePreset(false); setSavePresetName('') }}>取消</PresetButton>
+            </SavePresetRow>
+          ) : (
+            <SavePresetRow>
+              <PresetButton onClick={() => setShowSavePreset(true)} title="将当前 IMAP/SMTP 配置保存为自定义预设">
+                📌 保存为预设
+              </PresetButton>
+            </SavePresetRow>
+          )
+        )}
+
+        {/* Domain auto-probe status */}
+        {(probing || probeStatus) && (
+          <ProbeStatus>{probing ? '🔍 正在自动探测邮件服务器...' : probeStatus}</ProbeStatus>
+        )}
 
         {isInternal && (
           <InternalHint>
@@ -2677,6 +2827,19 @@ function AccountSettingsModal({ onClose }: { onClose: () => void }) {
             用户名必须填写完整邮箱地址，不能只填 @ 前面的账号，也不要使用网页登录密码。
           </OutlookHint>
         )}
+        {isQqMail && (
+          <OutlookHint>
+            ⚠️ <strong>QQ 邮箱必须开启 IMAP/SMTP，并使用授权码</strong><br />
+            用户名必须填写完整邮箱地址，不能使用 QQ 登录密码。
+          </OutlookHint>
+        )}
+        {isTencentExmail && (
+          <OutlookHint>
+            ⚠️ <strong>腾讯企业邮请使用完整邮箱地址登录</strong><br />
+            常用参数：IMAP `imap.exmail.qq.com:993`、SMTP `smtp.exmail.qq.com:465`。<br />
+            用户名必须填写完整邮箱地址；通常使用邮箱登录密码，如管理员启用了客户端专用密码请改填专用密码。
+          </OutlookHint>
+        )}
 
         <FormGrid>
           {field('displayName', '显示名称', 'text', isInternal ? '例：王老师' : isSchoolExchange ? '例：王教授' : '例：王明')}
@@ -2698,12 +2861,24 @@ function AccountSettingsModal({ onClose }: { onClose: () => void }) {
               />
             </>
           )}
-          <FormLabel>{is163 ? '客户端授权码' : `密码${isSchoolExchange ? '（安全存储，不写入配置文件）' : '/授权码'}`}</FormLabel>
+          <FormLabel>
+            {is163
+              ? '客户端授权码'
+              : isQqMail
+                ? '授权码'
+                : isTencentExmail
+                  ? '邮箱密码/客户端专用密码'
+                  : `密码${isSchoolExchange ? '（安全存储，不写入配置文件）' : '/授权码'}`}
+          </FormLabel>
           <FormInput
             type="password"
             placeholder={
               is163
                 ? '请输入 163 客户端授权码'
+                : isQqMail
+                  ? '请输入 QQ 邮箱授权码'
+                  : isTencentExmail
+                    ? '请输入腾讯企业邮密码或客户端专用密码'
                 : isSchoolExchange
                   ? '邮箱登录密码'
                   : '邮箱密码或授权码'
