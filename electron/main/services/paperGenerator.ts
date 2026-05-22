@@ -26,6 +26,7 @@ export interface PaperGenerationParams {
   finalReferenceVerification?: boolean
   enableKnowledgeTreeCheck?: boolean
   enableFullReview?: boolean
+  workspacePath?: string
 }
 
 export interface PaperGenerationResult {

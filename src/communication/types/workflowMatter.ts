@@ -135,4 +135,26 @@ export interface MatterEvaluation {
   riskFlags: string[]
   explanation: string
   nextAction: string
+  /** Structured fields extracted from the application */
+  extractedFields?: {
+    applicantName?: string
+    studentId?: string
+    schoolEmail?: string
+    reason?: string
+    hasLostStatement?: boolean
+    hasReplacementIntent?: boolean
+    mentionedCampusCard?: boolean
+  }
+  /** Evidence trail linking extracted values to their source */
+  evidence?: Array<{
+    field: string
+    value: string
+    source: 'email_body' | 'sender_email' | 'attachment_name' | 'mock_connector' | 'policy'
+  }>
+  /** Detailed results of each system check */
+  systemCheckDetails?: Array<{
+    name: string
+    status: 'passed' | 'failed' | 'not_available'
+    detail: string
+  }>
 }

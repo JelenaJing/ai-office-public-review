@@ -466,6 +466,11 @@ export function MailTriageProvider({ children }: { children: ReactNode }) {
     setCurrentBatchResults(Object.values(batchResultsRef.current))
   }, [accountId])
 
+  const classifySingleMailWithFallback = useCallback(async (mail: MailItem) => {
+    const [singleResult] = await classifyMailsBatch([mail], accountId)
+    return enrichWithCalendarEvent(mail, singleResult)
+  }, [accountId, enrichWithCalendarEvent])
+
   const finalizeCurrentBatch = useCallback((generatedDrafts: Record<string, AiMailReplyDraft> = {}) => {
     const batchId = currentBatchIdRef.current
     if (!batchId) {
@@ -514,9 +519,22 @@ export function MailTriageProvider({ children }: { children: ReactNode }) {
 
         const batch = pendingJobs.slice(0, BATCH_SIZE)
         const mailMap = new Map(mails.map((m) => [m.id, m]))
+        const activeBatch = batch.filter((job) => mailMap.has(job.messageId))
+
+        for (const job of batch) {
+          if (mailMap.has(job.messageId)) continue
+          job.status = 'cancelled'
+          job.errorMessage = '邮件已不在当前列表，已跳过本次分析'
+          job.updatedAt = now()
+        }
+
+        if (activeBatch.length === 0) {
+          scheduleWorker(ACTIVE_POLL_MS)
+          return
+        }
 
         // Mark batch as running
-        for (const job of batch) {
+        for (const job of activeBatch) {
           job.status = 'running'
           job.updatedAt = now()
           setTriageResults((prev) => ({
@@ -524,9 +542,9 @@ export function MailTriageProvider({ children }: { children: ReactNode }) {
             [job.messageId]: { ...buildPendingResult(job, mailMap.get(job.messageId)), status: 'running' },
           }))
         }
-        setAnalysisProgress((p) => ({ ...p, running: p.running + batch.length }))
+        setAnalysisProgress((p) => ({ ...p, running: p.running + activeBatch.length }))
 
-        const mailsToClassify = batch
+        const mailsToClassify = activeBatch
           .map((job) => mailMap.get(job.messageId))
           .filter((m): m is MailItem => m !== undefined)
 
@@ -534,7 +552,7 @@ export function MailTriageProvider({ children }: { children: ReactNode }) {
           const results = await classifyMailsBatch(mailsToClassify, accountId)
 
           for (const result of results) {
-            const job = batch.find((j) => j.messageId === result.messageId)
+            const job = activeBatch.find((j) => j.messageId === result.messageId)
             if (job) { job.status = 'success'; job.updatedAt = now() }
             const mail = mailMap.get(result.messageId)
             const linkedResult = mail ? await enrichWithCalendarEvent(mail, result) : result
@@ -542,7 +560,7 @@ export function MailTriageProvider({ children }: { children: ReactNode }) {
             if (mail) recordBatchResult(mail, linkedResult)
           }
           // Mark jobs with no result as failed
-          for (const job of batch) {
+          for (const job of activeBatch) {
             if (job.status === 'running') {
               job.status = 'failed'; job.errorMessage = '无匹配结果'; job.updatedAt = now()
               const mail = mailMap.get(job.messageId)
@@ -554,37 +572,63 @@ export function MailTriageProvider({ children }: { children: ReactNode }) {
               }
             }
           }
-          const successCount = batch.filter((j) => j.status === 'success').length
-          const failCount = batch.filter((j) => j.status === 'failed').length
+          const successCount = activeBatch.filter((j) => j.status === 'success').length
+          const failCount = activeBatch.filter((j) => j.status === 'failed').length
           setAnalysisProgress((p) => ({
             ...p,
-            running: Math.max(0, p.running - batch.length),
+            running: Math.max(0, p.running - activeBatch.length),
             done: p.done + successCount,
             failed: p.failed + failCount,
           }))
         } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err)
-          for (const job of batch) {
-            if (job.status === 'running') {
-              job.retryCount++
-              if (job.retryCount >= MAX_RETRIES) {
-                job.status = 'failed'; job.errorMessage = msg
-                const mail = mailMap.get(job.messageId)
-                if (mail) {
-                  const failedResult = buildFailedResult(job, mail, msg)
-                  setTriageResults((prev) => ({ ...prev, [job.messageId]: failedResult }))
-                  recordBatchResult(mail, failedResult)
-                }
-              } else {
-                job.status = 'pending'
-              }
+          let successCount = 0
+          let failCount = 0
+
+          for (const job of activeBatch) {
+            if (job.status !== 'running') continue
+            const mail = mailMap.get(job.messageId)
+            if (!mail) {
+              job.status = 'cancelled'
+              job.errorMessage = '邮件已不在当前列表，已跳过本次分析'
               job.updatedAt = now()
+              continue
             }
+
+            const useSingleMailFallback = activeBatch.length > 1
+            let failureMessage = err instanceof Error ? err.message : String(err)
+
+            if (useSingleMailFallback) {
+              try {
+                const linkedResult = await classifySingleMailWithFallback(mail)
+                job.status = 'success'
+                job.updatedAt = now()
+                publishResult(linkedResult)
+                recordBatchResult(mail, linkedResult)
+                successCount += 1
+                continue
+              } catch (singleErr) {
+                failureMessage = singleErr instanceof Error ? singleErr.message : String(singleErr)
+              }
+            }
+
+            job.retryCount += 1
+            if (job.retryCount >= MAX_RETRIES) {
+              job.status = 'failed'
+              job.errorMessage = failureMessage
+              const failedResult = buildFailedResult(job, mail, failureMessage)
+              setTriageResults((prev) => ({ ...prev, [job.messageId]: failedResult }))
+              recordBatchResult(mail, failedResult)
+              failCount += 1
+            } else {
+              job.status = 'pending'
+            }
+            job.updatedAt = now()
           }
-          const failCount = batch.filter((j) => j.status === 'failed').length
+
           setAnalysisProgress((p) => ({
             ...p,
-            running: Math.max(0, p.running - batch.length),
+            running: Math.max(0, p.running - activeBatch.length),
+            done: p.done + successCount,
             failed: p.failed + failCount,
           }))
         }
@@ -593,7 +637,7 @@ export function MailTriageProvider({ children }: { children: ReactNode }) {
       }, delay)
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [accountId, publishResult, recordBatchResult, enrichWithCalendarEvent],
+    [accountId, publishResult, recordBatchResult, enrichWithCalendarEvent, classifySingleMailWithFallback, mails],
   )
 
   /* ---- Cleanup worker on unmount ---- */

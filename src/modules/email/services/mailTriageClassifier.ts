@@ -1102,6 +1102,61 @@ timeIntent 规则：
 ${blocks}`
 }
 
+function extractTopLevelJsonArray(raw: string): string | null {
+  let start = -1
+  let depth = 0
+  let inString = false
+  let escaped = false
+
+  for (let index = 0; index < raw.length; index += 1) {
+    const ch = raw[index]
+
+    if (escaped) {
+      escaped = false
+      continue
+    }
+
+    if (ch === '\\') {
+      escaped = inString
+      continue
+    }
+
+    if (ch === '"') {
+      inString = !inString
+      continue
+    }
+
+    if (inString) continue
+
+    if (ch === '[') {
+      if (depth === 0) start = index
+      depth += 1
+      continue
+    }
+
+    if (ch === ']') {
+      if (depth === 0) continue
+      depth -= 1
+      if (depth === 0 && start >= 0) {
+        return raw.slice(start, index + 1)
+      }
+    }
+  }
+
+  return null
+}
+
+function parseJsonArrayCandidate(raw: string): unknown {
+  const parsed = JSON.parse(raw) as unknown
+  if (Array.isArray(parsed)) return parsed
+  if (parsed && typeof parsed === 'object') {
+    const record = parsed as Record<string, unknown>
+    const wrapped = record.results ?? record.items ?? record.data ?? record.output
+    if (Array.isArray(wrapped)) return wrapped
+  }
+  return parsed
+}
+
 function parseLLMResponse(
   raw: string,
   mails: MailItem[],
@@ -1115,9 +1170,24 @@ function parseLLMResponse(
     .trim()
 
   let parsed: unknown
-  try {
-    parsed = JSON.parse(jsonText)
-  } catch {
+  const candidates = [jsonText]
+  const extractedJsonArray = extractTopLevelJsonArray(jsonText)
+  if (extractedJsonArray && extractedJsonArray !== jsonText) {
+    candidates.push(extractedJsonArray)
+  }
+
+  let lastError: unknown = null
+  for (const candidate of candidates) {
+    try {
+      parsed = parseJsonArrayCandidate(candidate)
+      lastError = null
+      break
+    } catch (error) {
+      lastError = error
+    }
+  }
+
+  if (lastError !== null) {
     throw new Error(`LLM 返回无效 JSON: ${jsonText.slice(0, 120)}`)
   }
 

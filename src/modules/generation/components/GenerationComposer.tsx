@@ -408,6 +408,7 @@ interface Props {
   onPaperStreamAppend?: (payload: { tabId: string; markdown: string; contentType?: string; eventType?: 'references' | 'image' }) => boolean
   onPaperStreamSync?: (payload: { tabId: string; markdown: string; backendUrl: string; paragraphIndex?: number; updatedParagraph?: string; citationNumber?: number }) => boolean
   onPaperStreamComplete?: (payload: { tabId: string; markdown: string; backendUrl: string; documentSchema?: DocumentSchema }) => boolean
+  onPaperStreamStop?: (payload: { tabId: string; stoppedAt: string }) => boolean | Promise<boolean>
 }
 
 type AssistantTargetMode = 'document'
@@ -1040,6 +1041,7 @@ const GenerationComposer: React.FC<Props> = ({
   onPaperStreamAppend,
   onPaperStreamSync,
   onPaperStreamComplete,
+  onPaperStreamStop,
 }) => {
   const { activeTabId, openTab, switchTab, setStatusMessage, setTabShellContent, tabs, mainTabId, markTabShellSaved, ensureWritableManuscriptTarget } = useDocument()
   const workbench = useGenerationWorkbench()
@@ -3240,16 +3242,28 @@ const GenerationComposer: React.FC<Props> = ({
               void stopTask(currentTaskId).catch(() => undefined)
               // Paper-generation task-record failures must not affect document saving.
             }
-            const preserved = preservePaperPreviewOnStop(targetTab)
-            if (preserved) {
-              setStatus('已停止，保留当前已生成内容')
-              setStatusMessage('已停止论文生成，已保留当前已生成内容')
-            } else {
-              setStatus('已停止，未生成可保留内容，原文已恢复')
-              setStatusMessage('已停止论文生成，未生成可保留内容，原文已恢复')
-              setTabShellContent(targetTab, originalContentRef.current)
-            }
-            finish()
+            preservePaperPreviewOnStop(targetTab)
+            setStatus('已停止，正在保存当前草稿')
+            setStatusMessage('已停止生成，正在保存当前草稿...')
+            void (async () => {
+              try {
+                const saved = await onPaperStreamStop?.({ tabId: targetTab, stoppedAt: new Date().toISOString() })
+                if (saved === false) {
+                  setStatus('已停止')
+                  setStatusMessage('已停止生成，但草稿保存失败：未能定位当前论文编辑器')
+                } else {
+                  setStatus('已停止，草稿已保存')
+                  setStatusMessage('已停止生成，当前草稿已保存到工作区')
+                  void refreshTree().catch(() => undefined)
+                }
+              } catch (draftSaveError) {
+                const message = draftSaveError instanceof Error ? draftSaveError.message : String(draftSaveError)
+                setStatus('已停止，草稿保存失败')
+                setStatusMessage(`已停止生成，但草稿保存失败：${message}`)
+              } finally {
+                finish()
+              }
+            })()
           }, { once: true })
 
           try {
@@ -3396,6 +3410,41 @@ const GenerationComposer: React.FC<Props> = ({
                           backendUrl,
                         )
                         if (!saved?.path) return
+                        let savedFileExists = false
+                        let savedFileSize = 0
+                        try {
+                          const fileInfo = await window.electronAPI.getFileInfo(saved.path)
+                          savedFileExists = Boolean(fileInfo?.exists)
+                          savedFileSize = Number(fileInfo?.fileSize || 0)
+                        } catch {
+                          savedFileExists = false
+                        }
+                        const figureNumberText = String(
+                          event?.image?.figureNumber
+                          || event?.image?.figure_number
+                          || event?.image?.alt
+                          || event?.image?.caption
+                          || '',
+                        ).match(/(?:Figure|Fig\.?|图|图表)\s*\d+(?:\.\d+)*/i)?.[0] || ''
+                        console.info('[paper:image_generated]', {
+                          originalUrl: rawImagePath,
+                          localPath: saved.path,
+                          workspacePath: activeWorkspacePath,
+                          fileExists: savedFileExists,
+                          fileSize: savedFileSize,
+                          sectionTitle: String(event.sectionTitle || event.section_title || event?.image?.sectionTitle || event?.image?.section_title || ''),
+                          figureNumber: figureNumberText,
+                        })
+                        if (!savedFileExists) {
+                          console.warn('[paper:image_error]', {
+                            localPath: saved.path,
+                            previewSrc: rawImagePath,
+                            exists: false,
+                            reason: 'saved paper image file does not exist',
+                          })
+                          setStatusMessage('图片生成成功但预览路径异常')
+                          return
+                        }
                         imagePathMapRef.current = {
                           ...imagePathMapRef.current,
                           [rawImagePath]: saved.path,
@@ -3563,7 +3612,7 @@ const GenerationComposer: React.FC<Props> = ({
       setRunningState(false)
       abortRef.current = null
     }
-  }, [activeWorkspacePath, appendGeneratedDocumentIllustration, applyDocumentOnDelta, buildGenerationExtraContext, buildKnowledgeGenerationContext, buildKnowledgeTemplatePayload, commitGeneratedHtmlToWorkbench, dispatchTerminalComposerHidden, effectiveTaskReferenceDocumentIds, generationMode, isDocumentOverwriteBlocked, manualEditNonce, markTabShellSaved, onApplySelectionRewrite, onPaperStreamComplete, onPaperStreamStart, onResolveDocumentRewriteTarget, onShadowTextChange, preservePaperPreviewOnStop, readTaskIds, refreshTree, renderStablePaperPreview, resetManualEditGuard, resolveDocumentFlow, resolveDocumentTargetTab, resolveTargetTab, restoreOriginalDocumentIfAllowed, runDialogImageTask, running, saveKnowledgeGenerationTaskRecord, setRunningState, setStatus, setStatusMessage, setTabShellContent, settings.genNoImageMode, settings.genPaperType, settings.genYearFrom, settings.genYearTo, shouldUseKnowledgeForCurrentTask, startDailyReportGeneration, startEssayGeneration, stopPaperEventStream, stopPolling, stopTypewriter, switchTab, syncTypewriterPreview, tabs, taskTemplateDocument, taskTemplateDocumentId, writeTaskIds])
+  }, [activeWorkspacePath, appendGeneratedDocumentIllustration, applyDocumentOnDelta, buildGenerationExtraContext, buildKnowledgeGenerationContext, buildKnowledgeTemplatePayload, commitGeneratedHtmlToWorkbench, dispatchTerminalComposerHidden, effectiveTaskReferenceDocumentIds, generationMode, isDocumentOverwriteBlocked, manualEditNonce, markTabShellSaved, onApplySelectionRewrite, onPaperStreamComplete, onPaperStreamStart, onPaperStreamStop, onResolveDocumentRewriteTarget, onShadowTextChange, preservePaperPreviewOnStop, readTaskIds, refreshTree, renderStablePaperPreview, resetManualEditGuard, resolveDocumentFlow, resolveDocumentTargetTab, resolveTargetTab, restoreOriginalDocumentIfAllowed, runDialogImageTask, running, saveKnowledgeGenerationTaskRecord, setRunningState, setStatus, setStatusMessage, setTabShellContent, settings.genNoImageMode, settings.genPaperType, settings.genYearFrom, settings.genYearTo, shouldUseKnowledgeForCurrentTask, startDailyReportGeneration, startEssayGeneration, stopPaperEventStream, stopPolling, stopTypewriter, switchTab, syncTypewriterPreview, tabs, taskTemplateDocument, taskTemplateDocumentId, writeTaskIds])
 
   const handleSend = useCallback(async () => {
     const instruction = input.trim() || autoTopic?.trim() || ''

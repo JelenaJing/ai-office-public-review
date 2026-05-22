@@ -171,6 +171,11 @@ declare global {
         contentType: string
         dataUrl: string
       } | null>
+      getFileInfo: (filePath: string) => Promise<{
+        exists: boolean
+        fileSize: number
+        path: string
+      }>
       readImageAsDataUrl: (filePath: string) => Promise<{
         filePath: string
         fileName: string
@@ -334,6 +339,15 @@ declare global {
       emailDownloadAttachment: (options: { tempPath: string; filename: string }) => Promise<EmailDownloadResult>
       mailOpenAttachmentInWorkspace: (options: MailAttachmentOpenRequest) => Promise<MailAttachmentOpenResult>
       emailSelectAttachments: () => Promise<{ ok: boolean; files?: Array<{ fileName: string; filePath: string; mimeType: string; sizeBytes: number }>; error?: string }>
+      // ---- School Exchange IPC ----
+      emailTestSchoolAccount: (params: { email: string; password: string; imapHost: string; imapPort: number; smtpHost: string; smtpPort: number }) => Promise<{
+        ok: boolean
+        imapEncryption?: 'starttls' | 'none' | 'ssl'
+        smtpEncryption?: 'starttls' | 'none' | 'ssl'
+        probeResults: Array<{ protocol: 'imap' | 'smtp'; mode: 'starttls' | 'none' | 'ssl'; ok: boolean; message: string }>
+      }>
+      emailSaveSchoolAccount: (config: import('./email').EmailAccountConfig & { password: string }) => Promise<{ ok: boolean; error?: { message: string } }>
+      emailRemoveSchoolAccount: () => Promise<{ ok: boolean; error?: { message: string } }>
 
       // ---- Workspace Activity / Daily Report IPC ----
       activityTakeSnapshot: (workspacePath: string) => Promise<import('./workspaceActivity').ActivityTakeSnapshotResult>

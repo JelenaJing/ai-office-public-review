@@ -79,8 +79,29 @@ export interface EmailAccountConfig {
   username?: string
   /** 'internal-imap' for self-hosted servers; omitted/empty for public providers */
   providerType?: string
+  /** Structured provider type — 'school_cuhk_exchange_imap_smtp' etc. */
+  provider?: string
+  /**
+   * Reference key for credential stored in safeStorage.
+   * When set, `password` is empty in the JSON config; the actual password is
+   * retrieved at runtime from the OS keychain via CredentialService.
+   */
+  credentialRef?: string
+  /**
+   * 'same_as_login' → From address must equal the authenticated account.
+   * Prevents sender spoofing for school Exchange accounts.
+   */
+  fromPolicy?: 'same_as_login'
+  /** When true, SMTP STARTTLS negotiation is disabled (nodemailer ignoreTLS) */
+  smtpIgnoreTls?: boolean
   /** Disable TLS certificate verification — for dev/test environments with self-signed certs */
   allowSelfSignedCerts?: boolean
+  /** Successful IMAP encryption mode detected during auto-probe ('none' | 'starttls' | 'ssl') */
+  imapEncryption?: 'none' | 'starttls' | 'ssl'
+  /** Successful SMTP encryption mode detected during auto-probe ('none' | 'starttls' | 'ssl') */
+  smtpEncryption?: 'none' | 'starttls' | 'ssl'
+  /** Human-readable label */
+  label?: string
 }
 
 export interface FetchedMail {
@@ -242,7 +263,9 @@ interface SanitizedImapConfig {
   host: string
   port: number
   secure: boolean
-  username: string
+  encryption: string
+  provider: string
+  email: string
   folder: string
 }
 
@@ -390,11 +413,14 @@ function maskUsername(username: string): string {
 }
 
 function sanitizedImapConfig(config: EmailAccountConfig, folder: string): SanitizedImapConfig {
+  const enc = config.imapEncryption ?? (config.imapSecure ? 'ssl' : 'starttls')
   return {
     host: config.imapHost,
     port: config.imapPort,
     secure: config.imapSecure,
-    username: maskUsername(config.user),
+    encryption: enc,
+    provider: config.provider || config.providerType || 'unknown',
+    email: maskUsername(config.user),
     folder,
   }
 }
@@ -430,7 +456,8 @@ function logImapError(
 
 function assertImapConfigNotSmtp(config: EmailAccountConfig, folder: string): void {
   // For internal self-hosted servers, IMAP and SMTP commonly share the same hostname — skip that check
-  const isInternal = config.providerType === 'internal-imap'
+  // School CUHK Exchange uses mail.cuhk.edu.cn for both IMAP:143 and SMTP:587 — also skip
+  const isInternal = config.providerType === 'internal-imap' || config.provider === 'school_cuhk_exchange_imap_smtp'
   const imapHost = config.imapHost.trim().toLowerCase()
   const smtpHost = config.smtpHost.trim().toLowerCase()
   const problems: string[] = []
@@ -648,6 +675,7 @@ export class EmailService {
       connectionTimeout: 10000,
       greetingTimeout: 10000,
       socketTimeout: 15000,
+      ...(config.smtpIgnoreTls ? { ignoreTLS: true } : {}),
       ...buildTlsOpts(config),
     })
     try {
@@ -735,9 +763,36 @@ export class EmailService {
     }
 
     try {
+      let resolvedCandidates = [...folderCandidates]
+      if (folderType !== 'inbox') {
+        try {
+          const folders = await client.list()
+          const specialUseFlag = folderType === 'sent'
+            ? '\\Sent'
+            : folderType === 'trash'
+              ? '\\Trash'
+              : '\\Junk'
+          const specialUseFolder = folders.find((folder) =>
+            (folder as unknown as Record<string, unknown>).specialUse === specialUseFlag
+            || (folder.flags instanceof Set && folder.flags.has(specialUseFlag)),
+          )
+          const lowerPathMap = new Map(folders.map((folder) => [folder.path.toLowerCase(), folder.path] as const))
+          const matchedCandidates = folderCandidates
+            .map((candidate) => lowerPathMap.get(candidate.toLowerCase()))
+            .filter((candidate): candidate is string => Boolean(candidate))
+          resolvedCandidates = [
+            ...(specialUseFolder ? [specialUseFolder.path] : []),
+            ...matchedCandidates,
+            ...folderCandidates,
+          ].filter((candidate, index, list) => list.indexOf(candidate) === index)
+        } catch {
+          // LIST is best-effort only; fall back to the static candidates below.
+        }
+      }
+
       let opened = false
       let openedFolder = ''
-      for (const folder of folderCandidates) {
+      for (const folder of resolvedCandidates) {
         try {
           stageRef.current = 'mailbox'
           logImapStage(config, folder, 'mailbox:start')
@@ -877,6 +932,7 @@ export class EmailService {
 
   async sendEmail(config: EmailAccountConfig, options: SendEmailOptions): Promise<void> {
     const authUser = config.username?.trim() || config.user
+    const fromAddr = (options.from || config.user || authUser).trim()
     const transporter = nodemailer.createTransport({
       host: config.providerType === 'internal-imap' ? INTERNAL_MAIL_CONFIG.fallbackIp : config.smtpHost,
       port: config.smtpPort,
@@ -885,11 +941,17 @@ export class EmailService {
       connectionTimeout: 10000,
       greetingTimeout: 10000,
       socketTimeout: 15000,
+      ...(config.smtpIgnoreTls ? { ignoreTLS: true } : {}),
+      // For STARTTLS (port 587): require TLS upgrade, never send in plaintext
+      ...(config.smtpEncryption === 'starttls' ? { requireTLS: true } : {}),
       ...buildTlsOpts(config),
     })
 
+    const fromDisplay = options.fromName ? `"${options.fromName}" <${fromAddr}>` : fromAddr
     const mailOpts: Record<string, unknown> = {
-      from: `"${options.fromName}" <${options.from}>`,
+      from: fromDisplay,
+      sender: fromAddr,
+      replyTo: fromAddr,
       to: options.to,
       subject: options.subject,
       text: options.body,
@@ -906,7 +968,10 @@ export class EmailService {
    * Used to append a copy to the IMAP Sent folder after SMTP send.
    */
   buildRawMimeMessage(options: SendEmailOptions): Buffer {
-    const messageId = `<${Date.now()}.${Math.random().toString(36).slice(2)}@ai.cuhk.edu.cn>`
+    const senderDomain = (options.from || 'localhost').includes('@')
+      ? (options.from || 'localhost').split('@')[1]
+      : 'localhost'
+    const messageId = `<${Date.now()}.${Math.random().toString(36).slice(2)}@${senderDomain}>`
     const dateStr = new Date().toUTCString()
     // Base64-encode non-ASCII subject
     const subjectEncoded = /[^\x00-\x7F]/.test(options.subject)
@@ -1158,5 +1223,106 @@ export class EmailService {
       stageRef.current = 'logout'
       try { await client.logout() } catch { /* ignore */ }
     }
+  }
+
+  /* ---------- school Exchange auto-probe ---------- */
+
+  /**
+   * Probe CUHK Exchange (or any IMAP+SMTP server) with multiple encryption modes
+   * to find the first working combination.
+   *
+   * IMAP probe order: STARTTLS → none → SSL
+   * SMTP probe order: STARTTLS → none → SSL
+   *
+   * Uses rejectUnauthorized:false during probing so TLS cert issues do not mask
+   * auth/connectivity problems.  The saved config should use normal cert validation.
+   */
+  async autoProbeSchoolExchange(params: {
+    email: string
+    password: string
+    imapHost: string
+    imapPort: number
+    smtpHost: string
+    smtpPort: number
+  }): Promise<{
+    ok: boolean
+    imapEncryption?: 'starttls' | 'none' | 'ssl'
+    smtpEncryption?: 'starttls' | 'none' | 'ssl'
+    probeResults: Array<{ protocol: 'imap' | 'smtp'; mode: 'starttls' | 'none' | 'ssl'; ok: boolean; message: string }>
+  }> {
+    if (!params.password) {
+      return { ok: false, probeResults: [{ protocol: 'imap', mode: 'starttls', ok: false, message: '密码不能为空，请先填写密码再测试连接。' }] }
+    }
+
+    const probeResults: Array<{ protocol: 'imap' | 'smtp'; mode: 'starttls' | 'none' | 'ssl'; ok: boolean; message: string }> = []
+
+    // Build a minimal dummy config for the logger helpers
+    const baseConfig: EmailAccountConfig = {
+      user: params.email,
+      password: '',  // never logged
+      displayName: '',
+      imapHost: params.imapHost,
+      imapPort: params.imapPort,
+      imapSecure: false,
+      smtpHost: params.smtpHost,
+      smtpPort: params.smtpPort,
+      smtpSecure: false,
+      provider: 'school_cuhk_exchange_imap_smtp',
+    }
+
+    const PROBE_TIMEOUT = { connectionTimeout: 8000, greetingTimeout: 8000, socketTimeout: 10000 }
+
+    // --- IMAP probes ---
+    let imapEncryption: 'starttls' | 'none' | 'ssl' | undefined
+    for (const mode of ['starttls', 'none', 'ssl'] as const) {
+      const secure = mode === 'ssl'
+      const stageRef: ImapStageRef = { current: 'connect', connectOkLogged: false, authStartLogged: false, authOkLogged: false }
+      const probeConfig = { ...baseConfig, imapSecure: secure }
+      const client = createSafeImapFlow({
+        host: params.imapHost,
+        port: params.imapPort,
+        secure,
+        auth: { user: params.email, pass: params.password },
+        logger: createImapLogger(probeConfig, `PROBE-IMAP-${mode}`, stageRef),
+        tls: { rejectUnauthorized: false },
+        ...PROBE_TIMEOUT,
+      }, probeConfig, `PROBE-IMAP-${mode}`, stageRef)
+      try {
+        await client.connect()
+        await client.logout()
+        probeResults.push({ protocol: 'imap', mode, ok: true, message: `IMAP ${mode.toUpperCase()} 连接成功` })
+        if (!imapEncryption) imapEncryption = mode
+      } catch (err) {
+        probeResults.push({ protocol: 'imap', mode, ok: false, message: friendlyErrorMessage(err, 'school_cuhk_exchange_imap_smtp') })
+      }
+    }
+
+    // --- SMTP probes ---
+    let smtpEncryption: 'starttls' | 'none' | 'ssl' | undefined
+    for (const mode of ['starttls', 'none', 'ssl'] as const) {
+      const secure = mode === 'ssl'
+      const ignoreTLS = mode === 'none'
+      try {
+        const transporter = nodemailer.createTransport({
+          host: params.smtpHost,
+          port: params.smtpPort,
+          secure,
+          auth: { user: params.email, pass: params.password },
+          ...(ignoreTLS ? { ignoreTLS: true } : {}),
+          connectionTimeout: 8000,
+          greetingTimeout: 8000,
+          socketTimeout: 10000,
+          tls: { rejectUnauthorized: false },
+        })
+        await transporter.verify()
+        probeResults.push({ protocol: 'smtp', mode, ok: true, message: `SMTP ${mode.toUpperCase()} 连接成功` })
+        if (!smtpEncryption) smtpEncryption = mode
+      } catch (err) {
+        probeResults.push({ protocol: 'smtp', mode, ok: false, message: friendlySmtpErrorMessage(err, 'school_cuhk_exchange_imap_smtp') })
+      }
+    }
+
+    const ok = Boolean(imapEncryption && smtpEncryption)
+    return { ok, imapEncryption, smtpEncryption, probeResults }
   }
 }

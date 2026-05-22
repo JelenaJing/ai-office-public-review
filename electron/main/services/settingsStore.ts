@@ -230,6 +230,7 @@ export interface AppSettings {
 const DEFAULT_LLM_PROVIDER = getLlmProviderPreset(ACTIVE_LLM_PROVIDER)
 const LEGACY_DEFAULT_LLM_PROVIDER = getLlmProviderPreset('deepseek')
 const DEFAULT_IMAGE_PROVIDER = getImageProviderPreset(ACTIVE_IMAGE_PROVIDER)
+const LEGACY_QWEN_DEFAULT_MODEL = 'qwen3.6-plus'
 
 export const defaultSettings: AppSettings = {
   llm: {
@@ -293,8 +294,39 @@ function shouldMigrateLegacyDeepseekSettings(input?: Partial<AppSettings>): bool
   return matchesLegacyDefaults
 }
 
+function shouldMigrateLegacyQwenDefaults(input?: Partial<AppSettings>): boolean {
+  const llm = input?.llm
+  if (!llm || llm.provider !== 'qwen') {
+    return false
+  }
+
+  const model = String(llm.model ?? '').trim()
+  const baseUrl = String(llm.baseUrl ?? '').trim()
+  const qwenPreset = getLlmProviderPreset('qwen')
+
+  // Only migrate legacy bundled default values; keep user-customized qwen models untouched.
+  const isLegacyModel = model === LEGACY_QWEN_DEFAULT_MODEL
+  const keepsDefaultEndpoint = !baseUrl || baseUrl === qwenPreset.defaultBaseUrl
+  const targetModelChanged = qwenPreset.defaultModel !== LEGACY_QWEN_DEFAULT_MODEL
+  return isLegacyModel && keepsDefaultEndpoint && targetModelChanged
+}
+
 function migratePersistedSettings(input?: Partial<AppSettings>): Partial<AppSettings> | undefined {
-  if (!input || !shouldMigrateLegacyDeepseekSettings(input)) {
+  if (!input) {
+    return input
+  }
+
+  if (shouldMigrateLegacyQwenDefaults(input)) {
+    return {
+      ...input,
+      llm: {
+        ...input.llm,
+        model: getLlmProviderPreset('qwen').defaultModel,
+      },
+    }
+  }
+
+  if (!shouldMigrateLegacyDeepseekSettings(input)) {
     return input
   }
 

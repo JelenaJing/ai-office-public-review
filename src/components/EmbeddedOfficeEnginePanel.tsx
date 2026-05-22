@@ -21,8 +21,8 @@ import { isDirectMode, directContinueWriting } from '../services/AIClientFactory
 import { generateSelectionImage, getDefaultInsertedGeneratedImageWidthPx } from '../modules/image/services/ImageService'
 import { mergeExistingImageBlocksIntoFinalDocument } from '../modules/paper/services/paperImagePreservation'
 import { buildCitationRenumberPlan, CitationReferenceItem, formatCitationNumbers, insertCitationMarkerAtSelection, parseLeadingCitationNumber, stripLeadingCitationPrefix, updateCitationNumbersInText } from '../utils/citationGroups'
-import { insertCitationIntoDocument, renumberDocumentCitations, renderBibliographyItemLabel } from '../utils/documentCitations'
-import { createDocumentSchema, type DocumentBlock, type DocumentSchema, type DocumentResource, type DocumentBibliographyItem } from '../document/schema/index'
+import { renderBibliographyItemLabel, renderDocumentCitationsForExport } from '../utils/documentCitations'
+import { createDocumentSchema, createHeadingBlock, createImageBlock, createParagraphBlock, createTableBlock, type DocumentBlock, type DocumentSchema, type DocumentResource, type DocumentBibliographyItem, type DocumentCitationMark } from '../document/schema/index'
 import { normalizeContinueDeltaAtStart, normalizeContinueLeadingText } from '../utils/continueStreamText'
 import type { KnowledgeTaskConstraints, PreviewKnowledgeTaskContextResult } from '../types/knowledge'
 import { buildKnowledgeTaskConstraints, resolveKnowledgeTaskPreview } from '../shared/knowledge/knowledgeTaskHelper'
@@ -2019,6 +2019,18 @@ function isRawWindowsPath(value: string): boolean {
   return /^[a-zA-Z]:[\\/]/.test(String(value || '').trim())
 }
 
+function isLocalAbsoluteImagePath(value: string): boolean {
+  const normalized = normalizeLocalImagePath(value)
+  return /^[a-zA-Z]:[\\/]/.test(normalized) || /^[/\\]/.test(normalized)
+}
+
+function isWorkspaceRelativeImagePath(value: string): boolean {
+  const normalized = String(value || '').trim()
+  if (!normalized || /^(?:[a-z]+:|data:)/i.test(normalized) || isLocalAbsoluteImagePath(normalized)) return false
+  if (/^(?:word|ppt|xl)\/media\//i.test(normalized.replace(/\\/g, '/'))) return false
+  return /\.(?:png|jpe?g|gif|webp|svg|bmp)$/i.test(normalized.split(/[?#]/)[0] || '')
+}
+
 function derivePaperFigurePreviewTitle(block: EmbeddedImageBlock, index: number): string {
   const title = String(block.title || '').trim()
   const alt = String(block.alt || '').trim()
@@ -2120,6 +2132,84 @@ function dedupeCitationItems(citations: CitationItem[]): CitationItem[] {
   })
 }
 
+function appendCitationToPaperDocument(
+  document: DocumentSchema,
+  options: {
+    blockId: string
+    offset?: number
+    reference: {
+      title?: string
+      doi?: string
+      abstract?: string
+    }
+  },
+): DocumentSchema {
+  const blockIndex = document.blocks.findIndex((block) => block.id === options.blockId)
+  if (blockIndex < 0) return document
+
+  const existingItems = document.bibliography?.items || []
+  const existingNumbers = existingItems.map((item) => Number(item.citationNumber || 0))
+  const markNumbers = document.blocks.flatMap((block) => {
+    const marks = block.metadata?.citationMarks as DocumentCitationMark[] | undefined
+    return Array.isArray(marks) ? marks.map((mark) => Number(mark.citationNumber || 0)) : []
+  })
+  const citationNumber = Math.max(0, ...existingNumbers, ...markNumbers) + 1
+  const citationId = `citation-${citationNumber}`
+  const marker = `[${citationNumber}]`
+  const title = String(options.reference.title || '').trim()
+
+  const nextBlocks = document.blocks.map((block, index): DocumentBlock => {
+    if (index !== blockIndex || (block.type !== 'paragraph' && block.type !== 'heading')) return block
+    const text = String(block.text || '')
+    const offset = Math.max(0, Math.min(options.offset ?? text.length, text.length))
+    const needsLeadingSpace = offset > 0 && !/\s$/.test(text.slice(0, offset))
+    const needsTrailingSpace = offset < text.length && !/^\s/.test(text.slice(offset))
+    const insertedMarker = `${needsLeadingSpace ? ' ' : ''}${marker}${needsTrailingSpace ? ' ' : ''}`
+    const existingMarks = (block.metadata?.citationMarks || []) as DocumentCitationMark[]
+    return {
+      ...block,
+      text: `${text.slice(0, offset)}${insertedMarker}${text.slice(offset)}`,
+      metadata: {
+        ...(block.metadata || {}),
+        citationMarks: [
+          ...existingMarks,
+          {
+            citationId,
+            citationNumber,
+            rawMark: marker,
+            offset,
+          },
+        ],
+      },
+    }
+  })
+
+  const nextItems: DocumentBibliographyItem[] = [
+    ...existingItems,
+    {
+      id: citationId,
+      citationNumber,
+      label: `[${citationNumber}] ${title}`.trim(),
+      uri: options.reference.doi ? `https://doi.org/${options.reference.doi}` : undefined,
+      metadata: {
+        title,
+        doi: options.reference.doi,
+        abstract: options.reference.abstract,
+      },
+    },
+  ]
+
+  return {
+    ...document,
+    blocks: nextBlocks,
+    bibliography: {
+      ...(document.bibliography || {}),
+      items: nextItems,
+      generatedAt: new Date().toISOString(),
+    },
+  }
+}
+
 function formatCitationMarker(citationNumbers: number[]): string {
   return formatCitationNumbers(citationNumbers)
 }
@@ -2133,7 +2223,7 @@ function stripCitationPrefix(text: string): string {
 }
 
 function isReferencesHeadingText(text: string): boolean {
-  return /^(参考文献|references)$/i.test(String(text || '').trim())
+  return /^(参考文献|引用文献|references|bibliography)$/i.test(String(text || '').trim())
 }
 
 function upsertCitationIntoEmbeddedBlocks(
@@ -2602,10 +2692,20 @@ function documentSchemaToEditorBlocksWithBibliography(schema: DocumentSchema, wo
 
   const result: EmbeddedEditorBlock[] = []
   let previousImageCaptionKey = ''
+  let existingReferencesHeadingText = ''
+  let skippingExistingReferencesSection = false
 
   for (const block of schema.blocks) {
-    // Strip old references-section blocks — will be rebuilt from bibliography
-    if (block.metadata?.role === 'references-section') continue
+    // Strip old references-section blocks — will be rebuilt from bibliography.
+    // Some imported/generated drafts have an untagged visible "引用文献/参考文献"
+    // list, so strip from that heading too.
+    const isReferenceHeading = block.type === 'heading' && isReferencesHeadingText(block.text)
+    if (block.metadata?.role === 'references-section' || isReferenceHeading) {
+      if (block.type === 'heading' && block.text) existingReferencesHeadingText = block.text
+      skippingExistingReferencesSection = true
+      continue
+    }
+    if (skippingExistingReferencesSection) continue
 
     if (block.type === 'heading') {
       previousImageCaptionKey = ''
@@ -2644,12 +2744,16 @@ function documentSchemaToEditorBlocksWithBibliography(schema: DocumentSchema, wo
       const localPreviewPath = rawPreviewPath && !isAbsoluteOrUrlPath(rawPreviewPath)
         ? joinWorkspaceLocalPath(workspacePath, rawPreviewPath)
         : rawPreviewPath
-      const displaySrc = localPreviewPath && /^(?:[a-z]+:|data:)/i.test(localPreviewPath) ? localPreviewPath : (localPreviewPath ? toFileUrl(localPreviewPath) : undefined)
       const caption = String(block.value?.caption || block.metadata?.caption || resource?.metadata?.caption || '')
       const figureIndex = block.metadata?.figureIndex ?? resource?.metadata?.figureIndex
       const sectionNum = block.metadata?.sectionNum ?? resource?.metadata?.sectionNum
       const figureTitle = sectionNum && figureIndex ? `Figure ${sectionNum}.${figureIndex}` : '图片'
       const paperGenerated = block.metadata?.source === 'paper-generation' || resource?.metadata?.source === 'paper-generation'
+      const displaySrc = localPreviewPath
+        ? (paperGenerated
+          ? (isAllowedImagePreviewSrc(localPreviewPath) ? localPreviewPath : toFileUrl(normalizeLocalImagePath(localPreviewPath)))
+          : (/^(?:[a-z]+:|data:)/i.test(localPreviewPath) ? localPreviewPath : toFileUrl(localPreviewPath)))
+        : undefined
       const previewError = paperGenerated && !displaySrc ? '图片文件缺失' : undefined
       if (previewError) {
         console.warn('[paper:image_error]', { localPath: resource?.path, previewSrc: rawPreviewPath, exists: false })
@@ -2713,7 +2817,7 @@ function documentSchemaToEditorBlocksWithBibliography(schema: DocumentSchema, wo
       .filter((block) => block.metadata?.role !== 'references-section' && (block.type === 'heading' || block.type === 'paragraph'))
       .map((block) => String((block as { text?: string }).text || ''))
       .join('\n')
-    const referencesHeading = /[\u4e00-\u9fff]/.test(bodyText) ? '参考文献' : 'References'
+    const referencesHeading = existingReferencesHeadingText || (/[\u4e00-\u9fff]/.test(bodyText) ? '参考文献' : 'References')
     result.push({
       id: createBlockId('references-heading'),
       type: 'heading',
@@ -3698,6 +3802,7 @@ export default function EmbeddedOfficeEnginePanel() {
     mediaPath?: string
     mediaContentType?: string
     previewSrc?: string
+    resourcePath?: string
     source?: string
     flowType?: string
     metadata?: Record<string, unknown>
@@ -3720,7 +3825,43 @@ export default function EmbeddedOfficeEnginePanel() {
       || payload.metadata?.source === 'paper-generation'
       || isFigureCaptionText(payload.altText || '')
       || isFigureCaptionText(payload.title || '')
-    const stableSource = ((!previewSrc || /^data:/i.test(previewSrc)) && sourceId && !/^data:/i.test(sourceId)) ? sourceId : previewSrc
+    const metadataResourcePath = String(payload.resourcePath || payload.metadata?.resourcePath || payload.metadata?.relativePath || payload.metadata?.path || '').trim()
+    const resolvePaperReadPath = (): { stableSource: string; normalizedLocalPath: string } | null => {
+      if (activeWorkspacePath && metadataResourcePath && isWorkspaceRelativeImagePath(metadataResourcePath)) {
+        return {
+          stableSource: metadataResourcePath,
+          normalizedLocalPath: joinWorkspaceLocalPath(activeWorkspacePath, metadataResourcePath),
+        }
+      }
+      if (sourceId && isLocalAbsoluteImagePath(sourceId)) {
+        return {
+          stableSource: sourceId,
+          normalizedLocalPath: normalizeLocalImagePath(sourceId),
+        }
+      }
+      if (activeWorkspacePath && sourceId && isWorkspaceRelativeImagePath(sourceId)) {
+        return {
+          stableSource: sourceId,
+          normalizedLocalPath: joinWorkspaceLocalPath(activeWorkspacePath, sourceId),
+        }
+      }
+      if (previewSrc && /^file:\/\//i.test(previewSrc)) {
+        return {
+          stableSource: previewSrc,
+          normalizedLocalPath: normalizeLocalImagePath(previewSrc),
+        }
+      }
+      if (mediaPath && isLocalAbsoluteImagePath(mediaPath)) {
+        return {
+          stableSource: mediaPath,
+          normalizedLocalPath: normalizeLocalImagePath(mediaPath),
+        }
+      }
+      return null
+    }
+    const paperReadPath = paperGeneratedImage ? resolvePaperReadPath() : null
+    const stableSource = paperReadPath?.stableSource
+      || (((!previewSrc || /^data:/i.test(previewSrc)) && sourceId && !/^data:/i.test(sourceId)) ? sourceId : previewSrc)
     const insertPaperImageErrorBlock = (message: string, detail: Record<string, unknown>) => {
       insertBlockAfterSelection({
         id: createBlockId('paper-image-error'),
@@ -3734,8 +3875,83 @@ export default function EmbeddedOfficeEnginePanel() {
         },
       })
     }
+    const getLocalFileInfo = async (targetPath: string): Promise<{ exists: boolean; fileSize: number }> => {
+      if (!targetPath || !window.electronAPI?.getFileInfo) return { exists: false, fileSize: 0 }
+      try {
+        const info = await window.electronAPI.getFileInfo(targetPath)
+        return { exists: Boolean(info?.exists), fileSize: Number(info?.fileSize || 0) }
+      } catch {
+        return { exists: false, fileSize: 0 }
+      }
+    }
 
-    if (stableSource && !/^data:/i.test(stableSource) && window.electronAPI?.readImageAsDataUrl) {
+    if (paperGeneratedImage) {
+      console.info('[paper:image_insert_payload]', {
+        sourceId,
+        mediaPath,
+        previewSrc: payload.previewSrc,
+        stableSource,
+        activeWorkspacePath,
+        paperGeneratedImage,
+      })
+    }
+
+    if (paperGeneratedImage && paperReadPath && window.electronAPI?.readImageAsDataUrl) {
+      const stablePath = paperReadPath.stableSource
+      const normalizedLocalPath = paperReadPath.normalizedLocalPath
+      const fileInfo = await getLocalFileInfo(normalizedLocalPath)
+      console.info('[paper:image_read_attempt]', {
+        stablePath,
+        normalizedLocalPath,
+        exists: fileInfo.exists,
+        fileSize: fileInfo.fileSize,
+      })
+      if (!fileInfo.exists) {
+        console.warn('[paper:image_error]', {
+          localPath: normalizedLocalPath,
+          previewSrc: payload.previewSrc,
+          stablePath,
+          exists: false,
+          fileSize: fileInfo.fileSize,
+          reason: 'local image file does not exist',
+        })
+        insertPaperImageErrorBlock('图片生成成功但预览路径异常', {
+          localPath: normalizedLocalPath,
+          previewSrc: payload.previewSrc,
+          stablePath,
+          exists: false,
+          fileSize: fileInfo.fileSize,
+          reason: 'local image file does not exist',
+        })
+        return
+      }
+      try {
+        const imported = await window.electronAPI.readImageAsDataUrl(normalizedLocalPath)
+        previewSrc = imported.dataUrl
+        mediaContentType = imported.contentType || mediaContentType
+        title = title || imported.fileName.replace(/\.[^.]+$/, '')
+        mediaPath = mediaPath || buildImportedMediaPath(imported.fileName, imported.contentType, blockId)
+        sourceId = sourceId || normalizedLocalPath
+      } catch (error) {
+        console.warn('[paper:image_error]', {
+          localPath: normalizedLocalPath,
+          previewSrc: payload.previewSrc,
+          stablePath,
+          exists: fileInfo.exists,
+          fileSize: fileInfo.fileSize,
+          reason: error instanceof Error ? error.message : String(error),
+        })
+        insertPaperImageErrorBlock('图片生成成功但预览路径异常', {
+          localPath: normalizedLocalPath,
+          previewSrc: payload.previewSrc,
+          stablePath,
+          exists: fileInfo.exists,
+          fileSize: fileInfo.fileSize,
+          reason: error instanceof Error ? error.message : String(error),
+        })
+        return
+      }
+    } else if (!paperGeneratedImage && stableSource && !/^data:/i.test(stableSource) && window.electronAPI?.readImageAsDataUrl) {
       let stablePath = stableSource
       try {
         if (activeWorkspacePath) {
@@ -3756,26 +3972,27 @@ export default function EmbeddedOfficeEnginePanel() {
         mediaContentType = imported.contentType || mediaContentType
         title = title || imported.fileName.replace(/\.[^.]+$/, '')
         mediaPath = mediaPath || buildImportedMediaPath(imported.fileName, imported.contentType, blockId)
-      } catch (error) {
-        if (paperGeneratedImage) {
-          console.warn('[paper:image_error]', {
-            localPath: sourceId,
-            previewSrc: payload.previewSrc,
-            stablePath,
-            exists: false,
-            reason: error instanceof Error ? error.message : String(error),
-          })
-          insertPaperImageErrorBlock('图片生成成功但预览路径异常', {
-            localPath: sourceId,
-            previewSrc: payload.previewSrc,
-            stablePath,
-            exists: false,
-            reason: error instanceof Error ? error.message : String(error),
-          })
-          return
-        }
+      } catch {
         previewSrc = payload.previewSrc
       }
+    }
+
+    if (paperGeneratedImage && !paperReadPath) {
+      console.warn('[paper:image_error]', {
+        localPath: sourceId,
+        previewSrc: payload.previewSrc,
+        stablePath: stableSource,
+        exists: false,
+        reason: 'no readable local paper image path',
+      })
+      insertPaperImageErrorBlock('图片生成成功但预览路径异常', {
+        localPath: sourceId,
+        previewSrc: payload.previewSrc,
+        stablePath: stableSource,
+        exists: false,
+        reason: 'no readable local paper image path',
+      })
+      return
     }
 
     if (paperGeneratedImage && previewSrc && !isAllowedImagePreviewSrc(previewSrc)) {
@@ -4079,6 +4296,257 @@ export default function EmbeddedOfficeEnginePanel() {
     return true
   }, [activeTabId, activeWorkspacePath, commitBlocks, isReadonlyPreviewTab, refreshTree, setDocumentContent, setStatusMessage])
 
+  const saveStoppedPaperDraft = useCallback(async (payload: { tabId: string; stoppedAt: string }) => {
+    if (payload.tabId !== activeTabId || isReadonlyPreviewTab) return false
+    if (!activeWorkspacePath) throw new Error('未找到当前工作区')
+    if (!window.electronAPI?.saveWorkspaceDocumentSchema || !window.electronAPI?.saveGeneratedPaperJsonArtifact) {
+      throw new Error('工作区文稿保存接口不可用')
+    }
+
+    const currentSchema = currentDocumentSchemaRef.current
+    const currentResourceMap = new Map((currentSchema?.resources || []).map((resource) => [resource.id, resource]))
+    const currentBlockMap = new Map((currentSchema?.blocks || []).map((block) => [block.id, block]))
+    const resources = new Map<string, DocumentResource>()
+    for (const resource of currentSchema?.resources || []) {
+      if (resource.kind !== 'image') resources.set(resource.id, resource)
+    }
+
+    const getLocalFileInfo = async (targetPath: string): Promise<{ exists: boolean; fileSize: number }> => {
+      if (!targetPath || !window.electronAPI?.getFileInfo) return { exists: false, fileSize: 0 }
+      try {
+        const info = await window.electronAPI.getFileInfo(targetPath)
+        return { exists: Boolean(info?.exists), fileSize: Number(info?.fileSize || 0) }
+      } catch {
+        return { exists: false, fileSize: 0 }
+      }
+    }
+
+    const resolveReadableImageResource = async (block: EmbeddedImageBlock): Promise<{ resource: DocumentResource; localPath: string } | null> => {
+      const currentImageBlock = currentBlockMap.get(block.id)
+      const existingResource = currentImageBlock?.type === 'image'
+        ? currentResourceMap.get(currentImageBlock.resourceRef)
+        : undefined
+      const candidateValues = [
+        existingResource?.path,
+        block.mediaPath && isWorkspaceRelativeImagePath(block.mediaPath) ? block.mediaPath : '',
+        block.sourceId,
+        block.previewSrc && /^file:\/\//i.test(block.previewSrc) ? block.previewSrc : '',
+        block.mediaPath && isLocalAbsoluteImagePath(block.mediaPath) ? block.mediaPath : '',
+      ].map((value) => String(value || '').trim()).filter(Boolean)
+
+      for (const candidate of candidateValues) {
+        let localPath = ''
+        let resourcePath = candidate
+        if (isWorkspaceRelativeImagePath(candidate)) {
+          localPath = joinWorkspaceLocalPath(activeWorkspacePath, candidate)
+          resourcePath = candidate.replace(/\\/g, '/')
+        } else if (/^file:\/\//i.test(candidate) || isLocalAbsoluteImagePath(candidate)) {
+          localPath = normalizeLocalImagePath(candidate)
+          resourcePath = localPath
+        } else {
+          continue
+        }
+
+        const fileInfo = await getLocalFileInfo(localPath)
+        if (!fileInfo.exists) continue
+        const resourceId = existingResource?.id || resourcePath
+        return {
+          localPath,
+          resource: {
+            ...(existingResource || {}),
+            id: resourceId,
+            kind: 'image',
+            path: resourcePath,
+            mimeType: existingResource?.mimeType || block.mediaContentType,
+            width: existingResource?.width ?? block.imageWidthPx,
+            height: existingResource?.height ?? block.imageHeightPx,
+            metadata: {
+              ...(existingResource?.metadata || {}),
+              source: 'paper-generation',
+              caption: block.caption || existingResource?.metadata?.caption,
+              localPath,
+              fileSize: fileInfo.fileSize,
+              pathExists: true,
+            },
+          },
+        }
+      }
+      return null
+    }
+
+    const draftBlocks: DocumentBlock[] = []
+    for (const block of blocksRef.current) {
+      if (block.type === 'heading') {
+        const currentBlock = currentBlockMap.get(block.id)
+        draftBlocks.push(createHeadingBlock({
+          id: block.id,
+          level: Math.max(1, Math.min(block.level || 1, 6)) as 1 | 2 | 3 | 4 | 5 | 6,
+          text: block.text,
+          styleRef: block.paragraphStyle,
+          metadata: { ...(currentBlock?.metadata || {}), ...(block.metadata || {}) },
+        }))
+        continue
+      }
+
+      if (block.type === 'paragraph') {
+        const currentBlock = currentBlockMap.get(block.id)
+        const citationMarks = currentBlock?.metadata?.citationMarks || block.metadata?.citationMarks
+        draftBlocks.push(createParagraphBlock({
+          id: block.id,
+          text: block.text,
+          styleRef: block.paragraphStyle,
+          metadata: {
+            ...(currentBlock?.metadata || {}),
+            ...(block.metadata || {}),
+            ...(citationMarks ? { citationMarks } : {}),
+          },
+        }))
+        continue
+      }
+
+      if (block.type === 'image') {
+        const resolved = await resolveReadableImageResource(block)
+        if (!resolved) {
+          draftBlocks.push(createParagraphBlock({
+            id: createBlockId('paper-image-error'),
+            text: '图片生成成功但预览路径异常',
+            styleRef: 'Caption',
+            metadata: {
+              role: 'paper-image-placeholder',
+              source: 'paper-generation',
+              localPath: block.sourceId || block.mediaPath || '',
+              previewSrc: block.previewSrc,
+              reason: 'image resource is not readable when saving stopped draft',
+            },
+          }))
+          continue
+        }
+        resources.set(resolved.resource.id, resolved.resource)
+        draftBlocks.push(createImageBlock({
+          id: block.id,
+          resourceRef: resolved.resource.id,
+          width: block.imageWidthPx,
+          height: block.imageHeightPx,
+          value: {
+            alt: block.alt,
+            caption: block.caption || block.title,
+            text: block.caption || block.title,
+          },
+          metadata: {
+            source: 'paper-generation',
+            caption: block.caption || block.title,
+            localPath: resolved.localPath,
+          },
+        }))
+        continue
+      }
+
+      if (block.type === 'table') {
+        draftBlocks.push(createTableBlock({
+          id: block.id,
+          value: {
+            headers: block.tableRows[0]?.map((cell) => cell.text) || [],
+            rows: block.tableRows.map((row) => row.map((cell) => cell.text)),
+          },
+        }))
+      }
+    }
+
+    const firstHeadingTitle = blocksRef.current.find((block): block is EmbeddedTextBlock => block.type === 'heading' && Boolean(block.text.trim()))?.text.trim()
+    const schemaTitle = String(currentSchema?.meta?.title || '').trim()
+    const fileTitle = String(currentFileName || '').replace(/\.aidoc\.json$/i, '').replace(/\.docx$/i, '').trim()
+    const title = firstHeadingTitle || schemaTitle || (/^(未命名文档|untitled)/i.test(fileTitle) ? '' : fileTitle) || '未完成论文草稿'
+    let draftDocument = createDocumentSchema({
+      id: currentSchema?.id || `paper-draft-${Date.now()}`,
+      profile: 'paper',
+      title,
+      createdAt: currentSchema?.meta?.createdAt,
+      sourceType: 'workspace-json',
+      metadata: {
+        ...(currentSchema?.document?.metadata || {}),
+        ...(currentSchema?.meta || {}),
+        generatedBy: 'paper-generation',
+        generationStatus: 'stopped',
+        stoppedAt: payload.stoppedAt,
+        partial: true,
+      },
+      page: currentSchema?.page,
+      styles: currentSchema?.styles,
+      blocks: draftBlocks,
+      resources: Array.from(resources.values()),
+      citations: currentSchema?.citations,
+      sourceRefs: currentSchema?.sourceRefs,
+      bibliography: currentSchema?.bibliography,
+      exportHints: currentSchema?.exportHints,
+      templateHints: currentSchema?.templateHints,
+      html: serializeBlocksToHtml(blocksRef.current),
+    })
+
+    if (currentSchema) {
+      draftDocument = mergeExistingImageBlocksIntoFinalDocument(currentSchema, draftDocument)
+    }
+
+    const readableResourceIds = new Set<string>()
+    const filteredBlocks: DocumentBlock[] = []
+    for (const block of draftDocument.blocks) {
+      if (block.type !== 'image') {
+        filteredBlocks.push(block)
+        continue
+      }
+      const resource = draftDocument.resources.find((item) => item.id === block.resourceRef || item.path === block.resourceRef)
+      const candidatePath = String(resource?.path || block.resourceRef || '').trim()
+      const localPath = isWorkspaceRelativeImagePath(candidatePath)
+        ? joinWorkspaceLocalPath(activeWorkspacePath, candidatePath)
+        : normalizeLocalImagePath(candidatePath)
+      const fileInfo = await getLocalFileInfo(localPath)
+      if (fileInfo.exists) {
+        readableResourceIds.add(resource?.id || block.resourceRef)
+        filteredBlocks.push(block)
+      } else {
+        filteredBlocks.push(createParagraphBlock({
+          id: createBlockId('paper-image-error'),
+          text: '图片生成成功但预览路径异常',
+          styleRef: 'Caption',
+          metadata: {
+            role: 'paper-image-placeholder',
+            source: 'paper-generation',
+            localPath,
+            resourcePath: candidatePath,
+            reason: 'image resource is not readable when saving stopped draft',
+          },
+        }))
+      }
+    }
+
+    draftDocument = {
+      ...draftDocument,
+      blocks: filteredBlocks,
+      resources: draftDocument.resources.filter((resource) => resource.kind !== 'image' || readableResourceIds.has(resource.id)),
+      document: {
+        ...draftDocument.document,
+        metadata: {
+          ...(draftDocument.document?.metadata || {}),
+          generatedBy: 'paper-generation',
+          generationStatus: 'stopped',
+          stoppedAt: payload.stoppedAt,
+          partial: true,
+        },
+      },
+    }
+
+    const savedDocument = await window.electronAPI.saveWorkspaceDocumentSchema(activeWorkspacePath, draftDocument)
+    if (!savedDocument?.success) throw new Error('document.json 保存失败')
+    const paperJson = await window.electronAPI.saveGeneratedPaperJsonArtifact({
+      workspacePath: activeWorkspacePath,
+      documentSchema: savedDocument.document || draftDocument,
+      title,
+    })
+    if (!paperJson?.success) throw new Error('.aidoc.json 草稿保存失败')
+    currentDocumentSchemaRef.current = paperJson.document || savedDocument.document || draftDocument
+    void refreshTree().catch(() => undefined)
+    return true
+  }, [activeTabId, activeWorkspacePath, currentFileName, isReadonlyPreviewTab, refreshTree])
+
   const generationComposerNode = (
     <GenerationComposer
       open={composerOpen}
@@ -4103,6 +4571,7 @@ export default function EmbeddedOfficeEnginePanel() {
       onPaperStreamStart={startPaperStreamIntoEditor}
       onPaperStreamSync={syncPaperStreamIntoEditor}
       onPaperStreamComplete={completePaperStreamIntoEditor}
+      onPaperStreamStop={saveStoppedPaperDraft}
     />
   )
 
@@ -4264,7 +4733,7 @@ export default function EmbeddedOfficeEnginePanel() {
 
       let nextDoc = currentSchema
       for (const citation of normalizedCitations) {
-        nextDoc = insertCitationIntoDocument(nextDoc, {
+        nextDoc = appendCitationToPaperDocument(nextDoc, {
           blockId: schemaBlockId,
           offset,
           reference: {
@@ -4274,7 +4743,7 @@ export default function EmbeddedOfficeEnginePanel() {
           },
         })
       }
-      nextDoc = renumberDocumentCitations(nextDoc)
+      nextDoc = renderDocumentCitationsForExport(nextDoc)
       currentDocumentSchemaRef.current = nextDoc
 
       // Reliable citation number lookup via before/after snapshot diff

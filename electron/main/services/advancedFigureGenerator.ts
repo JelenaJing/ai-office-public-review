@@ -11,12 +11,22 @@
 import type { AppSettings } from './settingsStore'
 import { completeText } from './llmClient'
 import { generateImage } from './imageClient'
+import { existsSync, statSync } from 'node:fs'
 
 const MOJIBAKE_PROMPT_PATTERN = /(璇风敓|鎴|涓婚|銆|鈥)/
 
 function assertPaperImagePromptEncoding(prompt: string): void {
   if (MOJIBAKE_PROMPT_PATTERN.test(String(prompt || ''))) {
     throw new Error('图片 prompt 编码异常')
+  }
+}
+
+function getLocalFileSize(filePath: string): number {
+  try {
+    const stat = statSync(filePath)
+    return stat.isFile() ? stat.size : 0
+  } catch {
+    return 0
   }
 }
 
@@ -225,6 +235,8 @@ export async function generateSectionFigures(
     sectionText: string
     plannedFigureCount: number
     language: 'zh' | 'en'
+    flowType?: 'paper-generation'
+    workspacePath?: string
   },
   onProgress?: (message: string) => void,
 ): Promise<FigureInfo[]> {
@@ -249,6 +261,18 @@ export async function generateSectionFigures(
         flowType: 'paper-generation',
         traceId: `paper-figure-s${sectionNum}-f${figIndex}-${Date.now()}`,
       }, emit)
+      if (params.flowType === 'paper-generation') {
+        const fileExists = Boolean(imageResult.localPath && existsSync(imageResult.localPath))
+        console.info('[paper:image_generated]', {
+          originalUrl: imageResult.sourceUrl || '',
+          localPath: imageResult.localPath,
+          workspacePath: params.workspacePath || '',
+          fileExists,
+          fileSize: fileExists ? getLocalFileSize(imageResult.localPath) : 0,
+          sectionTitle,
+          figureNumber: `Figure ${sectionNum}.${figIndex}`,
+        })
+      }
 
       // 生成 caption
       emit(`正在生成图片 caption`)
