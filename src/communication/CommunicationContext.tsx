@@ -218,8 +218,11 @@ export function CommunicationProvider({
   const abortRef = useRef<AbortController | null>(null)
   const generatingForRef = useRef<string | null>(null)
 
-  /** Current user's email address — used for sent-mail isolation */
+  /** Current user's email address — used for Matrix/internal-account isolation only */
   const currentUserEmail = accountState.phase === 'logged_in' ? (accountState.session.user.email ?? null) : null
+
+  /** Configured email address from IMAP/SMTP account settings — authoritative for email filtering */
+  const configuredEmailAddress = (emailCtx.accountConfig?.user || emailCtx.accountConfig?.email)?.toLowerCase() ?? null
 
   /* ---- User isolation: reset selection/filter when account logs out or switches ---- */
   useEffect(() => {
@@ -232,36 +235,36 @@ export function CommunicationProvider({
 
   /* ---- All threads: email first, then Matrix chat ---- */
   const emailThreads = useMemo(
-    () => adaptMailsToThreads(emailCtx.mails, currentUserEmail ?? undefined),
-    [emailCtx.mails, currentUserEmail],
+    () => adaptMailsToThreads(emailCtx.mails, configuredEmailAddress ?? currentUserEmail ?? undefined),
+    [emailCtx.mails, configuredEmailAddress, currentUserEmail],
   )
 
   const sentEmailThreads = useMemo(() => {
-    const raw = adaptMailsToThreads(emailCtx.sentMails, currentUserEmail ?? undefined)
-    // Defense: only show sent emails FROM the current user (guards against stale/wrong IMAP data)
-    if (!currentUserEmail) return []
+    const raw = adaptMailsToThreads(emailCtx.sentMails, configuredEmailAddress ?? undefined)
+    // No reference email — show all fetched sent mails as-is
+    if (!configuredEmailAddress) return raw
     return raw.filter((t) => {
       const fromRaw = t.lastMessage?.from ?? ''
-      if (!fromRaw) return true // no from — let it through
+      if (!fromRaw) return true // no from field — let it through
       const fromEmail = extractEmailAddress(fromRaw)
-      if (fromEmail && fromEmail !== currentUserEmail.toLowerCase()) {
+      if (fromEmail && fromEmail !== configuredEmailAddress) {
         if (process.env.NODE_ENV !== 'production') {
           console.warn('[CommunicationContext] sent item sender mismatch — skipping', {
             folder: t.folder,
             subject: t.subject,
             fromEmail,
-            currentUserEmail,
+            configuredEmailAddress,
           })
         }
         return false
       }
       return true
     })
-  }, [emailCtx.sentMails, currentUserEmail])
+  }, [emailCtx.sentMails, configuredEmailAddress])
 
   const trashEmailThreads = useMemo(
-    () => adaptMailsToThreads(emailCtx.trashMails, currentUserEmail ?? undefined),
-    [emailCtx.trashMails, currentUserEmail],
+    () => adaptMailsToThreads(emailCtx.trashMails, configuredEmailAddress ?? currentUserEmail ?? undefined),
+    [emailCtx.trashMails, configuredEmailAddress, currentUserEmail],
   )
 
   const matrixThreads = useMemo(

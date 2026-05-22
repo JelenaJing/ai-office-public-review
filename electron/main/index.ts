@@ -2475,8 +2475,29 @@ app.whenReady().then(async () => {
   /* ---- Internal Account: apply email config (no password) ---- */
   ipcMain.handle('internalAccount:applyEmailConfig', async (_, config: unknown) => {
     try {
-      const c = config as import('./services/emailService').EmailAccountConfig
-      await emailService.saveConfig(c)
+      const incoming = config as import('./services/emailService').EmailAccountConfig
+      // Only overwrite if:
+      // 1. No existing config, OR
+      // 2. Existing config is an internal-imap account (auto-applied, not manually configured), OR
+      // 3. Existing config belongs to a different user (account switch)
+      // If the user manually configured a custom email (providerType !== 'internal-imap'),
+      // preserve it and skip the auto-apply.
+      const existing = await emailService.loadConfig()
+      if (existing) {
+        const isInternalConfig = existing.providerType === 'internal-imap'
+        const isSameUser = existing.ownerUserId && incoming.ownerUserId && existing.ownerUserId === incoming.ownerUserId
+        const isDifferentUser = existing.ownerUserId && incoming.ownerUserId && existing.ownerUserId !== incoming.ownerUserId
+        if (!isInternalConfig && !isDifferentUser) {
+          // User has a manually configured email that is not internal-imap — preserve it
+          return { ok: true, skipped: true }
+        }
+        if (isInternalConfig && isSameUser) {
+          // Same user, same internal config — update password/credentials but keep config
+          await emailService.saveConfig(incoming)
+          return { ok: true }
+        }
+      }
+      await emailService.saveConfig(incoming)
       return { ok: true }
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : String(err) }

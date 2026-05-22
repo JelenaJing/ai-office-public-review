@@ -342,6 +342,38 @@ assertEq(refHeadings5b.length, 1, 'idempotent: exactly one references-section he
 const refParas5b = exportedDoc5b.blocks.filter((b) => b.type === 'paragraph' && b.metadata?.role === 'references-section')
 assertEq(refParas5b.length, 3, 'idempotent: still 3 reference paragraphs after double-render')
 
+// Paper inline-insert UX appends the newly selected citation to the visible end
+// of the references list. Older drafts may have an untagged "引用文献" section;
+// export/rendering must replace that stale list with bibliography-derived items.
+const doc5c = {
+  ...doc1,
+  blocks: [
+    ...doc1.blocks.filter((b) => b.metadata?.role !== 'references-section'),
+    { id: 'refs-untagged-heading', type: 'heading' as const, level: 1, text: '引用文献' },
+    { id: 'refs-old-1', type: 'paragraph' as const, text: '[1] Old first ref' },
+    { id: 'refs-old-2', type: 'paragraph' as const, text: '[2] Old second ref' },
+  ],
+  bibliography: {
+    ...(doc1.bibliography || { items: [] }),
+    items: [
+      ...(doc1.bibliography?.items || []),
+      {
+        id: 'citation-4',
+        citationNumber: 4,
+        label: '[4] Newly inserted paper',
+        metadata: { title: 'Newly inserted paper' },
+      },
+    ],
+  },
+}
+const exportedDoc5c = renderDocumentCitationsForExport(doc5c)
+const refHeading5c = exportedDoc5c.blocks.find((b) => b.type === 'heading' && b.metadata?.role === 'references-section') as { text?: string } | undefined
+const refParas5c = exportedDoc5c.blocks.filter((b) => b.type === 'paragraph' && b.metadata?.role === 'references-section')
+assertEq(refHeading5c?.text || '', '引用文献', 'untagged 引用文献 heading is preserved when rebuilding references')
+assertEq(refParas5c.length, 4, 'rebuilt references list includes newly appended citation')
+assert(String((refParas5c[3] as { text?: string }).text || '').startsWith('[4] Newly inserted paper'), 'newly inserted citation appears at references list end')
+assert(!exportedDoc5c.blocks.some((b) => b.id === 'refs-old-1' || b.id === 'refs-old-2'), 'stale untagged references list is removed before rebuilding')
+
 // Verify citationId consistency: every citationMark.citationId should match a bibliography item
 const allMarksInDoc = doc1.blocks
   .flatMap((b) => (b.metadata?.citationMarks as DocumentCitationMark[] || []))

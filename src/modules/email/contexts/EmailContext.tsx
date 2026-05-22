@@ -306,6 +306,60 @@ export function EmailProvider({ children }: { children: ReactNode }) {
   const generatingForRef = useRef<string | null>(null)
   const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  /* ---- fetch real mails ---- */
+  const fetchRealMails = useCallback(async (config: EmailAccountConfig) => {
+    setIsFetchingMails(true)
+    setFetchError(null)
+    try {
+      const response = await window.electronAPI.emailFetchInbox()
+      const inbox = Array.isArray(response)
+        ? response
+        : response.ok
+          ? response.mails
+          : (() => { throw new Error(response.error.message) })()
+
+      const baseMails = inbox as MailItem[]
+
+      setMails(baseMails)
+    } catch (err) {
+      setFetchError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setIsFetchingMails(false)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  /* ---- fetch sent mails ---- */
+  const fetchSentMails = useCallback(async () => {
+    if (!window.electronAPI?.emailFetchSent) return
+    try {
+      const response = await window.electronAPI.emailFetchSent()
+      const items = Array.isArray(response)
+        ? response
+        : response?.ok
+          ? response.mails
+          : []
+      setSentMails(items as MailItem[])
+    } catch {
+      setSentMails([])
+    }
+  }, [])
+
+  const fetchTrashMails = useCallback(async () => {
+    if (!window.electronAPI?.emailFetchTrash) return
+    try {
+      const response = await window.electronAPI.emailFetchTrash()
+      const items = Array.isArray(response)
+        ? response
+        : response?.ok
+          ? response.mails
+          : []
+      setTrashMails(items as MailItem[])
+    } catch {
+      setTrashMails([])
+    }
+  }, [])
+
   /* ---- load account config on mount ---- */
   useEffect(() => {
     if (!window.electronAPI?.emailGetAccount) return
@@ -356,36 +410,17 @@ export function EmailProvider({ children }: { children: ReactNode }) {
       setSentMails([])
       setTrashMails([])
       setSelectedMailId(null)
+      setDrafts({})
+      setSentRecords([])
       setAccountConfig(config)
       fetchRealMails(config)
+      fetchSentMails().catch(() => {})
+      fetchTrashMails().catch(() => {})
     }).catch(() => { /* no config */ })
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [emailAutoStatus])
+  }, [emailAutoStatus, currentUserEmail, currentUserId, fetchRealMails, fetchSentMails, fetchTrashMails])
 
   const isRealMode = Boolean(accountConfig)
-
-  /* ---- fetch real mails ---- */
-  const fetchRealMails = useCallback(async (config: EmailAccountConfig) => {
-    setIsFetchingMails(true)
-    setFetchError(null)
-    try {
-      const response = await window.electronAPI.emailFetchInbox()
-      const inbox = Array.isArray(response)
-        ? response
-        : response.ok
-          ? response.mails
-          : (() => { throw new Error(response.error.message) })()
-
-      const baseMails = inbox as MailItem[]
-
-      setMails(baseMails)
-    } catch (err) {
-      setFetchError(err instanceof Error ? err.message : String(err))
-    } finally {
-      setIsFetchingMails(false)
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
   const refreshMails = useCallback(() => {
     if (accountConfig) fetchRealMails(accountConfig)
@@ -421,37 +456,6 @@ export function EmailProvider({ children }: { children: ReactNode }) {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drafts, selectedMailId, mails, accountConfig])
-
-  /* ---- fetch sent mails ---- */
-  const fetchSentMails = useCallback(async () => {
-    if (!window.electronAPI?.emailFetchSent) return
-    try {
-      const response = await window.electronAPI.emailFetchSent()
-      const items = Array.isArray(response)
-        ? response
-        : response?.ok
-          ? response.mails
-          : []
-      setSentMails(items as MailItem[])
-    } catch {
-      setSentMails([])
-    }
-  }, [])
-
-  const fetchTrashMails = useCallback(async () => {
-    if (!window.electronAPI?.emailFetchTrash) return
-    try {
-      const response = await window.electronAPI.emailFetchTrash()
-      const items = Array.isArray(response)
-        ? response
-        : response?.ok
-          ? response.mails
-          : []
-      setTrashMails(items as MailItem[])
-    } catch {
-      setTrashMails([])
-    }
-  }, [])
 
   /* ---- delete mail (move to trash) ---- */
   const deleteMail = useCallback(async (id: string, folder: 'inbox' | 'sent' | 'trash') => {
@@ -526,9 +530,18 @@ export function EmailProvider({ children }: { children: ReactNode }) {
   /* ---- save / clear account ---- */
   const saveAccount = useCallback(async (config: EmailAccountConfig) => {
     await window.electronAPI.emailSaveAccount(config)
+    // Clear current mailbox snapshots first to avoid stale items from previous settings.
+    setMails([])
+    setSentMails([])
+    setTrashMails([])
+    setSelectedMailId(null)
+    setDrafts({})
+    setSentRecords([])
     setAccountConfig(config)
     fetchRealMails(config)
-  }, [fetchRealMails])
+    fetchSentMails().catch(() => {})
+    fetchTrashMails().catch(() => {})
+  }, [fetchRealMails, fetchSentMails, fetchTrashMails])
 
   const clearAccount = useCallback(async () => {
     await window.electronAPI.emailClearAccount()

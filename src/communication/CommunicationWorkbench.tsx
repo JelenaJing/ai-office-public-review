@@ -332,6 +332,7 @@ const ThreadList = styled.div`
 `
 
 const ThreadCard = styled.div<{ $active?: boolean; $unread?: boolean; $highlighted?: boolean }>`
+  position: relative;
   padding: 11px 12px;
   border-radius: 8px;
   margin-bottom: 2px;
@@ -342,6 +343,29 @@ const ThreadCard = styled.div<{ $active?: boolean; $unread?: boolean; $highlight
   &:hover {
     background: ${({ $active, $highlighted }) => ($active ? '#ebf3fd' : $highlighted ? '#fff7d6' : '#f7fafc')};
     border-color: ${({ $active, $highlighted }) => ($active ? '#b3d1f0' : $highlighted ? '#f6ad55' : '#e2e8f0')};
+  }
+  &:hover .thread-delete-btn {
+    opacity: 1;
+  }
+`
+
+const ThreadDeleteBtn = styled.button`
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.1s;
+  background: none;
+  border: none;
+  padding: 3px 5px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #a0aec0;
+  line-height: 1;
+  &:hover {
+    background: #fed7d7;
+    color: #c53030;
   }
 `
 
@@ -1788,9 +1812,10 @@ const MAIL_SORT_KEY = 'ai:mail-sort-mode'
 function loadSortMode(): MailSortMode {
   try {
     const saved = localStorage.getItem(MAIL_SORT_KEY)
+    if (saved === 'smart') return 'smart'
     if (saved === 'time') return 'time'
   } catch { /* ignore */ }
-  return 'smart'
+  return 'time'
 }
 
 function saveSortMode(mode: MailSortMode) {
@@ -2473,12 +2498,14 @@ function AccountSettingsModal({ onClose }: { onClose: () => void }) {
   const handleSave = async () => {
     setSaving(true)
     try {
+      // Keep email alias in sync with user (primary field) before saving
+      const normalizedForm: typeof form = { ...form, email: form.user }
       if (isSchoolExchange) {
         const result = await window.electronAPI?.emailSaveSchoolAccount?.({
-          ...form,
+          ...normalizedForm,
           provider: 'school_cuhk_exchange_imap_smtp',
           fromPolicy: 'same_as_login',
-          username: form.user,
+          username: normalizedForm.user,
         })
         if (result && !result.ok) {
           setTestStatus({ tone: 'err', msg: result.error?.message ?? '保存失败' })
@@ -2490,10 +2517,10 @@ function AccountSettingsModal({ onClose }: { onClose: () => void }) {
         // refreshes immediately after saving the school Exchange account.
         const savedConfig = await window.electronAPI?.emailGetAccount?.()
         if (savedConfig) {
-          await saveEmailAccount(savedConfig)
+          await saveEmailAccount({ ...savedConfig, email: savedConfig.user || savedConfig.email })
         }
       } else {
-        await saveEmailAccount(form)
+        await saveEmailAccount(normalizedForm)
       }
       onClose()
     } catch (err) {
@@ -2959,6 +2986,28 @@ function EmailAnalysisSummaryPanel({
               </SummaryStatCard>
             )}
           </SummaryStatGrid>
+
+          {summary.failedItems.length > 0 && (
+            <SummarySection>
+              <SummarySectionTitle>失败原因</SummarySectionTitle>
+              <SummaryList>
+                {summary.failedItems.slice(0, 6).map((item) => (
+                  <SummaryListItem
+                    key={item.messageId}
+                    type="button"
+                    $clickable
+                    onClick={() => onMailClick(item.messageId)}
+                    title={item.error}
+                  >
+                    <strong>{item.subject || '无主题'}</strong>
+                    <div style={{ color: '#c53030', marginTop: 2 }}>
+                      {(item.fromName || item.fromEmail || '未知发件人')} · {item.error}
+                    </div>
+                  </SummaryListItem>
+                ))}
+              </SummaryList>
+            </SummarySection>
+          )}
 
           <SummarySection>
             <SummarySectionTitle>主要发件人排行</SummarySectionTitle>
@@ -3529,6 +3578,11 @@ function CommunicationWorkbenchInner() {
     : currentReplyKnowledgeIds.length === 1
       ? `知识库 · 1`
       : `知识库 · ${currentReplyKnowledgeIds.length}`
+  const failedAnalysisPreview = currentBatchSummary?.failedItems
+    .slice(0, 2)
+    .map((item) => item.error)
+    .filter(Boolean)
+    .join('；')
 
   const handleForwardSelectedMail = useCallback(() => {
     if (!selectedThread || !targetMessage) return
@@ -4134,7 +4188,7 @@ function CommunicationWorkbenchInner() {
         <StatusStrip>
           <StatusLabel>
             <StatusDot $ok={isRealEmailMode} $warn={!isRealEmailMode} />
-            {isRealEmailMode ? `邮箱: ${emailAccountConfig?.email || emailAccountConfig?.user || '已连接'}` : '未连接邮箱'}
+            {isRealEmailMode ? `邮箱: ${emailAccountConfig?.user || emailAccountConfig?.email || '已连接'}` : '未连接邮箱'}
           </StatusLabel>
         </StatusStrip>
 
@@ -4146,7 +4200,8 @@ function CommunicationWorkbenchInner() {
         )}
         {analysisStatus === 'failed' && analysisProgress.failed > 0 && (
           <AnalysisBanner style={{ background: '#fff5f5', color: '#c53030', borderColor: '#feb2b2' }}>
-            ⚠ 邮件分析部分失败（{analysisProgress.failed} 封），已完成 {analysisProgress.done + analysisProgress.cached} 封
+            <div>⚠ 邮件分析部分失败（{analysisProgress.failed} 封），已完成 {analysisProgress.done + analysisProgress.cached} 封</div>
+            {failedAnalysisPreview && <div style={{ fontSize: 12, marginTop: 4 }}>原因：{failedAnalysisPreview}</div>}
           </AnalysisBanner>
         )}
 
@@ -4185,6 +4240,21 @@ function CommunicationWorkbenchInner() {
                     <span style={{ marginLeft: 'auto' }}>{thread.lastMessage ? formatTime(thread.lastMessage.timestamp) : ''}</span>
                   </ThreadMeta>
                   <ThreadSnippet>{thread.lastMessage?.body.slice(0, 72).replace(/\n/g, ' ')}</ThreadSnippet>
+                  {thread.providerType === 'email' && (
+                    <ThreadDeleteBtn
+                      className="thread-delete-btn"
+                      title="删除邮件"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        selectThread(thread.id)
+                        setAttachmentNotice(null)
+                        setEmailAnalysisSummaryCollapsed(true)
+                        setDeleteConfirmThreadId(thread.id)
+                      }}
+                    >
+                      🗑
+                    </ThreadDeleteBtn>
+                  )}
                   <AiTriageRow>
                     {thread.folder === 'trash' && <WorkTagBadge $variant="trash">可恢复</WorkTagBadge>}
                     {triage?.status === 'skipped' ? (
@@ -4201,7 +4271,18 @@ function CommunicationWorkbenchInner() {
                         {calendarTag && <WorkTagBadge $variant={calendarTag.variant}>{calendarTag.label}</WorkTagBadge>}
                       </>
                     ) : (
-                      <AiStatusBadge $status={triage?.status || 'none'}>{triage?.status === 'running' ? '分析中' : '未分析'}</AiStatusBadge>
+                      <AiStatusBadge
+                        $status={triage?.status || 'none'}
+                        title={triage?.status === 'failed' ? (triage.errorMessage || '分析失败') : undefined}
+                      >
+                        {triage?.status === 'running'
+                          ? '分析中'
+                          : triage?.status === 'failed'
+                            ? '分析失败'
+                            : triage?.status === 'pending'
+                              ? '待分析'
+                              : '未分析'}
+                      </AiStatusBadge>
                     )}
                   </AiTriageRow>
                 </ThreadCard>
@@ -4241,11 +4322,28 @@ function CommunicationWorkbenchInner() {
                   </div>
                   <ThreadHeaderActions>
                     <Btn $variant="muted" onClick={handleForwardSelectedMail}>转发</Btn>
+                    {!isTrashFolderThread && selectedThread.providerType === 'email' && (
+                      <Btn $variant="danger" onClick={() => setDeleteConfirmThreadId(selectedThread.id)}>
+                        移入回收站
+                      </Btn>
+                    )}
                   </ThreadHeaderActions>
                 </ThreadHeaderTop>
               </ThreadHeader>
 
               <EmailBodyView message={targetMessage} />
+
+              {selectedTriage?.status === 'failed' && (
+                <AiRecommendCard $risk>
+                  <AiRecommendTitle>⚠ AI 分析失败</AiRecommendTitle>
+                  <AiRecommendValue>{selectedTriage.errorMessage || '分析失败，请稍后重试。'}</AiRecommendValue>
+                  {selectedMailId && (
+                    <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                      <Btn onClick={() => enqueueMail(selectedMailId)}>重新分析</Btn>
+                    </div>
+                  )}
+                </AiRecommendCard>
+              )}
 
               <IncomingAttachments
                 attachments={allIncomingAttachments}

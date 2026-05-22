@@ -301,6 +301,8 @@ export async function runSection(
             sectionText: sectionBody,
             sectionNum: sectionIndex + 1,
             plannedFigureCount: Math.min(sectionPlan.plannedFigureCount, 1),
+            flowType: 'paper-generation',
+            workspacePath: (params as PaperGenerationParams & { workspacePath?: string }).workspacePath,
           },
           (message) => emitProgress(message),
         )

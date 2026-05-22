@@ -246,6 +246,12 @@ export interface BulkEmailDraft {
 /*  Real email account config                                         */
 /* ------------------------------------------------------------------ */
 
+/** Provider type discriminant for the email account. */
+export type EmailProviderType =
+  | 'local_mailcow'
+  | 'school_cuhk_exchange_imap_smtp'
+  | 'student_link_m365'
+
 export interface EmailAccountConfig {
   user: string
   password: string
@@ -262,6 +268,25 @@ export interface EmailAccountConfig {
   email?: string
   /** 'internal-imap' for self-hosted mailcow/iRedMail; omitted for public providers */
   providerType?: string
+  /** Structured provider type — used for school/student account routing */
+  provider?: EmailProviderType
+  /**
+   * Reference key for credential stored in safeStorage (e.g. the email address).
+   * When set, the actual password is NOT in this config; it is retrieved at runtime
+   * from the OS keychain via CredentialService.
+   */
+  credentialRef?: string
+  /**
+   * 'same_as_login' → From address must equal the authenticated account.
+   * Prevents sender spoofing for school Exchange accounts.
+   */
+  fromPolicy?: 'same_as_login'
+  /** Successful IMAP encryption mode detected during auto-probe */
+  imapEncryption?: 'none' | 'starttls' | 'ssl'
+  /** Successful SMTP encryption mode detected during auto-probe */
+  smtpEncryption?: 'none' | 'starttls' | 'ssl'
+  /** When true, SMTP STARTTLS negotiation is disabled (nodemailer ignoreTLS) */
+  smtpIgnoreTls?: boolean
   /** Disable TLS certificate verification — dev/test environments only */
   allowSelfSignedCerts?: boolean
   /** AccountCenter user ID — used for user isolation; only present on internal-imap configs */

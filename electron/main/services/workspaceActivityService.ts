@@ -56,7 +56,7 @@ const SCAN_RELATIVE_DIRS = ['documents', 'ppt', 'knowledge']
 const SCAN_RELATIVE_FILES = ['document.json']
 
 /** Extensions we can extract text from */
-const EXTRACTABLE_EXTS = new Set(['.docx', '.doc', '.pptx', '.txt', '.md', '.markdown', '.pdf'])
+const EXTRACTABLE_EXTS = new Set(['.docx', '.doc', '.pptx', '.txt', '.md', '.markdown', '.pdf', '.json'])
 
 /** Max characters of file text sent to LLM per file */
 const LLM_TEXT_MAX_CHARS = 3000
@@ -206,6 +206,72 @@ function normalizeText(raw: string): string {
     .trim()
 }
 
+function getNestedStringValue(obj: unknown, pathParts: string[]): string {
+  let current = obj
+  for (const part of pathParts) {
+    if (!current || typeof current !== 'object') return ''
+    current = (current as Record<string, unknown>)[part]
+  }
+  return typeof current === 'string' ? current : ''
+}
+
+function isPaperDocumentJsonName(fileName: string): boolean {
+  const lower = fileName.toLowerCase()
+  return lower === 'document.json' || lower.endsWith('.aidoc.json') || lower.endsWith('.paper.json')
+}
+
+function isReferencesJsonName(fileName: string): boolean {
+  return fileName.toLowerCase().endsWith('.references.json')
+}
+
+function isConfigOrCacheJsonName(fileName: string): boolean {
+  const lower = fileName.toLowerCase()
+  return lower === 'package.json'
+    || lower === 'package-lock.json'
+    || lower === 'tsconfig.json'
+    || lower.endsWith('.config.json')
+    || lower.includes('cache')
+}
+
+function isAuxiliaryJsonEvidenceName(fileName: string): boolean {
+  return isReferencesJsonName(fileName)
+}
+
+function isIgnoredJsonWorkArtifactName(fileName: string): boolean {
+  return isConfigOrCacheJsonName(fileName)
+}
+
+function stripWorkspaceJsonSuffix(fileName: string): string {
+  return fileName
+    .replace(/\.aidoc\.json$/i, '')
+    .replace(/\.paper\.json$/i, '')
+    .replace(/\.references\.json$/i, '')
+    .replace(/\.json$/i, '')
+}
+
+async function readJsonGeneratedBy(filePath: string): Promise<string> {
+  try {
+    const raw = await fs.readFile(filePath, 'utf-8')
+    const obj = JSON.parse(raw) as Record<string, unknown>
+    return getNestedStringValue(obj, ['metadata', 'generatedBy'])
+  } catch {
+    return ''
+  }
+}
+
+async function isPaperGenerationJsonFile(absPath: string): Promise<boolean> {
+  return (await readJsonGeneratedBy(absPath)) === 'paper-generation'
+}
+
+async function shouldScanWorkspaceJson(absPath: string, relPath: string, fileName: string): Promise<boolean> {
+  const relParts = relPath.split('/')
+  const inDocuments = relParts[0] === 'documents'
+  if (!inDocuments) return false
+  if (isPaperDocumentJsonName(fileName)) return true
+  if (isReferencesJsonName(fileName) || isConfigOrCacheJsonName(fileName)) return false
+  return isPaperGenerationJsonFile(absPath)
+}
+
 // ── hashing ───────────────────────────────────────────────────────────────────
 
 async function hashFile(filePath: string): Promise<string> {
@@ -316,6 +382,7 @@ async function scanDir(
     } else if (dirent.isFile()) {
       const ext = path.extname(name).toLowerCase()
       if (!EXTRACTABLE_EXTS.has(ext)) continue  // only track extractable types
+      if (ext === '.json' && !(await shouldScanWorkspaceJson(absPath, relPath, name))) continue
       try {
         const stat = await fs.stat(absPath)
         const hash = await hashFile(absPath)
@@ -391,7 +458,7 @@ async function analyzeFileWithLlm(
     fileName: entry.fileName,
     changeType: entry.changeType,
     workType: 'other',
-    taskName: stripFileExtension(entry.fileName),
+    taskName: isPaperDocumentJsonName(entry.fileName) ? stripWorkspaceJsonSuffix(entry.fileName) : stripFileExtension(entry.fileName),
     topic: '（无法读取内容）',
     progressStage: 'blocked',
     progressDelta: '',
@@ -412,12 +479,19 @@ async function analyzeFileWithLlm(
   if (!text.trim()) return blank
 
   const excerpt = text.slice(0, LLM_TEXT_MAX_CHARS)
+  const hasPaperGenerationMetadata = entry.fileType === 'json' && await isPaperGenerationJsonFile(entry.path)
+  const isPaperJsonDocument = entry.fileType === 'json'
+    && (isPaperDocumentJsonName(entry.fileName) || hasPaperGenerationMetadata)
+  const paperJsonHint = isPaperJsonDocument
+    ? '这是 AI Office 论文/正式文稿主文档 JSON，应优先按 formal、research 或 draft 判断 workType，不要归为 other。'
+    : ''
 
   const prompt = `你是一个工作进展分析助手。以下是用户在 AI Office 中修改的一个文件内容节选。
 
 文件名：${entry.fileName}
 变更类型：${changeTypeLabel(entry.changeType)}
 文件类型：${entry.fileType}
+${paperJsonHint}
 
 内容节选：
 ${excerpt}
@@ -457,12 +531,17 @@ ${excerpt}
     const jsonEnd = raw.lastIndexOf('}')
     if (jsonStart === -1 || jsonEnd === -1) return blank
     const parsed = JSON.parse(raw.slice(jsonStart, jsonEnd + 1)) as Partial<FileContentSummary>
+    const parsedWorkType = validateWorkType(parsed.workType)
+    const evidence = Array.isArray(parsed.evidence) ? parsed.evidence.map(String) : []
+    if (hasPaperGenerationMetadata && !evidence.includes('metadata.generatedBy=paper-generation')) {
+      evidence.push('metadata.generatedBy=paper-generation')
+    }
     return {
       filePath: entry.path,
       fileName: entry.fileName,
       changeType: entry.changeType,
-      workType: validateWorkType(parsed.workType) ?? 'other',
-      taskName: String(parsed.taskName || stripFileExtension(entry.fileName)),
+      workType: parsedWorkType && (!isPaperJsonDocument || parsedWorkType !== 'other') ? parsedWorkType : 'formal',
+      taskName: String(parsed.taskName || (isPaperJsonDocument ? stripWorkspaceJsonSuffix(entry.fileName) : stripFileExtension(entry.fileName))),
       topic: String(parsed.topic || '（未识别）'),
       progressStage: validateProgressStage(parsed.progressStage) ?? 'editing',
       progressDelta: String(parsed.progressDelta || ''),
@@ -470,7 +549,7 @@ ${excerpt}
       keyActions: Array.isArray(parsed.keyActions) ? parsed.keyActions.map(String) : [],
       outputValue: String(parsed.outputValue || ''),
       remainingIssues: Array.isArray(parsed.remainingIssues) ? parsed.remainingIssues.map(String) : [],
-      evidence: Array.isArray(parsed.evidence) ? parsed.evidence.map(String) : [],
+      evidence,
       outcomeLevel: validateOutcomeLevel(parsed.outcomeLevel) ?? 'partial',
       confidence: typeof parsed.confidence === 'number' ? Math.min(1, Math.max(0, parsed.confidence)) : 0.5,
     }
@@ -636,6 +715,7 @@ function extractSemanticTokens(signals: string[]): Set<string> {
 
   addIf('paper', /论文|paper|manuscript/)
   addIf('generation', /生成|generation|generate/)
+  addIf('paper-doc-json', /\.aidoc\.json|\.paper\.json|generatedby.*paper-generation|paper-generation/)
   addIf('image', /图片|插图|图像|figure|image|img/)
   addIf('preservation', /保留|保存|preserv|retain/)
   addIf('reference', /引用|参考文献|reference|citation/)
@@ -668,11 +748,21 @@ function tokenSimilarity(a: Set<string>, b: Set<string>): number {
   return overlap / Math.min(a.size, b.size)
 }
 
+function inferPaperDocumentTaskName(signals: string[]): string | null {
+  const joined = signals.join(' ')
+  const match = joined.match(/([^\\/\s，。；:：]+?)\.(?:aidoc|paper|references)\.json/i)
+  if (match?.[1]) return `${stripWorkspaceJsonSuffix(match[1])}文稿任务`
+  if (/\.aidoc\.json|\.paper\.json|generatedBy.*paper-generation|paper-generation/i.test(joined)) return '论文生成链路'
+  return null
+}
+
 function inferTaskNameFromSignals(signals: string[]): string {
   const joined = signals.join(' ')
   if (/(论文|paper|manuscript)/i.test(joined) && /(图片|插图|图像|figure|image|preserv|保留)/i.test(joined)) {
     return '论文生成链路图片保留问题'
   }
+  const paperDocumentTask = inferPaperDocumentTaskName(signals)
+  if (paperDocumentTask) return paperDocumentTask
   if (/(日报|daily report|工作进展|进展报告)/i.test(joined)) {
     return '工作日报进展报告优化'
   }
@@ -738,15 +828,31 @@ function addSignalsToTask(task: MutableProgressTaskEvidence, signals: string[], 
   if (tsMs > 0) task.lastTsMs = tsMs
 }
 
+function getEventFileName(e: WorkActivityEvent): string {
+  const p = getPayload(e)
+  return e.targetTitle || getPayloadString(p, ['fileName', 'title'])
+}
+
+function isAuxiliaryJsonEvidenceEvent(e: WorkActivityEvent): boolean {
+  const fileName = getEventFileName(e)
+  return Boolean(fileName && isAuxiliaryJsonEvidenceName(path.basename(fileName)))
+}
+
+function isIgnoredJsonWorkArtifactEvent(e: WorkActivityEvent): boolean {
+  const fileName = getEventFileName(e)
+  return Boolean(fileName && isIgnoredJsonWorkArtifactName(path.basename(fileName)))
+}
+
 function eventEvidenceLine(e: WorkActivityEvent): string {
   const p = getPayload(e)
-  const title = e.targetTitle || getPayloadString(p, ['fileName', 'title'])
+  const title = getEventFileName(e)
   const feature = getPayloadString(p, ['featureName'])
   const prompt = getPayloadString(p, ['promptSummary'])
   const output = getPayloadString(p, ['outputSummary'])
   const subject = getPayloadString(p, ['subjectSummary'])
   const message = getPayloadString(p, ['messageSummary'])
 
+  if (title && isAuxiliaryJsonEvidenceName(path.basename(title))) return `辅助证据：${normalizeEvidenceText(title)}`
   if (e.eventType === 'ai_prompt_submitted') return `AI 提示词：${normalizeEvidenceText(prompt || feature || '已提交 AI 任务')}`
   if (e.eventType === 'ai_task_completed') return `完成事件：${normalizeEvidenceText(output || feature || 'AI 任务完成')}`
   if (e.eventType === 'ai_task_failed') return `异常：${normalizeEvidenceText(e.errorMessage || output || 'AI 任务失败')}`
@@ -768,8 +874,9 @@ function addEventToTask(task: MutableProgressTaskEvidence, e: WorkActivityEvent)
   task.durationMs += e.durationMs ?? 0
   if (e.durationMs) addUnique(task.evidence, `耗时：约 ${Math.round(e.durationMs / 1000)} 秒`)
 
-  const title = e.targetTitle || getPayloadString(p, ['fileName', 'title'])
-  if (title && (e.eventType.startsWith('file_') || e.action === 'save_document')) addUnique(task.files, title)
+  const title = getEventFileName(e)
+  const isAuxiliaryJson = title ? isAuxiliaryJsonEvidenceName(path.basename(title)) : false
+  if (title && !isAuxiliaryJson && (e.eventType.startsWith('file_') || e.action === 'save_document')) addUnique(task.files, title)
 
   if (e.eventType === 'ai_prompt_submitted') {
     task.hasPrompt = true
@@ -793,15 +900,23 @@ function addEventToTask(task: MutableProgressTaskEvidence, e: WorkActivityEvent)
 }
 
 function addSummaryToTask(tasks: MutableProgressTaskEvidence[], summary: FileContentSummary): void {
+  if (isIgnoredJsonWorkArtifactName(summary.fileName)) return
   if (summary.outcomeLevel === 'none' && !summary.progressDelta && !summary.outputValue) return
   const signals = collectSummarySignals(summary)
-  const task = findMatchingTask(tasks, signals, 0) ?? createMutableTask(signals, 0)
+  const matchedTask = findMatchingTask(tasks, signals, 0)
+  const isAuxiliaryJson = isAuxiliaryJsonEvidenceName(summary.fileName)
+  if (isAuxiliaryJson && !matchedTask) return
+  const task = matchedTask ?? createMutableTask(signals, 0)
   if (!tasks.includes(task)) tasks.push(task)
   addSignalsToTask(task, signals, 0)
 
   const fileLabel = `${summary.fileName}（${changeTypeLabel(summary.changeType)}）`
-  addUnique(task.files, summary.fileName)
-  addUnique(task.evidence, summary.changeType === 'exported' ? `文件产物：${fileLabel}` : `文件分析：${fileLabel}`)
+  if (isAuxiliaryJson) {
+    addUnique(task.evidence, `辅助证据：${fileLabel}`)
+  } else {
+    addUnique(task.files, summary.fileName)
+    addUnique(task.evidence, summary.changeType === 'exported' ? `文件产物：${fileLabel}` : `文件分析：${fileLabel}`)
+  }
   if (summary.progressDelta) addUnique(task.evidence, `进展变化：${summary.progressDelta}`)
   if (summary.outputValue) addUnique(task.aiOutputs, summary.outputValue)
   for (const issue of summary.remainingIssues ?? []) addUnique(task.errors, issue)
@@ -878,16 +993,19 @@ export function buildProgressEvidence(
     .filter(isMeaningfulActivityEvent)
     .sort((a, b) => eventTsMs(a) - eventTsMs(b))
 
+  for (const summary of summaries) addSummaryToTask(tasks, summary)
+
   for (const event of events) {
+    if (isIgnoredJsonWorkArtifactEvent(event)) continue
     const tsMs = eventTsMs(event)
     const signals = collectEventSignals(event)
-    const task = findMatchingTask(tasks, signals, tsMs, event.eventType) ?? createMutableTask(signals, tsMs)
+    const matchedTask = findMatchingTask(tasks, signals, tsMs, event.eventType)
+    if (isAuxiliaryJsonEvidenceEvent(event) && !matchedTask) continue
+    const task = matchedTask ?? createMutableTask(signals, tsMs)
     if (!tasks.includes(task)) tasks.push(task)
     addSignalsToTask(task, signals, tsMs)
     addEventToTask(task, event)
   }
-
-  for (const summary of summaries) addSummaryToTask(tasks, summary)
 
   const finalized = finalizeProgressTasks(tasks)
   return {

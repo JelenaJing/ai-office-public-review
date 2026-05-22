@@ -56,6 +56,7 @@ export interface PaperGenerationParams {
   enableKnowledgeTreeCheck?: boolean
   /** 是否启用全文审查（默认 true） */
   enableFullReview?: boolean
+  workspacePath?: string
 }
 
 export interface PaperGenerationResult {
@@ -800,6 +801,8 @@ export async function generatePaperNFTCORE(
             sectionText: content,
             plannedFigureCount: 1,
             language: params.language,
+            flowType: 'paper-generation',
+            workspacePath: params.workspacePath,
           },
           (message) => emit({ step: imageStep, message }),
         )

@@ -167,7 +167,8 @@ const api = {
   readFile: (filePath: string) => ipcRenderer.invoke('file:read', filePath),
   listDirectoryImages: (dirPath: string) => ipcRenderer.invoke('file:listDirectoryImages', dirPath),
   importImageFile: () => ipcRenderer.invoke('file:importImage'),
-    readImageAsDataUrl: (filePath: string) => ipcRenderer.invoke('file:readImageAsDataUrl', filePath),
+  getFileInfo: (filePath: string) => ipcRenderer.invoke('file:getInfo', filePath),
+  readImageAsDataUrl: (filePath: string) => ipcRenderer.invoke('file:readImageAsDataUrl', filePath),
   openExternalFile: (filePath: string) => ipcRenderer.invoke('file:openExternal', filePath),
   openFolderSafe: (targetPath: string, options?: { createIfMissing?: boolean }) =>
     ipcRenderer.invoke('file:openFolderSafe', { targetPath, ...options }),
@@ -208,6 +209,10 @@ const api = {
   mailOpenAttachmentInWorkspace: (options: unknown) =>
     ipcRenderer.invoke('mail:openAttachmentInWorkspace', options),
   emailSelectAttachments: () => ipcRenderer.invoke('email:selectAttachments'),
+  // ---- School Exchange IPC ----
+  emailTestSchoolAccount: (params: unknown) => ipcRenderer.invoke('email:testSchoolAccount', params),
+  emailSaveSchoolAccount: (config: unknown) => ipcRenderer.invoke('email:saveSchoolAccount', config),
+  emailRemoveSchoolAccount: () => ipcRenderer.invoke('email:removeSchoolAccount'),
   continueWriting: (payload: unknown) => ipcRenderer.invoke('ai:continueWriting', payload),
   rewriteParagraph: (payload: unknown) => ipcRenderer.invoke('ai:rewriteParagraph', payload),
   writingAssistant: (payload: unknown) => ipcRenderer.invoke('ai:writingAssistant', payload),

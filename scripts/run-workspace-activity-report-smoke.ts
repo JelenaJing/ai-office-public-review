@@ -8,8 +8,13 @@ import {
   buildDailyActivityReportFromProgressJson,
   buildProgressEvidence,
   createNoEffectiveActivityReport,
+  takeSnapshot,
 } from '../electron/main/services/workspaceActivityService'
 import type { DailyReportInput, WorkActivityEvent } from '../src/types/workActivityTypes'
+import type { FileContentSummary } from '../src/types/workspaceActivity'
+import fs from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
 
 let passed = 0
 let failed = 0
@@ -156,9 +161,84 @@ assert(mappedReport.detailedMarkdown?.includes('## 阻塞与风险') === true, '
 assert(mappedReport.detailedMarkdown?.includes('## 下一步焦点') === true, 'detailedMarkdown contains 下一步焦点')
 console.log()
 
-if (failed > 0) {
-  console.error(`[smoke:workspace-activity-report] failed: ${failed}, passed: ${passed}`)
-  process.exit(1)
+async function runJsonScanningCases(): Promise<void> {
+  console.log('Case 6: paper aidoc JSON scanning and evidence grouping')
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'ai-office-workspace-activity-'))
+  try {
+    const documentsDir = path.join(tmpDir, 'documents')
+    await fs.mkdir(documentsDir, { recursive: true })
+    await fs.writeFile(path.join(documentsDir, '碳化硅研究论文.aidoc.json'), JSON.stringify({
+      metadata: { generatedBy: 'paper-generation' },
+      blocks: [
+        { type: 'heading', text: '碳化硅功率器件研究进展' },
+        { type: 'paragraph', text: '本文补充了碳化硅器件可靠性分析和实验讨论。' },
+      ],
+    }), 'utf-8')
+    await fs.writeFile(path.join(documentsDir, '碳化硅研究论文.references.json'), JSON.stringify({
+      references: [{ title: 'SiC device reliability' }],
+    }), 'utf-8')
+    await fs.writeFile(path.join(documentsDir, 'package.json'), '{"private":true}', 'utf-8')
+    await fs.writeFile(path.join(documentsDir, 'normal.config.json'), '{"theme":"dark"}', 'utf-8')
+    await fs.writeFile(path.join(documentsDir, 'cache-state.json'), '{"items":[]}', 'utf-8')
+
+    const snapshot = await takeSnapshot(tmpDir)
+    const relPaths = snapshot.files.map((file) => file.relativePath)
+    assert(relPaths.includes('documents/碳化硅研究论文.aidoc.json'), 'documents/碳化硅研究论文.aidoc.json is scanned')
+    assert(!relPaths.includes('documents/碳化硅研究论文.references.json'), 'references JSON is not scanned as a core file output')
+    assert(!relPaths.includes('documents/package.json'), 'package.json is not scanned into report work files')
+    assert(!relPaths.includes('documents/normal.config.json'), 'ordinary config JSON is not scanned into report work files')
+    assert(!relPaths.includes('documents/cache-state.json'), 'cache JSON is not scanned into report work files')
+
+    const paperSummary: FileContentSummary = {
+      filePath: path.join(documentsDir, '碳化硅研究论文.aidoc.json'),
+      fileName: '碳化硅研究论文.aidoc.json',
+      changeType: 'modified',
+      workType: 'formal',
+      taskName: '碳化硅研究论文',
+      topic: '碳化硅功率器件研究论文',
+      progressStage: 'editing',
+      progressDelta: '碳化硅研究论文从初稿推进到可靠性分析补充。',
+      summary: '补充了碳化硅器件可靠性分析和实验讨论。',
+      keyActions: ['补充可靠性分析'],
+      outputValue: '形成论文主文稿阶段性更新',
+      remainingIssues: [],
+      evidence: ['文件名：碳化硅研究论文.aidoc.json', 'metadata.generatedBy=paper-generation'],
+      outcomeLevel: 'substantial',
+      confidence: 0.9,
+    }
+    const jsonEvidence = buildProgressEvidence(makeInput([
+      makeEvent({
+        eventType: 'file_saved',
+        targetTitle: '碳化硅研究论文.references.json',
+        payload: { fileName: '碳化硅研究论文.references.json' },
+      }),
+      makeEvent({
+        eventType: 'file_saved',
+        targetTitle: 'package.json',
+        payload: { fileName: 'package.json' },
+      }),
+    ]), [paperSummary])
+    const jsonTask = jsonEvidence.tasks.find((task) => task.taskName.includes('碳化硅研究论文'))
+    assert(jsonTask != null, 'aidoc summary is grouped into the paper manuscript task')
+    assert((jsonTask?.files ?? []).includes('碳化硅研究论文.aidoc.json'), 'aidoc JSON is kept as the core file output')
+    assert(!(jsonTask?.files ?? []).includes('碳化硅研究论文.references.json'), 'references JSON is not kept as a core file output')
+    assert((jsonTask?.evidence ?? []).some((item) => item.includes('references.json')), 'references JSON can remain as supporting evidence')
+    assert(!jsonEvidence.tasks.some((task) => task.files.includes('package.json') || task.taskName.includes('package.json')), 'package.json does not create main report work')
+    console.log()
+  } finally {
+    await fs.rm(tmpDir, { recursive: true, force: true })
+  }
 }
 
-console.log(`[smoke:workspace-activity-report] passed: ${passed}`)
+runJsonScanningCases()
+  .then(() => {
+    if (failed > 0) {
+      console.error(`[smoke:workspace-activity-report] failed: ${failed}, passed: ${passed}`)
+      process.exit(1)
+    }
+    console.log(`[smoke:workspace-activity-report] passed: ${passed}`)
+  })
+  .catch((error) => {
+    console.error(error)
+    process.exit(1)
+  })

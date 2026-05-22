@@ -763,9 +763,36 @@ export class EmailService {
     }
 
     try {
+      let resolvedCandidates = [...folderCandidates]
+      if (folderType !== 'inbox') {
+        try {
+          const folders = await client.list()
+          const specialUseFlag = folderType === 'sent'
+            ? '\\Sent'
+            : folderType === 'trash'
+              ? '\\Trash'
+              : '\\Junk'
+          const specialUseFolder = folders.find((folder) =>
+            (folder as unknown as Record<string, unknown>).specialUse === specialUseFlag
+            || (folder.flags instanceof Set && folder.flags.has(specialUseFlag)),
+          )
+          const lowerPathMap = new Map(folders.map((folder) => [folder.path.toLowerCase(), folder.path] as const))
+          const matchedCandidates = folderCandidates
+            .map((candidate) => lowerPathMap.get(candidate.toLowerCase()))
+            .filter((candidate): candidate is string => Boolean(candidate))
+          resolvedCandidates = [
+            ...(specialUseFolder ? [specialUseFolder.path] : []),
+            ...matchedCandidates,
+            ...folderCandidates,
+          ].filter((candidate, index, list) => list.indexOf(candidate) === index)
+        } catch {
+          // LIST is best-effort only; fall back to the static candidates below.
+        }
+      }
+
       let opened = false
       let openedFolder = ''
-      for (const folder of folderCandidates) {
+      for (const folder of resolvedCandidates) {
         try {
           stageRef.current = 'mailbox'
           logImapStage(config, folder, 'mailbox:start')

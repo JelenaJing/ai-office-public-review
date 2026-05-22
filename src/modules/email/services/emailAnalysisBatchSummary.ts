@@ -203,6 +203,18 @@ function buildSenderStats(results: EmailAnalysisResult[]): EmailAnalysisBatchSum
   )
 }
 
+function buildFailedItems(results: EmailAnalysisResult[]): EmailAnalysisBatchSummary['failedItems'] {
+  return results
+    .filter((item) => item.error)
+    .map((item) => ({
+      messageId: item.messageId,
+      subject: item.subject,
+      fromName: item.fromName,
+      fromEmail: item.fromEmail,
+      error: item.error || '分析失败',
+    }))
+}
+
 function buildCategoryStats(results: EmailAnalysisResult[]): EmailAnalysisBatchSummary['categoryStats'] {
   return countBy(results.filter((item) => !item.error).map((item) => item.category || 'unknown'))
     .map(({ key, count }) => ({ category: key, count }))
@@ -353,7 +365,7 @@ function buildReportText(summary: Omit<EmailAnalysisBatchSummary, 'reportText' |
 
   const topicNames = summary.contentTopics.map((topic) => topic.topic).slice(0, 6).join('、')
   const failedText = summary.failedCount > 0
-    ? `其中 ${summary.failedCount} 封邮件分析失败，建议稍后重试。\n\n`
+    ? `其中 ${summary.failedCount} 封邮件分析失败，建议稍后重试。\n${summary.failedItems.slice(0, 3).map((item) => `- ${displaySender(item)}关于“${item.subject || '无主题'}”：${item.error}`).join('\n')}\n\n`
     : ''
   const calendarLines = [
     `会议/面试安排：${summary.calendarStats.meetingOrInterviewCount} 封`,
@@ -395,6 +407,7 @@ export function buildEmailAnalysisBatchSummary(
     totalEmails: results.length,
     analyzedCount: analyzedResults.length,
     failedCount: results.length - analyzedResults.length,
+    failedItems: buildFailedItems(results),
     importantCount: analyzedResults.filter((item) => item.importance === 'important').length,
     normalCount: analyzedResults.filter((item) => item.importance === 'normal').length,
     lowCount: analyzedResults.filter((item) => item.importance === 'low').length,

@@ -10,7 +10,7 @@
  */
 
 import { randomUUID } from 'node:crypto'
-import { existsSync } from 'node:fs'
+import { existsSync, statSync } from 'node:fs'
 import {
   createDocumentSchema,
   createHeadingBlock,
@@ -65,6 +65,31 @@ export interface DocumentImageResource {
   block: DocumentBlock
 }
 
+function normalizeLocalFilePath(value: string): string {
+  const raw = String(value || '').trim()
+  if (!raw) return raw
+  if (raw.startsWith('file://')) {
+    try {
+      const url = new URL(raw)
+      const pathname = decodeURI(url.pathname || '')
+      return /^\/[a-zA-Z]:[\\/]/.test(pathname) ? pathname.slice(1) : pathname
+    } catch {
+      const stripped = decodeURI(raw.replace(/^file:\/\//, ''))
+      return /^\/[a-zA-Z]:[\\/]/.test(stripped) ? stripped.slice(1) : stripped
+    }
+  }
+  return /^\/[a-zA-Z]:[\\/]/.test(raw) ? raw.slice(1) : raw
+}
+
+function getFileSizeIfExists(filePath: string): number {
+  try {
+    const stat = statSync(filePath)
+    return stat.isFile() ? stat.size : 0
+  } catch {
+    return 0
+  }
+}
+
 interface ImagePlacementStats {
   unmatchedImageCount: number
   fallbackImageCount: number
@@ -89,8 +114,9 @@ export function normalizeFigureToDocumentResource(
 
   const altText = fig.caption || `Figure ${fig.sectionNum}.${fig.figureIndex}`
   const localPathForward = String(fig.localPath || '').replace(/\\/g, '/')
-  const normalizedLocalPath = String(fig.localPath || '').replace(/^file:\/\//i, '')
+  const normalizedLocalPath = normalizeLocalFilePath(String(fig.localPath || ''))
   const imagePathExists = normalizedLocalPath ? existsSync(normalizedLocalPath) : false
+  const imageFileSize = imagePathExists ? getFileSizeIfExists(normalizedLocalPath) : 0
 
   const resource: DocumentResource = {
     id: resourceId,
@@ -106,8 +132,17 @@ export function normalizeFigureToDocumentResource(
       alt: altText,
       source: 'paper-generation',
       pathExists: imagePathExists,
+      fileSize: imageFileSize,
     },
   }
+  console.info('[paper:image_resource_written]', {
+    resourceId,
+    resourcePath: resource.path,
+    workspaceRelativePath: resource.metadata?.relativePath || '',
+    localPath: normalizedLocalPath,
+    fileExists: imagePathExists,
+    fileSize: imageFileSize,
+  })
 
   const block = createImageBlock({
     id: blockId,

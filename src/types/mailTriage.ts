@@ -277,6 +277,13 @@ export interface EmailAnalysisBatchSummary {
   totalEmails: number
   analyzedCount: number
   failedCount: number
+  failedItems: Array<{
+    messageId: string
+    subject: string
+    fromName?: string
+    fromEmail?: string
+    error: string
+  }>
 
   importantCount: number
   normalCount: number
@@ -416,7 +423,7 @@ export type MailTriageJob = {
   accountId: string
   messageId: string
   bodyHash: string
-  status: 'pending' | 'running' | 'success' | 'failed'
+  status: 'pending' | 'running' | 'success' | 'failed' | 'cancelled'
   retryCount: number
   errorMessage?: string
   createdAt: string

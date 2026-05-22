@@ -41,6 +41,30 @@ function isPaperCitationDocument(document: DocumentSchema): boolean {
   return document.profile === 'paper' || document.document?.metadata?.generatedBy === 'paper-generation'
 }
 
+function isReferencesSectionHeading(block: DocumentBlock): boolean {
+  if (block.metadata?.role === 'references-section') return true
+  if (block.type !== 'heading') return false
+  return /^(参考文献|引用文献|references|bibliography)$/i.test(String(block.text || '').trim())
+}
+
+function stripReferencesSectionBlocks(blocks: DocumentBlock[]): { bodyBlocks: DocumentBlock[]; headingText?: string } {
+  const bodyBlocks: DocumentBlock[] = []
+  let headingText: string | undefined
+  let inReferencesSection = false
+
+  for (const block of blocks) {
+    if (isReferencesSectionHeading(block)) {
+      if (block.type === 'heading' && block.text) headingText = block.text
+      inReferencesSection = true
+      continue
+    }
+    if (inReferencesSection) continue
+    bodyBlocks.push(block)
+  }
+
+  return { bodyBlocks, headingText }
+}
+
 function isFigureCaptionText(text: string): boolean {
   return /^(?:Figure|Fig\.?|图|图表)\s*\d+(?:\.\d+)*[\s:：.．-]/i.test(String(text || '').trim())
 }
@@ -433,9 +457,9 @@ export function renderDocumentCitationsForExport(document: DocumentSchema): Docu
   const bib = document.bibliography
 
   // 1. Sync inline citation numbers from citationMarks metadata, then strip references-section
-  const bodyBlocks = dedupePaperFigureCaptionBlocks(document.blocks)
+  const renderedBlocks = dedupePaperFigureCaptionBlocks(document.blocks)
     .map((block) => renderInlineCitationTextFromMarks(block))
-    .filter((block) => block.metadata?.role !== 'references-section')
+  const { bodyBlocks, headingText } = stripReferencesSectionBlocks(renderedBlocks)
 
   // No bibliography — return document with references-section stripped
   if (!bib || !bib.items.length) {
@@ -452,7 +476,7 @@ export function renderDocumentCitationsForExport(document: DocumentSchema): Docu
   const headingBlock = createHeadingBlock({
     id: 'refs-export-heading',
     level: 1,
-    text: /[\u4e00-\u9fff]/.test(bodyText) ? '参考文献' : 'References',
+    text: headingText || (/[\u4e00-\u9fff]/.test(bodyText) ? '参考文献' : 'References'),
     metadata: { role: 'references-section' },
   })
 

@@ -759,6 +759,7 @@ async function persistWorkspaceDocumentForJson(wsPath: string, document: Documen
   const normalized = normalizeDocumentSchema(document)
   const persistedResources = new Map<string, DocumentResource>()
   const persistedBlocks = [] as DocumentSchema['blocks']
+  const isPaperGenerationDocument = normalized.profile === 'paper' || normalized.document?.metadata?.generatedBy === 'paper-generation'
 
   for (let index = 0; index < normalized.blocks.length; index += 1) {
     const block = normalized.blocks[index]
@@ -772,6 +773,25 @@ async function persistWorkspaceDocumentForJson(wsPath: string, document: Documen
     const preferredName = path.basename(source || `image-${index + 1}.png`) || `image-${index + 1}.png`
     const materialized = await materializeWorkspaceImageAsset(wsPath, source, preferredName)
     const relativePath = materialized.relativePath
+    if (isPaperGenerationDocument || matchedResource?.metadata?.source === 'paper-generation' || block.metadata?.source === 'paper-generation') {
+      let fileExists = false
+      let fileSize = 0
+      try {
+        const stat = await fs.stat(materialized.absolutePath)
+        fileExists = stat.isFile()
+        fileSize = fileExists ? stat.size : 0
+      } catch {
+        fileExists = false
+      }
+      console.info('[paper:image_resource_written]', {
+        resourceId: relativePath,
+        resourcePath: relativePath,
+        workspaceRelativePath: relativePath,
+        localPath: materialized.absolutePath,
+        fileExists,
+        fileSize,
+      })
+    }
     persistedResources.set(relativePath, {
       id: relativePath,
       kind: 'image',
