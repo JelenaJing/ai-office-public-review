@@ -266,6 +266,11 @@ declare global {
           sourcePrompt: string
           slides: Record<string, unknown>[]
           assets: Array<{ slideIndex: number; imagePath: string }>
+          outlinePlan?: unknown[]
+          expectedSlideCount?: number
+          completedSlideCount?: number
+          status?: 'partial' | 'completed' | string
+          stoppedAt?: string
           createdAt?: string
         }
       }) => Promise<{ success: boolean; packageId?: string; filePath?: string; error?: string }>

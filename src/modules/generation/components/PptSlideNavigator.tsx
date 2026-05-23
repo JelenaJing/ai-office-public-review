@@ -10,16 +10,16 @@ const Nav = styled.div`
   flex-shrink: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  background: #fff;
+  background: #111827;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 8px 6px;
-  border-right: 1px solid #e5e7eb;
+  gap: 8px;
+  padding: 10px 8px;
+  border-right: 1px solid #1f2937;
 
   &::-webkit-scrollbar { width: 4px; }
   &::-webkit-scrollbar-track { background: transparent; }
-  &::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 2px; }
+  &::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 2px; }
 `
 
 const NavModeBadge = styled.div<{ $mode: 'source' | 'retemplated' | 'structure' }>`
@@ -30,9 +30,9 @@ const NavModeBadge = styled.div<{ $mode: 'source' | 'retemplated' | 'structure' 
   font-weight: 700;
   text-align: center;
   ${({ $mode }) => {
-    if ($mode === 'source') return 'background: #eef2ff; color: #3730a3; border: 1px solid #c7d2fe;'
-    if ($mode === 'retemplated') return 'background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0;'
-    return 'background: #f3f4f6; color: #4b5563; border: 1px solid #e5e7eb;'
+    if ($mode === 'source') return 'background: #1e1b4b; color: #c7d2fe; border: 1px solid #4338ca;'
+    if ($mode === 'retemplated') return 'background: #064e3b; color: #a7f3d0; border: 1px solid #047857;'
+    return 'background: #1f2937; color: #d1d5db; border: 1px solid #374151;'
   }}
 `
 
@@ -43,13 +43,13 @@ const DirItem = styled.div<{ $active: boolean; $loading?: boolean }>`
   padding: 7px 8px;
   border-radius: 6px;
   cursor: pointer;
-  border: 1.5px solid ${({ $active }) => $active ? '#3b82f6' : 'transparent'};
-  background: ${({ $active }) => $active ? '#eff6ff' : 'transparent'};
+  border: 2px solid ${({ $active }) => $active ? '#3b82f6' : 'transparent'};
+  background: ${({ $active }) => $active ? '#172554' : '#1f2937'};
   transition: background 0.12s, border-color 0.12s;
 
   &:hover {
-    background: ${({ $active }) => $active ? '#eff6ff' : '#f3f4f6'};
-    border-color: ${({ $active }) => $active ? '#3b82f6' : '#e5e7eb'};
+    background: ${({ $active }) => $active ? '#1d4ed8' : '#263244'};
+    border-color: ${({ $active }) => $active ? '#60a5fa' : '#4b5563'};
   }
 
   ${({ $loading }) => $loading && `
@@ -61,7 +61,7 @@ const DirItem = styled.div<{ $active: boolean; $loading?: boolean }>`
 const PageNum = styled.div<{ $active: boolean }>`
   font-size: var(--font-size-xs);
   font-weight: 700;
-  color: ${({ $active }) => $active ? '#3b82f6' : '#9ca3af'};
+  color: ${({ $active }) => $active ? '#93c5fd' : '#9ca3af'};
   min-width: 16px;
   flex-shrink: 0;
   padding-top: 1px;
@@ -80,7 +80,7 @@ const DirContent = styled.div`
 const DirTitle = styled.div<{ $active: boolean }>`
   font-size: var(--font-size-xs);
   font-weight: 600;
-  color: ${({ $active }) => $active ? '#1d4ed8' : '#374151'};
+  color: ${({ $active }) => $active ? '#dbeafe' : '#f3f4f6'};
   line-height: 1.35;
   overflow: hidden;
   display: -webkit-box;
@@ -144,6 +144,11 @@ function getIntentLabel(type: string): string {
   }
 }
 
+function toImageSrc(imagePath: string): string {
+  if (/^(https?:|data:|blob:)/i.test(imagePath) || imagePath.startsWith('/')) return imagePath
+  return `file://${imagePath}`
+}
+
 // ---- Props ----
 
 interface PptSlideNavigatorProps {
@@ -200,9 +205,9 @@ export default function PptSlideNavigator({
             <DirContent>
               {slide.imagePath ? (
                 <img
-                  src={`file://${slide.imagePath}`}
+                  src={toImageSrc(slide.imagePath)}
                   alt={`slide ${i + 1}`}
-                  style={{ width: '100%', borderRadius: 3, marginBottom: 3, display: 'block', border: '1px solid #e5e7eb' }}
+                  style={{ width: '100%', borderRadius: 4, marginBottom: 4, display: 'block', border: '1px solid #374151', background: '#fff' }}
                 />
               ) : null}
               <DirTitle $active={isActive}>{displayTitle}</DirTitle>

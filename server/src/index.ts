@@ -1,6 +1,7 @@
 import express from 'express'
 import cors from 'cors'
 import authRouter from './routes/auth'
+import pptRouter from './features/ppt/routes'
 
 const app = express()
 const PORT = Number(process.env.PORT ?? 3001)
@@ -18,6 +19,7 @@ app.use(
 app.use(express.json())
 
 app.use('/api/auth', authRouter)
+app.use('/api/ppt', pptRouter)
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', time: new Date().toISOString() })

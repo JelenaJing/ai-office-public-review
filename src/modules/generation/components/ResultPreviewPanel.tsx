@@ -680,6 +680,9 @@ export default function ResultPreviewPanel() {
   const pptOriginalFileName = workbench.sessions.ppt.pptOriginalFileName
   const pptImportStatus = workbench.sessions.ppt.pptImportStatus
   const pptImportWarnings = workbench.sessions.ppt.pptImportWarnings
+  const pptPreviewStatus = workbench.sessions.ppt.pptPreviewStatus
+  const pptPreviewMessage = workbench.sessions.ppt.pptPreviewMessage
+  const pptDownloadUrl = workbench.sessions.ppt.pptDownloadUrl
 
   const modeOption = getGenerationModeOption(currentMode)
   // document 结果优先读 formal template session；workbench.resultPath 仅用于兼容旧预览消费者。
@@ -878,18 +881,33 @@ export default function ResultPreviewPanel() {
   }, [activeWorkspacePath, refreshTree, saveActiveDocumentAs])
 
   const handleOpenPptx = async () => {
-    const pptxPath = workbench.resultPath
+    const pptxPath = pptDownloadUrl || workbench.resultPath
     if (!pptxPath) {
       setPreviewMessage('请先生成 PPT，再打开。')
+      return
+    }
+    if (/^(https?:)?\/\//i.test(pptxPath) || pptxPath.startsWith('/api/')) {
+      window.open(pptxPath, '_blank', 'noopener,noreferrer')
+      setPreviewMessage('已在浏览器中打开 PPT 下载链接。')
       return
     }
     await handleOpenPath(pptxPath, '已用 PowerPoint 打开 PPT 文件。', '打开 PPT 文件失败')
   }
 
   const handleDownloadPptx = async () => {
-    const pptxPath = workbench.resultPath
+    const pptxPath = pptDownloadUrl || workbench.resultPath
     if (!pptxPath) {
       setPreviewMessage('请先生成 PPT，再下载结果。')
+      return
+    }
+    if (/^(https?:)?\/\//i.test(pptxPath) || pptxPath.startsWith('/api/')) {
+      const anchor = document.createElement('a')
+      anchor.href = pptxPath
+      anchor.download = getFileName(workbench.resultTitle) || '演示文稿.pptx'
+      document.body.appendChild(anchor)
+      anchor.click()
+      anchor.remove()
+      setPreviewMessage('已开始下载 PPT。')
       return
     }
     const defaultName = getFileName(pptxPath) || '演示文稿.pptx'
@@ -1894,6 +1912,8 @@ export default function ResultPreviewPanel() {
           originalFileName={pptOriginalFileName}
           importStatus={pptImportStatus}
           importWarnings={pptImportWarnings}
+          previewStatus={pptPreviewStatus}
+          previewMessage={pptPreviewMessage}
           resultPath={workbench.resultPath}
           workspacePath={activeWorkspacePath}
           availableSkills={pptAvailableSkills}

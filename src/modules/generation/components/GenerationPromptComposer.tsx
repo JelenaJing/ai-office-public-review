@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Mic, RefreshCw } from 'lucide-react'
 import { useDocument } from '../../../contexts/DocumentContext'
 import { useFormalTemplateSession } from '../../formal/contexts/FormalTemplateSessionContext'
-import { useGenerationWorkbench, type PptSlidePreview } from '../../../contexts/GenerationWorkbenchContext'
+import { useGenerationWorkbench, type PptSlidePreview, type PptTaskStatus } from '../../../contexts/GenerationWorkbenchContext'
 import { useKnowledge } from '../../../contexts/KnowledgeContext'
 import { useWorkspace } from '../../../contexts/WorkspaceContext'
 import { useWorkspaceMode } from '../../../contexts/WorkspaceModeContext'
@@ -46,6 +46,13 @@ import { startChineseVoskVoiceInput, supportsVoskVoiceInput, type VoskVoiceInput
 import { assembleDeckDocument } from '../ppt/assembleDeckDocument'
 import { validateDeckDocumentOutput } from '../ppt/validateDeckDocumentOutput'
 import {
+  getMiniMaxPptxSession,
+  getMiniMaxPptxTask,
+  isWebMiniMaxPptxPreferred,
+  startMiniMaxPptxTask,
+  type MiniMaxPptxTask,
+} from '../ppt/minimaxPptxApi'
+import {
   type UnifiedComposerCapabilities,
   UnifiedComposerActionRow,
   UnifiedComposerAssist,
@@ -62,6 +69,7 @@ import {
 const PPT_TEXT_SOURCE_TYPES: KnowledgeSourceType[] = ['pdf', 'docx', 'doc', 'txt', 'md', 'pptx']
 const PPT_WORD_CONTENT_CHAR_BUDGET = 16000
 const PPT_EVIDENCE_CHAR_BUDGET = 12000
+const MINIMAX_PPTX_POLL_INTERVAL_MS = 1200
 
 function isWordKnowledgeDocument(document: KnowledgeDocumentMeta | null | undefined): document is KnowledgeDocumentMeta {
   return Boolean(document && (document.sourceType === 'doc' || document.sourceType === 'docx'))
@@ -87,6 +95,21 @@ function intentToSlideType(intent: string): string {
     case 'closing': return 'summary'
     default: return 'content'
   }
+}
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms)
+  })
+}
+
+function minimaxTaskToPptStatus(task: MiniMaxPptxTask): PptTaskStatus {
+  if (task.status === 'completed') return 'completed'
+  if (task.status === 'failed') return 'failed'
+  if (task.progress < 30) return 'generating_outline'
+  if (task.progress < 65) return 'generating_deck'
+  if (task.progress < 92) return 'rendering_pptx'
+  return 'rendering_preview'
 }
 
 function splitKnowledgeParagraphs(text: string): string[] {
@@ -880,9 +903,126 @@ export default function GenerationPromptComposer() {
     }
   }
 
+  const runMiniMaxDirectPpt = async (rawUserPrompt: string) => {
+    const title = rawUserPrompt.slice(0, 60) || '演示文稿'
+
+    workbench.setGenerationStatus('running', '正在启动 MiniMax Direct PPTX 任务...')
+    workbench.setModeSession('ppt', (session) => ({
+      ...session,
+      pptTaskStatus: 'generating_outline',
+      generationStatus: {
+        phase: 'running',
+        message: '正在启动 MiniMax Direct PPTX 任务...',
+        updatedAt: new Date().toISOString(),
+      },
+    }))
+
+    const started = await startMiniMaxPptxTask({
+      prompt: rawUserPrompt,
+      title,
+      workspacePath: activeWorkspacePath || undefined,
+    })
+    pptTaskIdRef.current = started.taskId
+
+    let finalTask: MiniMaxPptxTask | null = null
+    while (!pptStopRef.current) {
+      await wait(MINIMAX_PPTX_POLL_INTERVAL_MS)
+      const task = await getMiniMaxPptxTask(started.taskId)
+      finalTask = task
+      const taskStatus = minimaxTaskToPptStatus(task)
+      const message = `${task.message || 'MiniMax PPTX 生成中'} · ${Math.round(task.progress)}%`
+
+      workbench.setGenerationStatus(task.status === 'failed' ? 'error' : 'running', message)
+      workbench.setModeSession('ppt', (session) => ({
+        ...session,
+        activeTaskId: started.taskId,
+        pptTaskStatus: taskStatus,
+        generationStatus: {
+          phase: task.status === 'failed' ? 'error' : 'running',
+          message,
+          updatedAt: new Date().toISOString(),
+        },
+      }))
+
+      if (task.status === 'completed' || task.status === 'failed') break
+    }
+
+    if (pptStopRef.current) {
+      const message = '已停止前端等待；服务器任务可能仍在后台完成。'
+      workbench.setModeSession('ppt', (session) => ({
+        ...session,
+        pptTaskStatus: 'stopped',
+        generationStatus: {
+          phase: 'completed',
+          message,
+          updatedAt: new Date().toISOString(),
+        },
+      }))
+      workbench.setGenerationStatus('completed', message)
+      return
+    }
+
+    if (!finalTask || finalTask.status !== 'completed' || !finalTask.result?.sessionId) {
+      throw new Error(finalTask?.error || finalTask?.message || 'MiniMax PPTX 生成失败')
+    }
+
+    const session = await getMiniMaxPptxSession(finalTask.result.sessionId)
+    const previewSlides: PptSlidePreview[] = session.previewImages.map((imagePath, index) => ({
+      index,
+      type: index === 0 ? 'cover' : index === session.previewImages.length - 1 ? 'summary' : 'content',
+      title: index === 0 ? session.title : `第 ${index + 1} 页`,
+      heading: index === 0 ? session.title : `第 ${index + 1} 页`,
+      imagePath,
+      imageLoading: false,
+      isGenerating: false,
+    }))
+
+    const completedMessage = session.previewStatus === 'ready'
+      ? `PPT 已生成（${session.slideCount} 页），预览图已就绪。`
+      : 'PPT 已生成，可下载；当前服务器未安装预览组件。'
+
+    workbench.setGenerationStatus('completed', completedMessage)
+    workbench.setModeSession('ppt', (sessionState) => ({
+      ...sessionState,
+      resultType: 'pptx',
+      resultAssetId: session.downloadUrl,
+      resultPath: session.downloadUrl,
+      resultTitle: `${session.title || 'presentation'}.pptx`,
+      resultPreviewText: '',
+      resultPreviewUrl: null,
+      activeTaskId: started.taskId,
+      pptTaskStatus: 'completed',
+      pptTotalSlides: session.slideCount,
+      pptLiveSlides: previewSlides,
+      pptPreviewSlides: previewSlides.map((slide) => ({
+        index: slide.index,
+        imagePath: slide.imagePath || '',
+        title: slide.title,
+      })),
+      pptPreviewStatus: session.previewStatus,
+      pptPreviewMessage: session.previewMessage || completedMessage,
+      pptSessionId: session.id,
+      pptDownloadUrl: session.downloadUrl,
+      pptActiveSlideIndex: 0,
+      pptContentPackageId: null,
+      pptDeckDocumentId: null,
+      pptDeckPath: null,
+      pptActiveSkillId: 'minimax_direct',
+      pptActiveTemplateManifestId: null,
+      generationStatus: {
+        phase: 'completed',
+        message: completedMessage,
+        updatedAt: new Date().toISOString(),
+      },
+      lastUpdatedAt: new Date().toISOString(),
+    }))
+    setStatusMessage(completedMessage)
+  }
+
   const handleGeneratePpt = async (opts?: { fromManuscriptAutoSubmit?: boolean }) => {
     if (pptRunningRef.current) return
-    if (!activeWorkspacePath) {
+    const useMiniMaxDirect = isWebMiniMaxPptxPreferred()
+    if (!activeWorkspacePath && !useMiniMaxDirect) {
       const message = '请先打开工作区，再生成 PPT。'
       workbench.setGenerationStatus('error', message)
       setStatusMessage(message)
@@ -920,9 +1060,21 @@ export default function GenerationPromptComposer() {
       pptImportStatus: null,
       pptImportWarnings: [],
       pptPreviewSlides: [],
+      pptPreviewStatus: null,
+      pptPreviewMessage: null,
+      pptSessionId: null,
+      pptDownloadUrl: null,
     }))
 
     try {
+      if (useMiniMaxDirect) {
+        await runMiniMaxDirectPpt(rawUserPrompt)
+        return
+      }
+      if (!activeWorkspacePath) {
+        throw new Error('请先打开工作区，再生成 PPT。')
+      }
+
       /* ── 0. Fetch context data once (before any LLM call) ── */
       const contextData = await fetchPptContextData(
         effectivePptDepartmentId,
@@ -1230,6 +1382,7 @@ export default function GenerationPromptComposer() {
         heading: s.heading,
         isGenerating: false,
         imageLoading: false,
+        imagePath: null,
       }))
       workbench.setModeSession('ppt', (session) => ({
         ...session,
@@ -1839,7 +1992,7 @@ export default function GenerationPromptComposer() {
 
       // Placeholder slides for not-yet-generated slides
       const remainingPlaceholders = outline.slides.slice(resumeFromIndex).map((s) => ({
-        index: s.index, type: s.role, heading: s.heading, isGenerating: false, imageLoading: false,
+        index: s.index, type: s.role, heading: s.heading, isGenerating: false, imageLoading: false, imagePath: null,
       }))
 
       workbench.setModeSession('ppt', (session) => ({

@@ -30,6 +30,7 @@ export type GenerationResultType = 'docx' | 'image' | 'ppt-outline' | 'pptx' | '
 
 export type PptTaskStatus = 'idle' | 'importing' | 'extracting' | 'building_deck' | 'ready' | 'generating_outline' | 'generating_plan' | 'generating_slide' | 'generating_content' | 'generating_deck' | 'validating_deck' | 'saving_deck' | 'generating_image' | 'generating_assets' | 'rendering_preview' | 'rendering_pptx' | 'applying_template' | 'stopped' | 'completed' | 'failed'
 export type PptSourceType = 'generated' | 'imported_pptx' | 'email_attachment'
+export type PptPreviewStatus = 'pending' | 'ready' | 'unavailable' | 'failed' | null
 
 export interface PptSlidePreview {
   index: number
@@ -119,6 +120,10 @@ export interface GenerationModeSession {
   pptImportStatus: 'importing' | 'extracting' | 'building_deck' | 'ready' | 'failed' | null
   pptImportWarnings: string[]
   pptPreviewSlides: Array<{ index: number; imagePath: string; title?: string }>
+  pptPreviewStatus: PptPreviewStatus
+  pptPreviewMessage: string | null
+  pptSessionId: string | null
+  pptDownloadUrl: string | null
   resultChartPaths: string[] | null
   pptContentPackageId: string | null
   pptActiveSkillId: string | null
@@ -236,6 +241,10 @@ function createEmptySession(): GenerationModeSession {
     pptImportStatus: null,
     pptImportWarnings: [],
     pptPreviewSlides: [],
+    pptPreviewStatus: null,
+    pptPreviewMessage: null,
+    pptSessionId: null,
+    pptDownloadUrl: null,
     resultChartPaths: null,
     pptContentPackageId: null,
     pptActiveSkillId: null,

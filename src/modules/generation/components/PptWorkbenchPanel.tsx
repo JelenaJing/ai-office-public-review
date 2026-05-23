@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import styled, { keyframes } from 'styled-components'
-import type { PptSlidePreview, PptSourceType, PptTaskStatus } from '../../../contexts/GenerationWorkbenchContext'
+import type { PptPreviewStatus, PptSlidePreview, PptSourceType, PptTaskStatus } from '../../../contexts/GenerationWorkbenchContext'
 import PptSlideNavigator from './PptSlideNavigator'
 import PptSkillDrawer from './PptSkillDrawer'
 
@@ -185,6 +185,7 @@ const Body = styled.div`
 // ---- Center preview area ----------------------------------------
 
 const CenterArea = styled.div`
+  position: relative;
   flex: 1;
   min-width: 0;
   display: flex;
@@ -195,6 +196,37 @@ const CenterArea = styled.div`
   background: #eef2f7;
   overflow: auto;
   gap: 10px;
+`
+
+const PageBadge = styled.div`
+  position: absolute;
+  right: 18px;
+  bottom: 14px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.78);
+  color: #fff;
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.18);
+`
+
+const PageControlGroup = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px;
+  border: 1px solid #dbe4ef;
+  border-radius: 999px;
+  background: #f8fafc;
+`
+
+const PageText = styled.span`
+  min-width: 58px;
+  text-align: center;
+  color: #334155;
+  font-size: var(--font-size-xs);
+  font-weight: 700;
 `
 
 const EmptyCard = styled.div`
@@ -495,6 +527,11 @@ function getStatusLabel(
   }
 }
 
+function toImageSrc(imagePath: string): string {
+  if (/^(https?:|data:|blob:)/i.test(imagePath) || imagePath.startsWith('/')) return imagePath
+  return `file://${imagePath}`
+}
+
 // ---- Props ------------------------------------------------------
 
 interface PptWorkbenchPanelProps {
@@ -521,6 +558,8 @@ interface PptWorkbenchPanelProps {
   originalFileName?: string | null
   importStatus?: 'importing' | 'extracting' | 'building_deck' | 'ready' | 'failed' | null
   importWarnings?: string[]
+  previewStatus?: PptPreviewStatus
+  previewMessage?: string | null
 
   onStop: () => void
   onResume?: () => void
@@ -562,6 +601,8 @@ export default function PptWorkbenchPanel({
   originalFileName,
   importStatus,
   importWarnings = [],
+  previewStatus = null,
+  previewMessage,
   onStop,
   onResume,
   onExportPartial,
@@ -780,7 +821,7 @@ export default function PptWorkbenchPanel({
         return (
           <CenterArea style={{ padding: 18, background: '#f3f6fa', justifyContent: 'center', alignItems: 'center' }}>
             <img
-              src={`file://${activeSlide.imagePath}`}
+              src={toImageSrc(activeSlide.imagePath)}
               alt={`Slide ${activeSlideIndex + 1}`}
               style={{
                 maxWidth: '100%',
@@ -791,6 +832,7 @@ export default function PptWorkbenchPanel({
                 boxShadow: '0 10px 30px rgba(15,23,42,0.14)',
               }}
             />
+            <PageBadge>{activeSlideIndex + 1} / {totalSlides || liveSlides.length}</PageBadge>
           </CenterArea>
         )
       }
@@ -831,12 +873,17 @@ export default function PptWorkbenchPanel({
 
     // 5. Completed — DeckDocument path (no live slides, PPTX file ready)
     if (uiState === 'completed' && liveSlides.length === 0) {
+      const previewUnavailable = previewStatus === 'unavailable' || previewStatus === 'failed'
       return (
         <CenterArea>
           <EmptyCard style={{ borderColor: '#86efac' }}>
             <EmptyIcon style={{ color: '#16a34a', fontSize: 32 }}>&#10003;</EmptyIcon>
             <EmptyTitle style={{ color: '#15803d' }}>PPT 已生成</EmptyTitle>
-            <EmptyDesc>{totalSlides > 0 ? `共 ${totalSlides} 页 · 请点击下载` : '请点击右侧下载'}</EmptyDesc>
+            <EmptyDesc>
+              {previewUnavailable
+                ? (previewMessage || 'PPT 已生成，可下载；当前服务器未安装预览组件。')
+                : totalSlides > 0 ? `共 ${totalSlides} 页 · 请点击下载` : '请点击右侧下载'}
+            </EmptyDesc>
           </EmptyCard>
         </CenterArea>
       )
@@ -967,6 +1014,25 @@ export default function PptWorkbenchPanel({
         <StatusText title={templateEntryMessage || templateStatusMessage || importWarnings[0] || statusLabel}>
           {templateEntryMessage || templateStatusMessage || importWarnings[0] || statusLabel}
         </StatusText>
+        <PageControlGroup>
+          <ToolBtn
+            type="button"
+            onClick={() => onSelectSlide(Math.max(0, activeSlideIndex - 1))}
+            disabled={activeSlideIndex <= 0 || liveSlides.length === 0}
+          >
+            上一页
+          </ToolBtn>
+          <PageText>{liveSlides.length > 0 ? `${activeSlideIndex + 1} / ${liveSlides.length}` : '0 / 0'}</PageText>
+          <ToolBtn
+            type="button"
+            onClick={() => onSelectSlide(Math.min(liveSlides.length - 1, activeSlideIndex + 1))}
+            disabled={activeSlideIndex >= liveSlides.length - 1 || liveSlides.length === 0}
+          >
+            下一页
+          </ToolBtn>
+          <ToolBtn type="button" disabled title="即将支持">插入页</ToolBtn>
+          <ToolBtn type="button" disabled title="即将支持">删除</ToolBtn>
+        </PageControlGroup>
         <TemplateSummary
           type="button"
           onClick={handleOpenTemplateDrawer}
